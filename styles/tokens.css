@@ -64,13 +64,14 @@
   --dataviz-size-marker-lg: 8px;
   --dataviz-size-marker-md: 6px;
   --dataviz-size-marker-sm: 4px;
-  --dataviz-semantic-neutral: #6B7280;
-  --dataviz-semantic-negative: #E24545;
-  --dataviz-semantic-positive: #1FBF75;
-  --dataviz-axis-line: #D3D9E1;
-  --dataviz-axis-label: #3C424A;
-  --dataviz-grid-minor: #F1F4F8;
-  --dataviz-grid-major: #E7ECF2;
+  /* semantic → foundation (dataviz) */
+  --dataviz-semantic-neutral: var(--color-fg-subtle);
+  --dataviz-semantic-negative: var(--color-status-alert);
+  --dataviz-semantic-positive: var(--color-status-ok);
+  --dataviz-axis-line: var(--color-border-default);
+  --dataviz-axis-label: var(--color-fg-muted);
+  --dataviz-grid-minor: var(--color-grid-minor);
+  --dataviz-grid-major: var(--color-grid-major);
   --dataviz-series-12: #55C1FF;
   --dataviz-series-11: #33658A;
   --dataviz-series-10: #F6AE2D;
@@ -83,6 +84,7 @@
   --dataviz-series-3: #910000;
   --dataviz-series-2: #8BBC21;
   --dataviz-series-1: #2F7ED8;
+  /* foundation values (оставляем HEX): status-surface-* */
   --color-status-surface-info-border: #b8e6f6;
   --color-status-surface-info-bg: #e9f7fd;
   --color-status-surface-alert-border: #f3bdc6;
@@ -115,6 +117,10 @@
   --color-brand-blue-500: #2fafea;
   --component-card-shadow: var(--shadow-z1);
   --component-button-primary-bg: var(--color-brand-blue-500);
+  /* semantic → foundation (components) */
+  --component-button-primary-hover: var(--color-brand-blue-500);
+  --component-tooltip-bg: var(--color-neutral-950);
+  --component-tooltip-text: var(--color-neutral-000);
   --a11y-focus-ring-color: var(--color-brand-blue-500);
   --color-grid-minor: var(--color-neutral-200);
   --color-grid-major: var(--color-neutral-300);
