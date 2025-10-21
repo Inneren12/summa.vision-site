@@ -1,0 +1,6 @@
+<svg width="640" height="160" viewBox="0 0 640 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="160" fill="#0D1117"/>
+  <path d="M64 32L112 128L160 32" stroke="#F5F7FA" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="112" cy="76" r="22" fill="#2962FF"/>
+  <text x="208" y="104" fill="#F5F7FA" font-family="'Space Grotesk', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="72" letter-spacing="2">SUMMA VISION</text>
+</svg>
