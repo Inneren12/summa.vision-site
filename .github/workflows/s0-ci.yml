@@ -26,6 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
+      # PR-гейт: не пропускаем BIN в code-only PR
       - name: "Ensure no BIN files in PR"
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
@@ -51,17 +52,20 @@ jobs:
           nl -ba .github/workflows/s0-ci.yml
           echo "::endgroup::"
 
+      # 1) Node без кэша (чтобы не трогать pnpm до активации)
       - name: "Setup Node (no cache yet)"
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # 2) Corepack + pnpm (активация до шага с кэшем)
       - name: "Enable Corepack + PNPM"
         run: |
           corepack enable
           corepack prepare pnpm@9.12.3 --activate
           pnpm -v
 
+      # 3) Кэш pnpm только если есть pnpm-lock.yaml
       - name: "Setup Node cache for pnpm (only if pnpm-lock.yaml exists)"
         if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
         uses: actions/setup-node@v4
@@ -112,6 +116,7 @@ jobs:
           set -euo pipefail
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
 
+          # собрать директории кода
           dirs=()
           for d in src app styles og; do [ -d "$d" ] && dirs+=("$d"); done
           if [ ${#dirs[@]} -eq 0 ]; then
@@ -119,6 +124,7 @@ jobs:
             exit 0
           fi
 
+          # список файлов (исключая системные каталоги и токенные артефакты)
           mapfile -t FILES < <(
             find "${dirs[@]}" \
               -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
@@ -132,12 +138,16 @@ jobs:
             exit 0
           fi
 
+          # поиск HEX
           > /tmp/raw_colors.txt
           grep -nE "$PATTERN" "${FILES[@]}" > /tmp/raw_colors.txt || true
 
-          # safety exclusion (even if find slips)
-          sed -i '/\/src\/shared\/theme\/tokens\.ts:/d' /tmp/raw_colors.txt
-          sed -i '/\/styles\/tokens\.css:/d' /tmp/raw_colors.txt
+          # нормализуем переводы строк
+          sed -i 's/\r$//' /tmp/raw_colors.txt
+
+          # вырезаем tokens.ts и styles/tokens.css (и относительные, и абсолютные пути)
+          sed -i -E '/(^|.*\/)src\/shared\/theme\/tokens\.ts:/d' /tmp/raw_colors.txt
+          sed -i -E '/(^|.*\/)styles\/tokens\.css:/d'         /tmp/raw_colors.txt
 
           if [ -s /tmp/raw_colors.txt ]; then
             echo "### Raw color references found" >> $GITHUB_STEP_SUMMARY
