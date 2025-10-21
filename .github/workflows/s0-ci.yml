@@ -244,49 +244,41 @@ jobs:
         name: "Detect Storybook deps & preset"
         run: |
           set -e
-          # нет конфига — сразу пропускаем
+          # 1) нет .storybook — не билдим
           if [ ! -d ".storybook" ]; then
             echo "can_build_storybook=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # нет package.json — пропускаем
+          # 2) нет package.json — не билдим
           if [ ! -f "package.json" ]; then
             echo "can_build_storybook=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # проверяем: есть ли @storybook/* в deps и доступен ли требуемый пресет из конфига
+          # 3) вычислить, можно ли билдить (есть ли @storybook/* и требуемый пресет)
           CAN=$(
-            node - <<'NODE'
-            const fs = require('fs');
-            const path = require('path');
-            function hasStorybookPkgs(pkg){
-              const has = deps => deps && Object.keys(deps).some(d => d.startsWith('@storybook/'));
-              return has(pkg.dependencies)||has(pkg.devDependencies);
-            }
-            function presetRequiredInConfig(){
-              const candidates = ['.storybook/main.js','.storybook/main.cjs','.storybook/main.mjs','.storybook/main.ts'];
-              for(const f of candidates){
-                if(fs.existsSync(f)){
-                  const txt = fs.readFileSync(f,'utf8');
-                  if (/@storybook\/react-vite\/preset/.test(txt)) return '@storybook/react-vite/preset';
+            node -e "
+              const fs=require('fs'); const path=require('path');
+              const hasSb=(deps)=>deps&&Object.keys(deps).some(d=>d.startsWith('@storybook/'));
+              let ok=false;
+              try{
+                const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+                const hasPkgs = hasSb(pkg.dependencies)||hasSb(pkg.devDependencies);
+                const mains=['.storybook/main.js','.storybook/main.cjs','.storybook/main.mjs','.storybook/main.ts'];
+                let preset=null;
+                for(const f of mains){
+                  if(fs.existsSync(f)){
+                    const txt=fs.readFileSync(f,'utf8');
+                    if(/@storybook\\/react-vite\\/preset/.test(txt)){ preset='@storybook/react-vite/preset'; break; }
+                  }
                 }
-              }
-              return null;
-            }
-            let ok = false;
-            try{
-              const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
-              const hasPkgs = hasStorybookPkgs(pkg);
-              const requiredPreset = presetRequiredInConfig();
-              let presetOk = true;
-              if (requiredPreset){
-                try { require.resolve(requiredPreset, { paths: [process.cwd()] }); }
-                catch { presetOk = false; }
-              }
-              ok = hasPkgs && presetOk;
-            }catch(e){ ok = false; }
-            process.stdout.write(String(ok));
-            NODE
+                let presetOk=true;
+                if(preset){
+                  try{ require.resolve(preset,{paths:[process.cwd()]}); }catch{ presetOk=false; }
+                }
+                ok = hasPkgs && presetOk;
+              }catch{ ok=false; }
+              process.stdout.write(String(ok));
+            "
           )
           echo "can_build_storybook=$CAN" >> "$GITHUB_OUTPUT"
 
