@@ -66,7 +66,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install deps (pnpm if lockfile, otherwise npm)
+      - name: Install deps (pnpm if lockfile, otherwise npm; skip if no package.json)
         run: |
           set -e
           if [ -f pnpm-lock.yaml ]; then
@@ -75,9 +75,11 @@ jobs:
           elif [ -f package-lock.json ]; then
             echo "Using npm ci (package-lock.json found)"
             npm ci
-          else
-            echo "Using npm i (no lockfile found)"
+          elif [ -f package.json ]; then
+            echo "Using npm i (package.json found)"
             npm i
+          else
+            echo "No package.json found; skipping install."
           fi
 
       - name: Verify token source exists
@@ -89,7 +91,7 @@ jobs:
         run: |
           set -e
           # 1) если есть скрипт в package.json
-          if npm run -s tokens:build >/dev/null 2>&1; then
+          if [ -f package.json ] && npm run -s tokens:build >/dev/null 2>&1; then
             npm run -s tokens:build
             echo "tokens:build OK (package script)"
           # 2) резерв — прямой вызов tsx-скрипта
@@ -116,9 +118,12 @@ jobs:
           fi
 
           # Ищем во всех кодовых файлах; исключаем tokens/.storybook/node_modules/.next/dist
+          # и явные артефакты токенов: styles/tokens.css и src/shared/theme/tokens.ts
           grep -RInE "$PATTERN" "${dirs[@]}" \
             --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
             --exclude-dir=tokens --exclude-dir=.storybook \
+            --exclude='styles/tokens.css' \
+            --exclude='src/shared/theme/tokens.ts' \
             --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.css' --include='*.html' \
             > /tmp/raw_colors.txt || true
 
