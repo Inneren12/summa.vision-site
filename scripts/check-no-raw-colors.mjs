@@ -1,31 +1,34 @@
 #!/usr/bin/env node
-import { readdir, readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 
 const ROOT = path.resolve(process.cwd());
-const IGNORE_DIRS = new Set(['.git', 'node_modules', 'dist']);
+const IGNORE_DIRS = new Set([".git", "node_modules", "dist", ".next", "coverage"]);
 const ALLOWED_PATHS = [
-  path.join(ROOT, 'tokens'),
-  path.join(ROOT, 'styles', 'tokens.css'),
-  path.join(ROOT, 'src', 'shared', 'theme', 'tokens.ts'),
-  path.join(ROOT, 'package-lock.json'),
-  path.join(ROOT, 'public'),
+  path.join(ROOT, "tokens"),
+  path.join(ROOT, "styles", "tokens.css"),
+  path.join(ROOT, "src", "shared", "theme", "tokens.ts"),
+  path.join(ROOT, "package-lock.json"),
+  path.join(ROOT, "public"),
+  path.join(ROOT, "apps", "web", "app", "tokens.css"),
+  path.join(ROOT, "apps", "web", "app", "typography.css"),
+  path.join(ROOT, "apps", "web", "tailwind.config.ts"),
 ];
 const BINARY_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.mp4',
-  '.mp3',
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.eot',
-  '.ico',
-  '.svg',
-  '.pdf',
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".mp4",
+  ".mp3",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
+  ".ico",
+  ".svg",
+  ".pdf",
 ]);
 
 const COLOR_REGEX = /#([0-9a-fA-F]{3,8})\b|rgba?\(|hsla?\(/g;
@@ -54,7 +57,7 @@ async function walk(dir) {
       continue;
     }
 
-    const contents = await readFile(fullPath, 'utf8');
+    const contents = await readFile(fullPath, "utf8");
     const matches = contents.match(COLOR_REGEX);
     if (matches) {
       issues.push({ file: path.relative(ROOT, fullPath), matches: Array.from(new Set(matches)) });
@@ -68,17 +71,17 @@ async function main() {
   const issues = await walk(ROOT);
   if (issues.length > 0) {
     // eslint-disable-next-line no-console
-    console.error('Raw color values detected outside token sources:');
+    console.error("Raw color values detected outside token sources:");
     issues.forEach((issue) => {
       // eslint-disable-next-line no-console
-      console.error(`- ${issue.file}: ${issue.matches.join(', ')}`);
+      console.error(`- ${issue.file}: ${issue.matches.join(", ")}`);
     });
     process.exitCode = 1;
     return;
   }
 
   // eslint-disable-next-line no-console
-  console.log('No raw color literals detected.');
+  console.log("No raw color literals detected.");
 }
 
 void main();

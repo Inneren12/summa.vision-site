@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* generated tokens and typography are copied via scripts */
+@import "./tokens.css";
+@import "./typography.css";

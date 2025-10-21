@@ -1,130 +1,139 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import React from 'react';
-import './brand-stories.css';
-import type { TokenMeta } from './utils';
-import { resolveToken, tokenPathToCssVar } from './utils';
+import type { Meta, StoryObj } from "@storybook/react";
+import React from "react";
+
+import "./brand-stories.css";
+import type { TokenMeta } from "./utils";
+import { resolveToken, tokenPathToCssVar } from "./utils";
 
 type TypeSpec = {
   name: string;
-  size: TokenMeta['token'];
-  lineHeight: TokenMeta['token'];
-  weight: TokenMeta['token'];
+  size: TokenMeta["token"];
+  lineHeight: TokenMeta["token"];
+  weight: TokenMeta["token"];
   sample: string;
   description: string;
-  family?: TokenMeta['token'];
+  family?: TokenMeta["token"];
 };
 
 const typeScale: TypeSpec[] = [
   {
-    name: 'Display',
-    size: 'font.size.display',
-    lineHeight: 'font.lineHeight.tight',
-    weight: 'font.weight.semibold',
-    sample: 'Data illuminates action.',
-    description: 'Hero headlines and marquee statements.',
+    name: "Display",
+    size: "font.size.display",
+    lineHeight: "font.lineHeight.tight",
+    weight: "font.weight.semibold",
+    sample: "Data illuminates action.",
+    description: "Hero headlines and marquee statements.",
   },
   {
-    name: 'H1',
-    size: 'font.size.h1',
-    lineHeight: 'font.lineHeight.tight',
-    weight: 'font.weight.semibold',
-    sample: 'Open budgets, shared insight.',
-    description: 'Top-level page and section titles.',
+    name: "H1",
+    size: "font.size.h1",
+    lineHeight: "font.lineHeight.tight",
+    weight: "font.weight.semibold",
+    sample: "Open budgets, shared insight.",
+    description: "Top-level page and section titles.",
   },
   {
-    name: 'H2',
-    size: 'font.size.h2',
-    lineHeight: 'font.lineHeight.snug',
-    weight: 'font.weight.semibold',
-    sample: 'Community metrics at a glance',
-    description: 'Feature callouts and summaries.',
+    name: "H2",
+    size: "font.size.h2",
+    lineHeight: "font.lineHeight.snug",
+    weight: "font.weight.semibold",
+    sample: "Community metrics at a glance",
+    description: "Feature callouts and summaries.",
   },
   {
-    name: 'H3',
-    size: 'font.size.h3',
-    lineHeight: 'font.lineHeight.snug',
-    weight: 'font.weight.medium',
-    sample: 'Ridership trend',
-    description: 'Card titles and inline analytics.',
+    name: "H3",
+    size: "font.size.h3",
+    lineHeight: "font.lineHeight.snug",
+    weight: "font.weight.medium",
+    sample: "Ridership trend",
+    description: "Card titles and inline analytics.",
   },
   {
-    name: 'H4',
-    size: 'font.size.h4',
-    lineHeight: 'font.lineHeight.normal',
-    weight: 'font.weight.medium',
-    sample: 'Budget allocation',
-    description: 'Subheadlines and key metrics.',
+    name: "H4",
+    size: "font.size.h4",
+    lineHeight: "font.lineHeight.normal",
+    weight: "font.weight.medium",
+    sample: "Budget allocation",
+    description: "Subheadlines and key metrics.",
   },
   {
-    name: 'H5',
-    size: 'font.size.h5',
-    lineHeight: 'font.lineHeight.normal',
-    weight: 'font.weight.medium',
-    sample: 'Navigation label',
-    description: 'UI labels and navigation.',
+    name: "H5",
+    size: "font.size.h5",
+    lineHeight: "font.lineHeight.normal",
+    weight: "font.weight.medium",
+    sample: "Navigation label",
+    description: "UI labels and navigation.",
   },
   {
-    name: 'Body',
-    size: 'font.size.body',
-    lineHeight: 'font.lineHeight.normal',
-    weight: 'font.weight.regular',
-    sample: 'Summa Vision translates civic open data into collective understanding.',
-    description: 'Long-form narrative copy.',
+    name: "Body",
+    size: "font.size.body",
+    lineHeight: "font.lineHeight.normal",
+    weight: "font.weight.regular",
+    sample: "Summa Vision translates civic open data into collective understanding.",
+    description: "Long-form narrative copy.",
   },
   {
-    name: 'Body Small',
-    size: 'font.size.bodySm',
-    lineHeight: 'font.lineHeight.snug',
-    weight: 'font.weight.regular',
-    sample: 'Updated: 12.04.2024 09:00 GMT+3',
-    description: 'Supporting metadata and captions.',
+    name: "Body Small",
+    size: "font.size.bodySm",
+    lineHeight: "font.lineHeight.snug",
+    weight: "font.weight.regular",
+    sample: "Updated: 12.04.2024 09:00 GMT+3",
+    description: "Supporting metadata and captions.",
   },
   {
-    name: 'Caption',
-    size: 'font.size.caption',
-    lineHeight: 'font.lineHeight.snug',
-    weight: 'font.weight.medium',
-    sample: 'Source: City Transit | CC-BY 4.0',
-    description: 'Chart axes and eyebrow labels.',
+    name: "Caption",
+    size: "font.size.caption",
+    lineHeight: "font.lineHeight.snug",
+    weight: "font.weight.medium",
+    sample: "Source: City Transit | CC-BY 4.0",
+    description: "Chart axes and eyebrow labels.",
   },
   {
-    name: 'Mono',
-    size: 'font.size.bodySm',
-    lineHeight: 'font.lineHeight.snug',
-    weight: 'font.weight.medium',
-    family: 'font.family.mono',
-    sample: '1,024 municipalities • 87 datasets',
-    description: 'Tabular data and inline stats.',
+    name: "Mono",
+    size: "font.size.bodySm",
+    lineHeight: "font.lineHeight.snug",
+    weight: "font.weight.medium",
+    family: "font.family.mono",
+    sample: "1,024 municipalities • 87 datasets",
+    description: "Tabular data and inline stats.",
   },
 ];
 
 const fontFamilies: TokenMeta[] = [
-  { token: 'font.family.sans', label: 'Sans', description: 'Primary UI and editorial typeface stack.' },
-  { token: 'font.family.mono', label: 'Mono', description: 'Data, code, and tabular numerals.' },
+  {
+    token: "font.family.sans",
+    label: "Sans",
+    description: "Primary UI and editorial typeface stack.",
+  },
+  { token: "font.family.mono", label: "Mono", description: "Data, code, and tabular numerals." },
 ];
 
 const lineHeights: TokenMeta[] = [
-  { token: 'font.lineHeight.tight', label: 'Tight', description: 'Display, H1' },
-  { token: 'font.lineHeight.snug', label: 'Snug', description: 'H2–H3, captions, mono' },
-  { token: 'font.lineHeight.normal', label: 'Normal', description: 'H4–Body' },
-  { token: 'font.lineHeight.relaxed', label: 'Relaxed', description: 'Long-form narrative moments' },
+  { token: "font.lineHeight.tight", label: "Tight", description: "Display, H1" },
+  { token: "font.lineHeight.snug", label: "Snug", description: "H2–H3, captions, mono" },
+  { token: "font.lineHeight.normal", label: "Normal", description: "H4–Body" },
+  {
+    token: "font.lineHeight.relaxed",
+    label: "Relaxed",
+    description: "Long-form narrative moments",
+  },
 ];
 
 const fontWeights: TokenMeta[] = [
-  { token: 'font.weight.regular', label: 'Regular', description: 'Body copy' },
-  { token: 'font.weight.medium', label: 'Medium', description: 'Headings, captions' },
-  { token: 'font.weight.semibold', label: 'Semibold', description: 'Display and hero text' },
-  { token: 'font.weight.bold', label: 'Bold', description: 'Emphasis, numeric callouts' },
+  { token: "font.weight.regular", label: "Regular", description: "Body copy" },
+  { token: "font.weight.medium", label: "Medium", description: "Headings, captions" },
+  { token: "font.weight.semibold", label: "Semibold", description: "Display and hero text" },
+  { token: "font.weight.bold", label: "Bold", description: "Emphasis, numeric callouts" },
 ];
 
 const meta = {
-  title: 'Brand/Typography',
+  title: "Brand/Typography",
   component: TypographyStory,
   parameters: {
     docs: {
       description: {
         component:
-          'Typography scale sourced directly from generated tokens. Font stacks, sizing, and rhythm demonstrate the shared system.',
+          "Typography scale sourced directly from generated tokens. Font stacks, sizing, and rhythm demonstrate the shared system.",
       },
     },
   },
@@ -135,7 +144,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function TypographyCard({ spec }: { spec: TypeSpec }) {
-  const fontFamilyToken = spec.family ?? 'font.family.sans';
+  const fontFamilyToken = spec.family ?? "font.family.sans";
   const fontSizeValue = resolveToken(spec.size);
   const lineHeightValue = resolveToken(spec.lineHeight);
   const weightValue = resolveToken(spec.weight);
@@ -152,7 +161,7 @@ function TypographyCard({ spec }: { spec: TypeSpec }) {
               fontSize: fontSizeValue,
               lineHeight: lineHeightValue,
               fontWeight: Number(weightValue),
-              fontVariantNumeric: spec.family ? 'tabular-nums' : undefined,
+              fontVariantNumeric: spec.family ? "tabular-nums" : undefined,
             }}
           >
             {spec.sample}
@@ -257,6 +266,6 @@ function TypographyStory() {
 }
 
 export const Typography: Story = {
-  name: 'Typography',
+  name: "Typography",
   render: () => <TypographyStory />,
 };

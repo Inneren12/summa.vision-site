@@ -9,6 +9,30 @@ npm install
 npm run build:tokens
 ```
 
+## Dev (web)
+
+```bash
+npm run web:dev
+```
+
+## Build
+
+```bash
+npm run web:build && npm run web:start
+```
+
+## Tokens
+
+```bash
+npm run build:tokens && npm run copy:tokens
+```
+
+## Tests
+
+```bash
+npm test
+```
+
 - `tokens/brand.tokens.json` — single source of truth for tokens.
 - `styles/tokens.css` — generated CSS custom properties (`:root`).
 - `styles/typography.css` — base typography and utility classes.
@@ -16,19 +40,21 @@ npm run build:tokens
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run build:tokens` | Generate CSS/TS artifacts from `tokens/brand.tokens.json`. |
-| `npm run lint:no-raw-colors` | Fail if raw HEX/RGB literals exist outside token sources. |
-| `npm run test:axe` | Run axe-core accessibility checks against OG templates (requires Playwright browsers; install via `npx playwright install`). |
+| Command                      | Description                                                                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `npm run build:tokens`       | Generate CSS/TS artifacts from `tokens/brand.tokens.json`.                                                                   |
+| `npm run lint:no-raw-colors` | Fail if raw HEX/RGB literals exist outside token sources.                                                                    |
+| `npm run test:axe`           | Run axe-core accessibility checks against OG templates (requires Playwright browsers; install via `npx playwright install`). |
 
 ## Documentation
+
 - `brand/BRAND_GUIDE.md` — logo usage, palette, typography, spacing.
 - `brand/USAGE.md` — how to consume tokens in CSS/TS.
 - `brand/NARRATIVE.md` — narrative and tone guidance.
 - `brand/og-guidelines.md` — OG layout and export tips.
 
 ## OG Rendering
+
 Generate social images via Playwright:
 
 ```bash

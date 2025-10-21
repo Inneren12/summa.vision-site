@@ -1,33 +1,34 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import React from 'react';
-import './brand-stories.css';
-import type { TokenMeta } from './utils';
-import { resolveToken, tokenPathToCssVar } from './utils';
+import type { Meta, StoryObj } from "@storybook/react";
+import React from "react";
+
+import "./brand-stories.css";
+import type { TokenMeta } from "./utils";
+import { resolveToken, tokenPathToCssVar } from "./utils";
 
 const shadowTokens: TokenMeta[] = [
-  { token: 'shadow.z1', label: 'Shadow Z1', description: 'Resting cards, buttons' },
-  { token: 'shadow.z2', label: 'Shadow Z2', description: 'Sticky nav, modals' },
-  { token: 'shadow.z3', label: 'Shadow Z3', description: 'Command palettes, dialogs' },
+  { token: "shadow.z1", label: "Shadow Z1", description: "Resting cards, buttons" },
+  { token: "shadow.z2", label: "Shadow Z2", description: "Sticky nav, modals" },
+  { token: "shadow.z3", label: "Shadow Z3", description: "Command palettes, dialogs" },
 ];
 
 const radiusTokens: TokenMeta[] = [
-  { token: 'radius.xs', label: 'Radius XS', description: 'Pills, chips' },
-  { token: 'radius.sm', label: 'Radius SM', description: 'Buttons, inputs' },
-  { token: 'radius.md', label: 'Radius MD', description: 'Cards, popovers' },
-  { token: 'radius.lg', label: 'Radius LG', description: 'Modals, sheets' },
-  { token: 'radius.xl', label: 'Radius XL', description: 'Hero tiles' },
-  { token: 'radius.2xl', label: 'Radius 2XL', description: 'Feature callouts' },
-  { token: 'radius.full', label: 'Radius Full', description: 'Avatars, dot motif' },
+  { token: "radius.xs", label: "Radius XS", description: "Pills, chips" },
+  { token: "radius.sm", label: "Radius SM", description: "Buttons, inputs" },
+  { token: "radius.md", label: "Radius MD", description: "Cards, popovers" },
+  { token: "radius.lg", label: "Radius LG", description: "Modals, sheets" },
+  { token: "radius.xl", label: "Radius XL", description: "Hero tiles" },
+  { token: "radius.2xl", label: "Radius 2XL", description: "Feature callouts" },
+  { token: "radius.full", label: "Radius Full", description: "Avatars, dot motif" },
 ];
 
 const meta = {
-  title: 'Brand/Elevation',
+  title: "Brand/Elevation",
   component: ElevationStory,
   parameters: {
     docs: {
       description: {
         component:
-          'Shadow and radius primitives applied to representative UI blocks. Preview cards read CSS custom properties while metadata references `tokens.ts`.',
+          "Shadow and radius primitives applied to representative UI blocks. Preview cards read CSS custom properties while metadata references `tokens.ts`.",
       },
     },
   },
@@ -98,7 +99,8 @@ function ElevationStory() {
           <div className="brand-section__header">
             <h2 className="brand-section__title">Shadows</h2>
             <p className="brand-section__description">
-              Each layer references a tokenized composite shadow to keep elevations consistent across surfaces.
+              Each layer references a tokenized composite shadow to keep elevations consistent
+              across surfaces.
             </p>
           </div>
           <div className="brand-shadow-preview">
@@ -127,6 +129,6 @@ function ElevationStory() {
 }
 
 export const Elevation: Story = {
-  name: 'Elevation',
+  name: "Elevation",
   render: () => <ElevationStory />,
 };

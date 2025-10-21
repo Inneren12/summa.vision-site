@@ -2,26 +2,55 @@
   "name": "summa-vision-brand",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "build:tokens": "tsx scripts/build-tokens.ts",
+    "copy:tokens": "node ./scripts/copy-tokens.cjs",
+    "web:dev": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run dev",
+    "web:build": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run build",
+    "web:start": "npm --workspace apps/web run start",
+    "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
+    "typecheck": "npm --workspace apps/web run typecheck",
+    "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run web:test",
     "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
     "test:axe": "tsx scripts/og-axe-check.ts",
+    "ci:check": "npm run typecheck && npm run lint && npm run lint:no-raw-colors && npm run test && npm run web:build",
     "build": "npm run build:tokens",
     "storybook": "storybook dev -p 6006",
-    "build:storybook": "storybook build"
+    "build:storybook": "storybook build",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.8.3",
+    "@commitlint/cli": "^19.3.0",
+    "@commitlint/config-conventional": "^19.2.2",
     "@storybook/addon-essentials": "^8.1.0",
     "@storybook/react-vite": "^8.1.0",
+    "@types/node": "^20.11.0",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "axe-core": "^4.8.2",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.8",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-unused-imports": "^3.2.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.7",
     "playwright": "^1.41.2",
+    "prettier": "^3.3.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "storybook": "^8.1.0",
     "style-dictionary": "^3.9.1",
-    "tsx": "^4.8.1"
+    "tsx": "^4.8.1",
+    "typescript": "5.5.4"
   }
 }
