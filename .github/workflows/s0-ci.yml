@@ -241,23 +241,56 @@ jobs:
           NODE
 
       - id: detect_storybook
-        name: "Detect Storybook deps"
+        name: "Detect Storybook deps & preset"
         run: |
           set -e
-          if [ ! -f package.json ]; then
-            echo "has_storybook=false" >> "$GITHUB_OUTPUT"
+          # нет конфига — сразу пропускаем
+          if [ ! -d ".storybook" ]; then
+            echo "can_build_storybook=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          HAS=$(
-            node -e "try {
-              const p = require('./package.json');
-              const has = (deps) => deps && Object.keys(deps).some(d => d.startsWith('@storybook/'));
-              process.stdout.write(String(has(p.dependencies) || has(p.devDependencies)));
-            } catch (e) { process.stdout.write('false'); }"
+          # нет package.json — пропускаем
+          if [ ! -f "package.json" ]; then
+            echo "can_build_storybook=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # проверяем: есть ли @storybook/* в deps и доступен ли требуемый пресет из конфига
+          CAN=$(
+            node - <<'NODE'
+            const fs = require('fs');
+            const path = require('path');
+            function hasStorybookPkgs(pkg){
+              const has = deps => deps && Object.keys(deps).some(d => d.startsWith('@storybook/'));
+              return has(pkg.dependencies)||has(pkg.devDependencies);
+            }
+            function presetRequiredInConfig(){
+              const candidates = ['.storybook/main.js','.storybook/main.cjs','.storybook/main.mjs','.storybook/main.ts'];
+              for(const f of candidates){
+                if(fs.existsSync(f)){
+                  const txt = fs.readFileSync(f,'utf8');
+                  if (/@storybook\/react-vite\/preset/.test(txt)) return '@storybook/react-vite/preset';
+                }
+              }
+              return null;
+            }
+            let ok = false;
+            try{
+              const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+              const hasPkgs = hasStorybookPkgs(pkg);
+              const requiredPreset = presetRequiredInConfig();
+              let presetOk = true;
+              if (requiredPreset){
+                try { require.resolve(requiredPreset, { paths: [process.cwd()] }); }
+                catch { presetOk = false; }
+              }
+              ok = hasPkgs && presetOk;
+            }catch(e){ ok = false; }
+            process.stdout.write(String(ok));
+            NODE
           )
-          echo "has_storybook=$HAS" >> "$GITHUB_OUTPUT"
+          echo "can_build_storybook=$CAN" >> "$GITHUB_OUTPUT"
 
       - name: "Build Storybook (optional if configured)"
-        if: ${{ hashFiles('.storybook/**') != '' && steps.detect_storybook.outputs.has_storybook == 'true' }}
+        if: ${{ steps.detect_storybook.outputs.can_build_storybook == 'true' }}
         run: |
           npx -y storybook@latest build --quiet
