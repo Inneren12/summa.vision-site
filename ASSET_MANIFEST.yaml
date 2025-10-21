@@ -1,6 +1,6 @@
 version: 1
 owner: summa.vision
-brand_blue: '#2FAFEA'
+brand_blue: color.brand.blue.500
 assets:
 - path: public/brand/summa_vision_logo_light.png
   type: png

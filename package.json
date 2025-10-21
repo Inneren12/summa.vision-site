@@ -1,0 +1,18 @@
+{
+  "name": "summa-vision-brand",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:tokens": "style-dictionary build --config style-dictionary.config.cjs",
+    "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
+    "test:axe": "tsx scripts/og-axe-check.ts",
+    "build": "npm run build:tokens"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.8.3",
+    "axe-core": "^4.8.2",
+    "playwright": "^1.41.2",
+    "style-dictionary": "^3.9.1",
+    "tsx": "^3.12.7"
+  }
+}

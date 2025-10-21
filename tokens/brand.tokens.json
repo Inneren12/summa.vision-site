@@ -1,17 +1,181 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "color": {
     "brand": {
       "blue": {
-        "500": "#2FAFEA"
+        "050": { "value": "#E6F8FE" },
+        "100": { "value": "#C7EEFB" },
+        "200": { "value": "#9DDCF5" },
+        "300": { "value": "#6EC8EE" },
+        "400": { "value": "#46B9E9" },
+        "500": { "value": "#2FAFEA" },
+        "600": { "value": "#1C98CF" },
+        "700": { "value": "#0F7CA9" },
+        "800": { "value": "#096082" },
+        "900": { "value": "#063C4F" }
       }
     },
-    "fg": {
-      "default": "#101418",
-      "inverse": "#FFFFFF"
+    "neutral": {
+      "000": { "value": "#FFFFFF" },
+      "050": { "value": "#F6F8FA" },
+      "100": { "value": "#ECEFF4" },
+      "200": { "value": "#D7DCE4" },
+      "300": { "value": "#B8C0CC" },
+      "400": { "value": "#96A1B2" },
+      "500": { "value": "#75829A" },
+      "600": { "value": "#59657C" },
+      "700": { "value": "#435069" },
+      "800": { "value": "#2E3A4D" },
+      "900": { "value": "#1B2633" },
+      "950": { "value": "#101418" }
+    },
+    "accent": {
+      "teal": { "value": "#1BB6A1" },
+      "violet": { "value": "#7056E2" },
+      "magenta": { "value": "#D6569E" },
+      "orange": { "value": "#F47C3C" },
+      "yellow": { "value": "#F5C04A" }
+    },
+    "status": {
+      "ok": { "value": "#2CB67D" },
+      "warn": { "value": "#E6A93A" },
+      "alert": { "value": "#D64550" },
+      "info": { "value": "#2FAFEA" }
     },
     "bg": {
-      "canvas": "#FFFFFF",
-      "surface": "#FAFBFC"
+      "canvas": { "value": "{color.neutral.000.value}" },
+      "surface": { "value": "{color.neutral.050.value}" },
+      "elevated": { "value": "{color.neutral.000.value}" },
+      "subtle": { "value": "{color.neutral.100.value}" },
+      "inverse": { "value": "{color.neutral.950.value}" }
+    },
+    "fg": {
+      "default": { "value": "{color.neutral.950.value}" },
+      "muted": { "value": "{color.neutral.600.value}" },
+      "subtle": { "value": "{color.neutral.500.value}" },
+      "inverse": { "value": "{color.neutral.050.value}" },
+      "accent": { "value": "{color.brand.blue.500.value}" }
+    },
+    "border": {
+      "subtle": { "value": "{color.neutral.100.value}" },
+      "default": { "value": "{color.neutral.200.value}" },
+      "emphasis": { "value": "{color.neutral.400.value}" },
+      "inverse": { "value": "{color.neutral.800.value}" },
+      "focus": { "value": "{color.brand.blue.500.value}" }
+    },
+    "statusSurface": {
+      "ok": {
+        "fg": { "value": "{color.status.ok.value}" },
+        "bg": { "value": "#EBF7F1" },
+        "border": { "value": "#B6E5CF" }
+      },
+      "warn": {
+        "fg": { "value": "{color.status.warn.value}" },
+        "bg": { "value": "#FFF5E5" },
+        "border": { "value": "#F2D8A1" }
+      },
+      "alert": {
+        "fg": { "value": "{color.status.alert.value}" },
+        "bg": { "value": "#FCEBEE" },
+        "border": { "value": "#F3BEC7" }
+      },
+        "info": {
+        "fg": { "value": "{color.status.info.value}" },
+        "bg": { "value": "#E9F7FD" },
+        "border": { "value": "#B8E6F6" }
+      }
+    },
+    "series": {
+      "1": { "value": "{color.brand.blue.500.value}" },
+      "2": { "value": "#5F75F7" },
+      "3": { "value": "#F9739A" },
+      "4": { "value": "#F2C94C" },
+      "5": { "value": "#6FCF97" },
+      "6": { "value": "#56CCF2" },
+      "7": { "value": "#BB6BD9" },
+      "8": { "value": "#F2994A" },
+      "9": { "value": "#9B51E0" },
+      "10": { "value": "#27AE60" },
+      "11": { "value": "#EB5757" },
+      "12": { "value": "#2D9CDB" }
+    },
+    "grid": {
+      "major": { "value": "{color.neutral.200.value}" },
+      "minor": { "value": "{color.neutral.100.value}" }
+    }
+  },
+  "font": {
+    "family": {
+      "sans": {
+        "value": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'"
+      },
+      "mono": {
+        "value": "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, SFMono, Consolas, 'Liberation Mono', Menlo, monospace"
+      }
+    },
+    "weight": {
+      "regular": { "value": 400 },
+      "medium": { "value": 500 },
+      "semibold": { "value": 600 },
+      "bold": { "value": 700 }
+    },
+    "lineHeight": {
+      "tight": { "value": 1.1 },
+      "snug": { "value": 1.25 },
+      "normal": { "value": 1.5 },
+      "relaxed": { "value": 1.7 }
+    },
+    "size": {
+      "display": { "value": "3.5rem" },
+      "h1": { "value": "2.75rem" },
+      "h2": { "value": "2.25rem" },
+      "h3": { "value": "1.875rem" },
+      "h4": { "value": "1.5rem" },
+      "h5": { "value": "1.25rem" },
+      "h6": { "value": "1.125rem" },
+      "body": { "value": "1rem" },
+      "bodySm": { "value": "0.9375rem" },
+      "caption": { "value": "0.8125rem" }
+    }
+  },
+  "space": {
+    "0": { "value": "0px" },
+    "1": { "value": "4px" },
+    "2": { "value": "8px" },
+    "3": { "value": "12px" },
+    "4": { "value": "16px" },
+    "5": { "value": "20px" },
+    "6": { "value": "24px" },
+    "7": { "value": "28px" },
+    "8": { "value": "32px" },
+    "9": { "value": "40px" },
+    "10": { "value": "48px" }
+  },
+  "radius": {
+    "xs": { "value": "2px" },
+    "sm": { "value": "4px" },
+    "md": { "value": "8px" },
+    "lg": { "value": "12px" },
+    "xl": { "value": "16px" },
+    "2xl": { "value": "24px" },
+    "full": { "value": "999px" }
+  },
+  "shadow": {
+    "z1": { "value": "0 1px 2px rgba(16, 20, 24, 0.12), 0 1px 1px rgba(16, 20, 24, 0.06)" },
+    "z2": { "value": "0 6px 12px rgba(16, 20, 24, 0.14), 0 2px 4px rgba(16, 20, 24, 0.08)" },
+    "z3": { "value": "0 16px 24px rgba(16, 20, 24, 0.16), 0 6px 8px rgba(16, 20, 24, 0.12)" }
+  },
+  "motion": {
+    "duration": {
+      "fast": { "value": "120ms" },
+      "base": { "value": "200ms" },
+      "gentle": { "value": "320ms" }
+    },
+    "easing": {
+      "cubic": { "value": "cubic-bezier(0.4, 0, 0.2, 1)" },
+      "emphasized": { "value": "cubic-bezier(0.3, 0, 0.2, 1)" },
+      "entrance": { "value": "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      "exit": { "value": "cubic-bezier(0.4, 0, 1, 1)" }
     }
   }
 }
