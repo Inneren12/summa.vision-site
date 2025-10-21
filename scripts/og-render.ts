@@ -1,15 +1,17 @@
-import { chromium, Browser } from 'playwright';
-import path from 'node:path';
-import { readFileSync } from 'node:fs';
-import fs from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync } from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import type { Browser } from "playwright";
+import { chromium } from "playwright";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 interface RenderOptions {
   template: string;
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   data: Record<string, string>;
   output: string;
 }
@@ -23,18 +25,18 @@ function parseArgs(argv: string[]): RenderOptions {
     return argv[index + 1];
   };
 
-  const template = getValue('--template');
+  const template = getValue("--template");
   if (!template) {
-    throw new Error('Missing required --template argument.');
+    throw new Error("Missing required --template argument.");
   }
 
-  const theme = (getValue('--theme', 'light') as RenderOptions['theme']) ?? 'light';
-  if (!['light', 'dark'].includes(theme)) {
+  const theme = (getValue("--theme", "light") as RenderOptions["theme"]) ?? "light";
+  if (!["light", "dark"].includes(theme)) {
     throw new Error(`Unsupported theme "${theme}". Use "light" or "dark".`);
   }
 
-  const dataInput = getValue('--data', '{}') ?? '{}';
-  const output = getValue('--out', path.resolve(process.cwd(), `${template}-${theme}.png`))!;
+  const dataInput = getValue("--data", "{}") ?? "{}";
+  const output = getValue("--out", path.resolve(process.cwd(), `${template}-${theme}.png`))!;
 
   return {
     template,
@@ -50,12 +52,12 @@ function parseData(input: string): Record<string, string> {
   }
 
   try {
-    if (input.trim().startsWith('{')) {
+    if (input.trim().startsWith("{")) {
       return JSON.parse(input);
     }
 
     const filePath = path.resolve(process.cwd(), input);
-    return JSON.parse(readFileSync(filePath, 'utf8'));
+    return JSON.parse(readFileSync(filePath, "utf8"));
   } catch (error) {
     throw new Error(`Unable to parse data payload: ${(error as Error).message}`);
   }
@@ -66,7 +68,7 @@ async function ensureOutputDir(filepath: string) {
 }
 
 async function render(options: RenderOptions, browser?: Browser) {
-  const templatePath = path.resolve(__dirname, '../og/templates', `${options.template}.html`);
+  const templatePath = path.resolve(__dirname, "../og/templates", `${options.template}.html`);
   try {
     await fs.access(templatePath);
   } catch (error) {
@@ -78,13 +80,13 @@ async function render(options: RenderOptions, browser?: Browser) {
   const context = await localBrowser.newContext({ viewport: { width: 1200, height: 630 } });
   const page = await context.newPage();
 
-  await page.goto(templateUrl, { waitUntil: 'networkidle' });
+  await page.goto(templateUrl, { waitUntil: "networkidle" });
 
   await page.evaluate(
     ({ data, theme }) => {
-      const root = document.querySelector('.og-canvas');
+      const root = document.querySelector(".og-canvas");
       if (root) {
-        root.setAttribute('data-theme', theme);
+        root.setAttribute("data-theme", theme);
       }
       Object.entries(data).forEach(([slot, value]) => {
         document.querySelectorAll(`[data-slot="${slot}"]`).forEach((node) => {
@@ -96,7 +98,7 @@ async function render(options: RenderOptions, browser?: Browser) {
   );
 
   await ensureOutputDir(options.output);
-  await page.screenshot({ path: options.output, type: 'png' });
+  await page.screenshot({ path: options.output, type: "png" });
 
   await context.close();
   if (!browser) {

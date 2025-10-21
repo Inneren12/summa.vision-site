@@ -1,49 +1,50 @@
-import type { Meta, StoryObj } from '@storybook/react';
-import React from 'react';
-import './brand-stories.css';
-import type { TokenMeta } from './utils';
-import { resolveToken, tokenPathToCssVar } from './utils';
+import type { Meta, StoryObj } from "@storybook/react";
+import React from "react";
+
+import "./brand-stories.css";
+import type { TokenMeta } from "./utils";
+import { resolveToken, tokenPathToCssVar } from "./utils";
 
 const seriesTokens: TokenMeta[] = [
-  { token: 'color.series.1', label: 'Series 1', description: 'Primary accent' },
-  { token: 'color.series.2', label: 'Series 2' },
-  { token: 'color.series.3', label: 'Series 3' },
-  { token: 'color.series.4', label: 'Series 4' },
-  { token: 'color.series.5', label: 'Series 5' },
-  { token: 'color.series.6', label: 'Series 6' },
-  { token: 'color.series.7', label: 'Series 7' },
-  { token: 'color.series.8', label: 'Series 8' },
-  { token: 'color.series.9', label: 'Series 9' },
-  { token: 'color.series.10', label: 'Series 10' },
-  { token: 'color.series.11', label: 'Series 11' },
-  { token: 'color.series.12', label: 'Series 12' },
+  { token: "color.series.1", label: "Series 1", description: "Primary accent" },
+  { token: "color.series.2", label: "Series 2" },
+  { token: "color.series.3", label: "Series 3" },
+  { token: "color.series.4", label: "Series 4" },
+  { token: "color.series.5", label: "Series 5" },
+  { token: "color.series.6", label: "Series 6" },
+  { token: "color.series.7", label: "Series 7" },
+  { token: "color.series.8", label: "Series 8" },
+  { token: "color.series.9", label: "Series 9" },
+  { token: "color.series.10", label: "Series 10" },
+  { token: "color.series.11", label: "Series 11" },
+  { token: "color.series.12", label: "Series 12" },
 ];
 
 const gridTokens: TokenMeta[] = [
-  { token: 'color.grid.major', label: 'Grid Major', description: 'Axis baselines' },
-  { token: 'color.grid.minor', label: 'Grid Minor', description: 'Tick marks, helpers' },
+  { token: "color.grid.major", label: "Grid Major", description: "Axis baselines" },
+  { token: "color.grid.minor", label: "Grid Minor", description: "Tick marks, helpers" },
 ];
 
 const divergingPairs = [
-  ['color.series.1', 'color.series.11'],
-  ['color.series.2', 'color.series.10'],
-  ['color.series.3', 'color.series.9'],
-  ['color.series.4', 'color.series.8'],
+  ["color.series.1", "color.series.11"],
+  ["color.series.2", "color.series.10"],
+  ["color.series.3", "color.series.9"],
+  ["color.series.4", "color.series.8"],
 ] as const;
 
-function lastSegment(token: TokenMeta['token']): string {
-  const parts = token.split('.');
+function lastSegment(token: TokenMeta["token"]): string {
+  const parts = token.split(".");
   return parts[parts.length - 1];
 }
 
 const meta = {
-  title: 'Brand/Data Viz Series',
+  title: "Brand/Data Viz Series",
   component: DataVizSeriesStory,
   parameters: {
     docs: {
       description: {
         component:
-          'Categorical and grid tokens for charts. Cards highlight raw token values and recommended diverging pairings.',
+          "Categorical and grid tokens for charts. Cards highlight raw token values and recommended diverging pairings.",
       },
     },
   },
@@ -78,7 +79,7 @@ function SeriesSwatch({ spec }: { spec: TokenMeta }) {
   );
 }
 
-function DivergingPair({ tokens }: { tokens: readonly [TokenMeta['token'], TokenMeta['token']] }) {
+function DivergingPair({ tokens }: { tokens: readonly [TokenMeta["token"], TokenMeta["token"]] }) {
   const [start, end] = tokens;
   const startVar = tokenPathToCssVar(start);
   const endVar = tokenPathToCssVar(end);
@@ -87,8 +88,8 @@ function DivergingPair({ tokens }: { tokens: readonly [TokenMeta['token'], Token
       className="brand-series-item__swatch"
       style={{
         background: `linear-gradient(90deg, var(${startVar}) 0%, var(${endVar}) 100%)`,
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--color-border-subtle)',
+        borderRadius: "var(--radius-md)",
+        border: "1px solid var(--color-border-subtle)",
       }}
     />
   );
@@ -102,7 +103,8 @@ function DataVizSeriesStory() {
           <div className="brand-section__header">
             <h2 className="brand-section__title">Categorical Series</h2>
             <p className="brand-section__description">
-              Use the ordered ramp for categorical charts. Do not reshuffle unless the legend is reset.
+              Use the ordered ramp for categorical charts. Do not reshuffle unless the legend is
+              reset.
             </p>
           </div>
           <div className="brand-series-scale">
@@ -135,7 +137,7 @@ function DataVizSeriesStory() {
           </div>
           <div className="brand-grid brand-grid--swatches">
             {divergingPairs.map((pair) => (
-              <article key={pair.join('-')} className="brand-card">
+              <article key={pair.join("-")} className="brand-card">
                 <div className="brand-card__body">
                   <strong>
                     {lastSegment(pair[0])} ↔ {lastSegment(pair[1])}
@@ -160,6 +162,6 @@ function DataVizSeriesStory() {
 }
 
 export const DataVizSeries: Story = {
-  name: 'Data Viz Series',
+  name: "Data Viz Series",
   render: () => <DataVizSeriesStory />,
 };

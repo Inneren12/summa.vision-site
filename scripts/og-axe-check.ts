@@ -1,23 +1,24 @@
-import { chromium, type Browser } from 'playwright';
-import { AxeBuilder } from '@axe-core/playwright';
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { AxeBuilder } from "@axe-core/playwright";
+import { chromium, type Browser } from "playwright";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const templates = ['chart', 'fact', 'story'] as const;
+const templates = ["chart", "fact", "story"] as const;
 
 type TemplateName = (typeof templates)[number];
 
 async function runAxe(template: TemplateName, browser: Browser) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 630 } });
   const page = await context.newPage();
-  const templatePath = path.resolve(__dirname, '../og/templates', `${template}.html`);
-  await page.goto(pathToFileURL(templatePath).href, { waitUntil: 'networkidle' });
+  const templatePath = path.resolve(__dirname, "../og/templates", `${template}.html`);
+  await page.goto(pathToFileURL(templatePath).href, { waitUntil: "networkidle" });
 
   const accessibilityScanResults = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
+    .withTags(["wcag2a", "wcag2aa"])
     .analyze();
 
   await context.close();
@@ -48,7 +49,7 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log('All OG templates pass axe-core checks.');
+  console.log("All OG templates pass axe-core checks.");
 }
 
 void main();
