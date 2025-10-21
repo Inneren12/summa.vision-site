@@ -243,11 +243,19 @@ jobs:
       - id: detect_storybook
         name: "Detect Storybook deps"
         run: |
+          set -e
           if [ ! -f package.json ]; then
-            echo "has_storybook=false" >> $GITHUB_OUTPUT
+            echo "has_storybook=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          node -e "const p=require('./package.json'); const has=(deps)=>deps&&Object.keys(deps).some(d=>d.startsWith('@storybook/')); const ok = has(p.dependencies)||has(p.devDependencies); require('fs').writeFileSync(process.env.GITHUB_OUTPUT, `has_storybook=${ok}\n`);"
+          HAS=$(
+            node -e "try {
+              const p = require('./package.json');
+              const has = (deps) => deps && Object.keys(deps).some(d => d.startsWith('@storybook/'));
+              process.stdout.write(String(has(p.dependencies) || has(p.devDependencies)));
+            } catch (e) { process.stdout.write('false'); }"
+          )
+          echo "has_storybook=$HAS" >> "$GITHUB_OUTPUT"
 
       - name: "Build Storybook (optional if configured)"
         if: ${{ hashFiles('.storybook/**') != '' && steps.detect_storybook.outputs.has_storybook == 'true' }}
