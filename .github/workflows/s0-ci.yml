@@ -2,9 +2,10 @@ name: S0 Code-only Quality Checks
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ]         # было: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ '**' ]         # было: [ main ]
+  workflow_dispatch: {}         # ручной запуск из UI
 
 permissions:
   contents: read
@@ -126,9 +127,7 @@ jobs:
             exit 0
           fi
 
-          # Соберём список файлов через find, исключая:
-          # - каталоги: node_modules, .next, dist, tokens, .storybook, и src/shared/theme/*
-          # - файл: styles/tokens.css (сгенерированный)
+          # Соберём список файлов через find, исключая каталоги и артефакты токенов
           mapfile -t FILES < <(
             find "${dirs[@]}" \
               -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
@@ -145,7 +144,8 @@ jobs:
           # Ищем «сырые» HEX
           > /tmp/raw_colors.txt
           grep -nE "$PATTERN" "${FILES[@]}" > /tmp/raw_colors.txt || true
-          # гарантированно исключаем артефакты токенов, даже если find всё-таки их добавил
+
+          # Принудительно исключаем артефакты токенов (если вдруг попали)
           sed -i '/\/src\/shared\/theme\/tokens\.ts:/d' /tmp/raw_colors.txt
           sed -i '/\/styles\/tokens\.css:/d' /tmp/raw_colors.txt
 
