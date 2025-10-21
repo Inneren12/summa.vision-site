@@ -1,33 +1,35 @@
 # Open Graph (OG) Image Guidelines
 
-These specifications ensure Summa Vision social previews remain legible and recognizably on-brand across platforms.
+Keep Summa Vision social previews accessible, legible, and on-brand across platforms.
 
 ## Dimensions & Safe Area
-- **Artboard size:** 1200 × 630px (1.91:1 aspect ratio). This resolution renders crisply on LinkedIn, Twitter/X, Facebook, and Slack.
-- **Safe text area:** Keep essential copy and the logomark within a 1040 × 520px center zone (80px inset from all sides) to avoid cropping on narrower previews.
-- **Background bleed:** Extend background imagery or gradients to the full canvas to prevent visible edges when platforms apply rounding.
+- **Artboard size:** 1200 × 630px (1.91:1 ratio) — compatible with LinkedIn, X, Facebook, Slack.
+- **Safe text area:** Inset content by `space.8` (32px) on all sides (resulting safe zone: 1040 × 566px). Place critical copy, logos, and data within this area.
+- **Background bleed:** Extend backgrounds to the full canvas to avoid visible edges on rounded previews.
 
 ## Background Treatments
-- Default to the dark theme hero gradient using `surface.base.dark` fading to `surface.alt.dark` from left to right.
-- For light-theme narratives, invert the gradient with `surface.base.light` to `surface.alt.light` while maintaining a minimum 4.5:1 contrast between any overlaid text and the background.
-- When using photography, apply a color wash: `rgba(13, 17, 23, 0.72)` for bright imagery, `rgba(255, 255, 255, 0.28)` for dark imagery to keep overlay copy readable.
+- Default light theme: `color.bg.canvas` to `color.bg.surface` gradient (optional) with contrast-compliant overlays.
+- Default dark theme: `color.bg.inverse` to `color.neutral.800` gradient. Maintain 4.5:1 contrast between text (`color.fg.default` or `color.neutral.050`) and the background.
+- Photography overlays: apply `color-mix(in srgb, var(--color-neutral-950) 70%, transparent)` on bright imagery or `color-mix(in srgb, var(--color-neutral-050) 30%, transparent)` on dark imagery before placing text.
 
 ## Typography
-- **Headline:** `Space Grotesk` Bold, 72px, tracking -2%, set in uppercase for feature launches. Limit to 32 characters per line.
-- **Supporting copy:** `Inter` Medium, 40px, tracking 0%, max two lines. Maintain 48px leading to align with OG safe area rhythm.
-- **Metadata chip (optional):** `Inter` SemiBold, 28px, all caps, enclosed in a pill with 16px horizontal padding and `surface.raised.dark` fill.
+- Headline: `.typography-h1` (or `.typography-display` for hero narratives) with `font.weight.semibold` and `letter-spacing: -0.015em`.
+- Supporting copy: `.typography-h4` or `.typography-body` with `color.fg.muted`.
+- Metadata chip: `.typography-caption` inside a pill using `color.bg.subtle` (light) or `color.neutral.800` (dark) with `radius.full` corners.
+- Always enable `font-variant-numeric: tabular-nums` for stats (included in base typography stylesheet).
 
 ## Logo & Accent Placement
-- Position the "V" logomark in the upper-left corner, 80px from the top and left edges (aligned with the safe area). Scale the mark to 96px height.
-- Set the wordmark lockup along the bottom-left of the safe area, baseline aligned 80px from the bottom edge. Maintain `space.6` (24px) between the logomark and wordmark when both appear.
-- Anchor the accent dot glow using `accent.active.dark` on dark backgrounds or `accent.active.light` on light backgrounds; ensure 7:1 contrast with adjacent surfaces by applying the appropriate overlay halo.
+- Position the logomark at the top-left corner of the safe area; scale to 96px height (approx. `space.24`).
+- Maintain `space.6` (24px) between the mark and wordmark when used together.
+- Use `color.fg.accent` for accent glyphs and highlights. Avoid introducing non-token colors.
 
 ## Layout Variations
-- **Product feature:** Split layout with a vertical divider at 640px. Place screenshots or diagrams on the right, constrained to the safe area. Use a subtle `surface.raised.dark` border (2px) to frame imagery.
-- **Thought leadership:** Centered headline stacked above the wordmark; introduce an `accent.violet` underline at `space.3` thickness spanning the headline width.
-- **Event announcement:** Place date/time metadata chip top-right within the safe area; align the main headline left for balance with the logomark.
+- **Product feature:** Vertical split at 640px. Use `color.border.default` for the divider and place UI captures on the right.
+- **Thought leadership:** Centered headline above the wordmark; add a `color.fg.accent` underline at `space.3` thickness.
+- **Event announcement:** Metadata chip in the top-right safe corner; align title left for balance.
 
 ## Export Checklist
-- Embed fonts or convert to outlines before export to prevent fallback substitutions.
-- Export as PNG for most platforms; supply a JPG variant at 85% quality when file size must remain under 1 MB.
-- Verify contrast ratios with accessibility tooling (e.g., Stark, Contrast) to maintain WCAG AA+ targets.
+- Include `styles/tokens.css` and `styles/og.css` when rendering with `scripts/og-render.ts`.
+- Run `npm run test:axe` to ensure templates pass automated accessibility checks.
+- Output PNG by default; provide JPEG fallback (85% quality) if file size must be <1 MB.
+- Verify final contrast ratios meet WCAG AA using design tooling or the automated checks.
