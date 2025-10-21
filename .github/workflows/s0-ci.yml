@@ -186,10 +186,46 @@ jobs:
           let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}if(!ok)process.exit(1);
           NODE
 
-      - name: "Axe on OG templates (if present)"
+      - name: "Install Playwright Chromium (for axe)"
         if: ${{ hashFiles('og/templates/*.html') != '' }}
         run: |
-          npx -y @axe-core/cli -q og/templates/*.html
+          npx -y playwright@1.48.2 install --with-deps chromium
+
+      - name: "Axe on OG templates (Playwright)"
+        if: ${{ hashFiles('og/templates/*.html') != '' }}
+        run: |
+          npx -y -p playwright@1.48.2 -p @axe-core/playwright@4.9.1 -p glob node - <<'NODE'
+          const fs = require('fs');
+          const glob = require('glob');
+          const { chromium } = require('playwright');
+          const { AxeBuilder } = require('@axe-core/playwright');
+          (async () => {
+            const files = glob.sync('og/templates/*.html');
+            if (!files.length) { process.exit(0); }
+            let failures = 0;
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            for (const file of files) {
+              const html = fs.readFileSync(file, 'utf8');
+              await page.setContent(html, { waitUntil: 'load' });
+              const results = await new AxeBuilder({ page }).include('body').analyze();
+              if (results.violations.length) {
+                console.log(`A11y violations in ${file}: ${results.violations.length}`);
+                for (const v of results.violations) {
+                  console.log(`- ${v.id}: ${v.help} (${v.impact})`);
+                  for (const n of v.nodes.slice(0, 5)) {
+                    console.log(`  node: ${n.target.join(' ')}`);
+                  }
+                }
+                failures++;
+              } else {
+                console.log(`OK: ${file}`);
+              }
+            }
+            await browser.close();
+            if (failures) process.exit(2);
+          })();
+          NODE
 
       - name: "Build Storybook (optional if configured)"
         if: ${{ hashFiles('.storybook/**') != '' }}
