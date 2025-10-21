@@ -1,7 +1,7 @@
 /* eslint-disable */
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:18:46 GMT
+ * Generated on Tue, 21 Oct 2025 06:24:41 GMT
  */
 
 export const tokens = {
@@ -139,35 +139,38 @@ export const tokens = {
     "5": "20px",
     "6": "24px",
     "7": "28px",
-    "8": "32px",
-    "9": "40px",
-    "10": "48px"
+    "8": "32px"
   },
   "radius": {
-    "xs": "2px",
-    "sm": "4px",
-    "md": "8px",
-    "lg": "12px",
-    "xl": "16px",
-    "2xl": "24px",
+    "xs": "4px",
+    "s": "8px",
+    "m": "12px",
+    "l": "16px",
+    "2xl": "20px",
     "full": "999px"
   },
   "shadow": {
-    "z1": "0 1px 2px rgba(16, 20, 24, 0.12), 0 1px 1px rgba(16, 20, 24, 0.06)",
-    "z2": "0 6px 12px rgba(16, 20, 24, 0.14), 0 2px 4px rgba(16, 20, 24, 0.08)",
-    "z3": "0 16px 24px rgba(16, 20, 24, 0.16), 0 6px 8px rgba(16, 20, 24, 0.12)"
+    "z1": "0 1px 2px rgba(16, 20, 24, 0.06), 0 1px 1px rgba(16, 20, 24, 0.04)",
+    "z2": "0 4px 10px rgba(16, 20, 24, 0.08), 0 1px 2px rgba(16, 20, 24, 0.06)",
+    "z3": "0 10px 20px rgba(16, 20, 24, 0.10), 0 2px 6px rgba(16, 20, 24, 0.08)"
+  },
+  "z": {
+    "below": -1,
+    "base": 0,
+    "nav": 10,
+    "popover": 20,
+    "modal": 30,
+    "toast": 40
   },
   "motion": {
     "duration": {
       "fast": "120ms",
-      "base": "200ms",
-      "gentle": "320ms"
+      "base": "180ms",
+      "gentle": "240ms"
     },
     "easing": {
-      "cubic": "cubic-bezier(0.4, 0, 0.2, 1)",
-      "emphasized": "cubic-bezier(0.3, 0, 0.2, 1)",
-      "entrance": "cubic-bezier(0.2, 0.8, 0.2, 1)",
-      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "emphasized": "cubic-bezier(0.2, 0, 0, 1.2)"
     }
   },
   "a11y": {
@@ -178,7 +181,7 @@ export const tokens = {
 } as const;
 
 export type Tokens = typeof tokens;
-export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.cubic' | 'motion.easing.emphasized' | 'motion.easing.entrance' | 'motion.easing.exit' | 'radius.2xl' | 'radius.full' | 'radius.lg' | 'radius.md' | 'radius.sm' | 'radius.xl' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.10' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'space.9';
+export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.emphasized' | 'motion.easing.standard' | 'radius.2xl' | 'radius.full' | 'radius.l' | 'radius.m' | 'radius.s' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'z.base' | 'z.below' | 'z.modal' | 'z.nav' | 'z.popover' | 'z.toast';
 
 export const tokenPaths = [
   'a11y.textOnCanvas.minRatio',
@@ -268,23 +271,19 @@ export const tokenPaths = [
   'motion.duration.base',
   'motion.duration.fast',
   'motion.duration.gentle',
-  'motion.easing.cubic',
   'motion.easing.emphasized',
-  'motion.easing.entrance',
-  'motion.easing.exit',
+  'motion.easing.standard',
   'radius.2xl',
   'radius.full',
-  'radius.lg',
-  'radius.md',
-  'radius.sm',
-  'radius.xl',
+  'radius.l',
+  'radius.m',
+  'radius.s',
   'radius.xs',
   'shadow.z1',
   'shadow.z2',
   'shadow.z3',
   'space.0',
   'space.1',
-  'space.10',
   'space.2',
   'space.3',
   'space.4',
@@ -292,7 +291,12 @@ export const tokenPaths = [
   'space.6',
   'space.7',
   'space.8',
-  'space.9'
+  'z.base',
+  'z.below',
+  'z.modal',
+  'z.nav',
+  'z.popover',
+  'z.toast'
 ] as const;
 
 export function getTokenValue(path) {
