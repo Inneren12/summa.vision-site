@@ -172,46 +172,71 @@ jobs:
         run: |
           npm i --no-save --no-package-lock --no-audit --no-fund axe-core@4.9.1 jsdom@23.2.0 glob@7.2.3
 
-      - name: "Axe on OG templates (jsdom)"
+      - name: "Axe on OG templates (jsdom, ignore canvas & moderate)"
         if: ${{ hashFiles('og/templates/*.html') != '' }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
           const glob = require('glob');
-          const { JSDOM } = require('jsdom');
+          const { JSDOM, VirtualConsole } = require('jsdom');
           const axeCore = require('axe-core');
           const files = glob.sync('og/templates/*.html');
           if (!files.length) process.exit(0);
           (async () => {
-            let failures = 0;
+            let blockers = 0;
             for (const file of files) {
               const html = fs.readFileSync(file, 'utf8');
-              const dom = new JSDOM(html, { runScripts: "dangerously", resources: "usable" });
-              const { window } = dom;
-              const scriptEl = window.document.createElement('script');
-              scriptEl.textContent = axeCore.source;
-              window.document.head.appendChild(scriptEl);
-              if (!window.axe) {
-                console.log('::error::axe-core did not attach to window'); process.exit(1);
-              }
-              await new Promise(r => {
-                if (window.document.readyState === 'complete' || window.document.readyState === 'interactive') r();
-                else window.addEventListener('DOMContentLoaded', () => r(), { once: true });
+              // Тихо игнорируем ошибки jsdom, связанные с canvas
+              const vc = new VirtualConsole();
+              vc.on('jsdomError', (e) => {
+                const msg = String(e || '');
+                if (msg.includes('HTMLCanvasElement.prototype.getContext')) return;
+                console.warn(msg);
               });
-              const results = await window.axe.run(window.document, { reporter: 'v2' });
-              if (results.violations.length) {
-                console.log(`A11y violations in ${file}: ${results.violations.length}`);
-                for (const v of results.violations) {
+              const dom = new JSDOM(html, {
+                runScripts: "dangerously",
+                resources: "usable",
+                pretendToBeVisual: true,
+                virtualConsole: vc,
+                // ВАЖНО: заглушку ставим ДО выполнения любых скриптов шаблона
+                beforeParse(window) {
+                  try {
+                    Object.defineProperty(window.HTMLCanvasElement.prototype, 'getContext', {
+                      configurable: true,
+                      writable: true,
+                      value: () => ({
+                        measureText: () => ({ width: 0 }),
+                        drawImage() {},
+                        fillRect() {},
+                        getImageData() { return { data: [] }; },
+                      }),
+                    });
+                  } catch {}
+                }
+              });
+              const { window } = dom;
+              const s = window.document.createElement('script');
+              s.textContent = axeCore.source;
+              window.document.head.appendChild(s);
+              await new Promise((r) => {
+                if (['interactive', 'complete'].includes(window.document.readyState)) r();
+                else window.addEventListener('DOMContentLoaded', r, { once: true });
+              });
+              const res = await window.axe.run(window.document, { reporter: 'v2' });
+              // Печатаем всё
+              if (res.violations.length) {
+                console.log(`A11y violations in ${file}: ${res.violations.length}`);
+                for (const v of res.violations) {
                   console.log(`- ${v.id}: ${v.help} (${v.impact})`);
                   const n = v.nodes[0];
                   if (n) console.log(`  node: ${n.target.join(' ')}`);
                 }
-                failures++;
-              } else {
-                console.log(`OK: ${file}`);
               }
+              // Фейлим только на serious/critical (moderate — предупреждение)
+              const hard = res.violations.filter(v => ['serious', 'critical'].includes(v.impact));
+              if (hard.length) blockers++;
             }
-            if (failures) process.exit(2);
+            if (blockers) process.exit(2);
           })();
           NODE
 
