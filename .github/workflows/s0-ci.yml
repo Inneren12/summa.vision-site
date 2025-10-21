@@ -108,8 +108,10 @@ jobs:
       - name: No raw colors outside tokens
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
+
+          # Собираем кодовые корни
           dirs=()
           for d in src app styles og; do [ -d "$d" ] && dirs+=("$d"); done
           if [ ${#dirs[@]} -eq 0 ]; then
@@ -117,15 +119,25 @@ jobs:
             exit 0
           fi
 
-          # Ищем во всех кодовых файлах; исключаем tokens/.storybook/node_modules/.next/dist
-          # и явные артефакты токенов: styles/tokens.css и src/shared/theme/tokens.ts
-          grep -RInE "$PATTERN" "${dirs[@]}" \
-            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
-            --exclude-dir=tokens --exclude-dir=.storybook \
-            --exclude='styles/tokens.css' \
-            --exclude='src/shared/theme/tokens.ts' \
-            --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.css' --include='*.html' \
-            > /tmp/raw_colors.txt || true
+          # Соберём список файлов через find, исключая:
+          # - каталоги: node_modules, .next, dist, tokens, .storybook, и src/shared/theme/*
+          # - файл: styles/tokens.css (сгенерированный)
+          mapfile -t FILES < <(
+            find "${dirs[@]}" \
+              -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
+              -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.css' -o -name '*.html' \) \
+              ! -path '*/styles/tokens.css' \
+              -print
+          )
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No eligible files to scan."
+            exit 0
+          fi
+
+          # Ищем «сырые» HEX
+          > /tmp/raw_colors.txt
+          grep -nE "$PATTERN" "${FILES[@]}" > /tmp/raw_colors.txt || true
 
           if [ -s /tmp/raw_colors.txt ]; then
             echo "### Raw color references found" >> $GITHUB_STEP_SUMMARY
@@ -197,7 +209,7 @@ jobs:
               if ('value'   in val) return normalizeColor(val.value,   depth+1);
               if ('$value'  in val) return normalizeColor(val.$value,  depth+1);
               if ('hex'     in val) return normalizeColor(val.hex,     depth+1);
-              if ('r' in val && 'g' in val && 'b' in val) return rgbToHex(val.r, val.g, val.b).toUpperCase();
+              if ('r' in val && 'g' in val && 'b' in val) return rgbToHex(val.r,val.g,val.b).toUpperCase();
               if ('light'   in val) return normalizeColor(val.light,   depth+1);
               if ('default' in val) return normalizeColor(val.default, depth+1);
             }
