@@ -1,9 +1,10 @@
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:00:19 GMT
+ * Generated on Tue, 21 Oct 2025 06:18:46 GMT
  */
 
 :root {
+  --a11y-text-on-canvas-min-ratio: 4.5;
   --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
   --motion-easing-entrance: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-easing-emphasized: cubic-bezier(0.3, 0, 0.2, 1);
@@ -65,45 +66,36 @@
   --color-series-2: #5f75f7;
   --color-status-surface-info-border: #b8e6f6;
   --color-status-surface-info-bg: #e9f7fd;
-  --color-status-surface-alert-border: #f3bec7;
-  --color-status-surface-alert-bg: #fcebee;
-  --color-status-surface-warn-border: #f2d8a1;
-  --color-status-surface-warn-bg: #fff5e5;
-  --color-status-surface-ok-border: #b6e5cf;
-  --color-status-surface-ok-bg: #ebf7f1;
+  --color-status-surface-alert-border: #f3bdc6;
+  --color-status-surface-alert-bg: #fdecef;
+  --color-status-surface-warn-border: #f6d599;
+  --color-status-surface-warn-bg: #fff4e0;
+  --color-status-surface-ok-border: #b2e4cb;
+  --color-status-surface-ok-bg: #e6f7ef;
   --color-status-info: #2fafea;
-  --color-status-alert: #d64550;
-  --color-status-warn: #e6a93a;
-  --color-status-ok: #2cb67d;
+  --color-status-alert: #e24545;
+  --color-status-warn: #f0a400;
+  --color-status-ok: #1fbf75;
   --color-accent-yellow: #f5c04a;
   --color-accent-orange: #f47c3c;
   --color-accent-magenta: #d6569e;
   --color-accent-violet: #7056e2;
   --color-accent-teal: #1bb6a1;
-  --color-neutral-050: #f6f8fa;
+  --color-neutral-050: #fafbfc;
   --color-neutral-000: #ffffff;
   --color-neutral-950: #101418;
-  --color-neutral-900: #1b2633;
-  --color-neutral-800: #2e3a4d;
-  --color-neutral-700: #435069;
-  --color-neutral-600: #59657c;
-  --color-neutral-500: #75829a;
-  --color-neutral-400: #96a1b2;
-  --color-neutral-300: #b8c0cc;
-  --color-neutral-200: #d7dce4;
-  --color-neutral-100: #eceff4;
-  --color-brand-blue-050: #e6f8fe;
-  --color-brand-blue-900: #063c4f;
-  --color-brand-blue-800: #096082;
-  --color-brand-blue-700: #0f7ca9;
-  --color-brand-blue-600: #1c98cf;
+  --color-neutral-900: #181c20;
+  --color-neutral-800: #272c33;
+  --color-neutral-700: #3c424a;
+  --color-neutral-600: #6e7682;
+  --color-neutral-500: #9ca4b1;
+  --color-neutral-400: #b8c0ca;
+  --color-neutral-300: #d3d9e1;
+  --color-neutral-200: #e6eaf0;
+  --color-neutral-100: #f3f5f7;
   --color-brand-blue-500: #2fafea;
-  --color-brand-blue-400: #46b9e9;
-  --color-brand-blue-300: #6ec8ee;
-  --color-brand-blue-200: #9ddcf5;
-  --color-brand-blue-100: #c7eefb;
-  --color-grid-minor: var(--color-neutral-100);
-  --color-grid-major: var(--color-neutral-200);
+  --color-grid-minor: var(--color-neutral-200);
+  --color-grid-major: var(--color-neutral-300);
   --color-series-1: var(--color-brand-blue-500);
   --color-status-surface-info-fg: var(--color-status-info);
   --color-status-surface-alert-fg: var(--color-status-alert);
@@ -112,16 +104,16 @@
   --color-border-focus: var(--color-brand-blue-500);
   --color-border-inverse: var(--color-neutral-800);
   --color-border-emphasis: var(--color-neutral-400);
-  --color-border-default: var(--color-neutral-200);
-  --color-border-subtle: var(--color-neutral-100);
-  --color-fg-accent: var(--color-brand-blue-500);
-  --color-fg-inverse: var(--color-neutral-050);
-  --color-fg-subtle: var(--color-neutral-500);
-  --color-fg-muted: var(--color-neutral-600);
-  --color-fg-default: var(--color-neutral-950);
+  --color-border-default: var(--color-neutral-300);
+  --color-border-subtle: var(--color-neutral-200);
   --color-bg-inverse: var(--color-neutral-950);
-  --color-bg-subtle: var(--color-neutral-100);
-  --color-bg-elevated: var(--color-neutral-000);
+  --color-bg-subtle: var(--color-neutral-200);
+  --color-bg-elevated: var(--color-neutral-100);
   --color-bg-surface: var(--color-neutral-050);
   --color-bg-canvas: var(--color-neutral-000);
+  --color-fg-accent: var(--color-brand-blue-500);
+  --color-fg-inverse: var(--color-neutral-000);
+  --color-fg-subtle: var(--color-neutral-600);
+  --color-fg-muted: var(--color-neutral-700);
+  --color-fg-default: var(--color-neutral-950);
 }

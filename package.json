@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build:tokens": "style-dictionary build --config style-dictionary.config.cjs",
+    "build:tokens": "tsx scripts/build-tokens.ts",
     "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
     "test:axe": "tsx scripts/og-axe-check.ts",
     "build": "npm run build:tokens"

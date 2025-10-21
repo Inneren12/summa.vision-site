@@ -1,38 +1,29 @@
 /* eslint-disable */
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:00:19 GMT
+ * Generated on Tue, 21 Oct 2025 06:18:46 GMT
  */
 
 export const tokens = {
   "color": {
     "brand": {
       "blue": {
-        "100": "#c7eefb",
-        "200": "#9ddcf5",
-        "300": "#6ec8ee",
-        "400": "#46b9e9",
-        "500": "#2fafea",
-        "600": "#1c98cf",
-        "700": "#0f7ca9",
-        "800": "#096082",
-        "900": "#063c4f",
-        "050": "#e6f8fe"
+        "500": "#2fafea"
       }
     },
     "neutral": {
-      "100": "#eceff4",
-      "200": "#d7dce4",
-      "300": "#b8c0cc",
-      "400": "#96a1b2",
-      "500": "#75829a",
-      "600": "#59657c",
-      "700": "#435069",
-      "800": "#2e3a4d",
-      "900": "#1b2633",
+      "100": "#f3f5f7",
+      "200": "#e6eaf0",
+      "300": "#d3d9e1",
+      "400": "#b8c0ca",
+      "500": "#9ca4b1",
+      "600": "#6e7682",
+      "700": "#3c424a",
+      "800": "#272c33",
+      "900": "#181c20",
       "950": "#101418",
       "000": "#ffffff",
-      "050": "#f6f8fa"
+      "050": "#fafbfc"
     },
     "accent": {
       "teal": "#1bb6a1",
@@ -41,48 +32,48 @@ export const tokens = {
       "orange": "#f47c3c",
       "yellow": "#f5c04a"
     },
-    "status": {
-      "ok": "#2cb67d",
-      "warn": "#e6a93a",
-      "alert": "#d64550",
-      "info": "#2fafea"
+    "fg": {
+      "default": "#101418",
+      "muted": "#3c424a",
+      "subtle": "#6e7682",
+      "inverse": "#ffffff",
+      "accent": "#2fafea"
     },
     "bg": {
       "canvas": "#ffffff",
-      "surface": "#f6f8fa",
-      "elevated": "#ffffff",
-      "subtle": "#eceff4",
+      "surface": "#fafbfc",
+      "elevated": "#f3f5f7",
+      "subtle": "#e6eaf0",
       "inverse": "#101418"
     },
-    "fg": {
-      "default": "#101418",
-      "muted": "#59657c",
-      "subtle": "#75829a",
-      "inverse": "#f6f8fa",
-      "accent": "#2fafea"
-    },
     "border": {
-      "subtle": "#eceff4",
-      "default": "#d7dce4",
-      "emphasis": "#96a1b2",
-      "inverse": "#2e3a4d",
+      "subtle": "#e6eaf0",
+      "default": "#d3d9e1",
+      "emphasis": "#b8c0ca",
+      "inverse": "#272c33",
       "focus": "#2fafea"
+    },
+    "status": {
+      "ok": "#1fbf75",
+      "warn": "#f0a400",
+      "alert": "#e24545",
+      "info": "#2fafea"
     },
     "statusSurface": {
       "ok": {
-        "fg": "#2cb67d",
-        "bg": "#ebf7f1",
-        "border": "#b6e5cf"
+        "fg": "#1fbf75",
+        "bg": "#e6f7ef",
+        "border": "#b2e4cb"
       },
       "warn": {
-        "fg": "#e6a93a",
-        "bg": "#fff5e5",
-        "border": "#f2d8a1"
+        "fg": "#f0a400",
+        "bg": "#fff4e0",
+        "border": "#f6d599"
       },
       "alert": {
-        "fg": "#d64550",
-        "bg": "#fcebee",
-        "border": "#f3bec7"
+        "fg": "#e24545",
+        "bg": "#fdecef",
+        "border": "#f3bdc6"
       },
       "info": {
         "fg": "#2fafea",
@@ -105,8 +96,8 @@ export const tokens = {
       "12": "#2d9cdb"
     },
     "grid": {
-      "major": "#d7dce4",
-      "minor": "#eceff4"
+      "major": "#d3d9e1",
+      "minor": "#e6eaf0"
     }
   },
   "font": {
@@ -178,13 +169,19 @@ export const tokens = {
       "entrance": "cubic-bezier(0.2, 0.8, 0.2, 1)",
       "exit": "cubic-bezier(0.4, 0, 1, 1)"
     }
+  },
+  "a11y": {
+    "textOnCanvas": {
+      "minRatio": 4.5
+    }
   }
 } as const;
 
 export type Tokens = typeof tokens;
-export type TokenPath = 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.050' | 'color.brand.blue.100' | 'color.brand.blue.200' | 'color.brand.blue.300' | 'color.brand.blue.400' | 'color.brand.blue.500' | 'color.brand.blue.600' | 'color.brand.blue.700' | 'color.brand.blue.800' | 'color.brand.blue.900' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.cubic' | 'motion.easing.emphasized' | 'motion.easing.entrance' | 'motion.easing.exit' | 'radius.2xl' | 'radius.full' | 'radius.lg' | 'radius.md' | 'radius.sm' | 'radius.xl' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.10' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'space.9';
+export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.cubic' | 'motion.easing.emphasized' | 'motion.easing.entrance' | 'motion.easing.exit' | 'radius.2xl' | 'radius.full' | 'radius.lg' | 'radius.md' | 'radius.sm' | 'radius.xl' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.10' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'space.9';
 
 export const tokenPaths = [
+  'a11y.textOnCanvas.minRatio',
   'color.accent.magenta',
   'color.accent.orange',
   'color.accent.teal',
@@ -200,16 +197,7 @@ export const tokenPaths = [
   'color.border.focus',
   'color.border.inverse',
   'color.border.subtle',
-  'color.brand.blue.050',
-  'color.brand.blue.100',
-  'color.brand.blue.200',
-  'color.brand.blue.300',
-  'color.brand.blue.400',
   'color.brand.blue.500',
-  'color.brand.blue.600',
-  'color.brand.blue.700',
-  'color.brand.blue.800',
-  'color.brand.blue.900',
   'color.fg.accent',
   'color.fg.default',
   'color.fg.inverse',
