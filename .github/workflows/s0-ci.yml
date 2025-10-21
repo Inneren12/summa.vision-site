@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # PR-гейт: не пропускаем BIN в code-only PR
+      # PR-gate: forbid BIN in code-only PR
       - name: "Ensure no BIN files in PR"
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
@@ -44,13 +44,6 @@ jobs:
             if (bin.length) {
               core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
             }
-
-      - name: "Debug: print workflow SHA and file used"
-        run: |
-          echo "Workflow commit SHA: $GITHUB_SHA"
-          echo "::group::.github/workflows/s0-ci.yml"
-          nl -ba .github/workflows/s0-ci.yml
-          echo "::endgroup::"
 
       - name: "Setup Node (no cache yet)"
         uses: actions/setup-node@v4
@@ -113,50 +106,38 @@ jobs:
         run: |
           set -euo pipefail
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
-
-          # собрать директории кода
           dirs=()
           for d in src app styles og; do [ -d "$d" ] && dirs+=("$d"); done
           if [ ${#dirs[@]} -eq 0 ]; then
             echo "No code directories found (src/app/styles/og); skipping raw color scan."
             exit 0
           fi
-
-          # список файлов (исключая системные каталоги и токенные артефакты)
-            mapfile -t FILES < <(
-              find "${dirs[@]}" \
-                -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
-                -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.css' -o -name '*.html' \) \
-                ! -path '*/styles/tokens.css' \
-                -print
-            )
-
+          mapfile -t FILES < <(
+            find "${dirs[@]}" \
+              -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
+              -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.css' -o -name '*.html' \) \
+              ! -path '*/styles/tokens.css' \
+              -print
+          )
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "No eligible files to scan."
             exit 0
           fi
-
-          # поиск HEX и жёсткое исключение tokens.ts/tokens.css (и относительные, и абсолютные пути)
           > /tmp/raw_colors.txt
           grep -nE "$PATTERN" "${FILES[@]}" \
             | grep -v -E '(^|/|\\)src/shared/theme/tokens\.ts:' \
             | grep -v -E '(^|/|\\)styles/tokens\.css:' \
             > /tmp/raw_colors.txt || true
-
-          # нормализуем переводы строк
           sed -i 's/\r$//' /tmp/raw_colors.txt
-
           if [ -s /tmp/raw_colors.txt ]; then
             echo "### Raw color references found" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             sed 's/\x1b\[[0-9;]*m//g' /tmp/raw_colors.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-
             echo "::group::Raw color references (file:line:match)"
             cat /tmp/raw_colors.txt
             echo "::endgroup::"
-
             echo "::error::Found raw HEX colors outside tokens (see summary for details)."
             exit 1
           else
@@ -177,7 +158,7 @@ jobs:
           function lin(u){u/=255;return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
           function lum(h){const n=parseInt(h.replace('#',''),16);const R=lin((n>>16)&255),G=lin((n>>8)&255),B=lin(n&255);return 0.2126*R+0.7152*G+0.0722*B}
           function contrast(a,b){const L1=lum(a),L2=lum(b);const[hi,lo]=L1>L2?[L1,L2]:[L2,L1];return(hi+0.05)/(lo+0.05)}
-          // проверяем только допустимые сочетания (brand-blue-500 светлый — нужен темный текст)
+          // brand-blue-500 светлый: проверяем тёмный текст на нём
           const PAIRS = [
             ['color.fg.default','color.bg.canvas'],
             ['color.fg.default','color.bg.surface'],
@@ -186,7 +167,7 @@ jobs:
           let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}if(!ok)process.exit(1);
           NODE
 
-            - name: "Install a11y deps (axe/jsdom) no-save"
+      - name: "Install a11y deps (axe/jsdom) no-save"
         if: ${{ hashFiles('og/templates/*.html') != '' }}
         run: |
           npm i --no-save --no-package-lock --no-audit --no-fund axe-core@4.9.1 jsdom@23.2.0 glob@7.2.3
@@ -199,36 +180,25 @@ jobs:
           const glob = require('glob');
           const { JSDOM } = require('jsdom');
           const axeCore = require('axe-core');
-
           const files = glob.sync('og/templates/*.html');
           if (!files.length) process.exit(0);
-
           (async () => {
             let failures = 0;
             for (const file of files) {
               const html = fs.readFileSync(file, 'utf8');
-              // важно: включаем выполнение скриптов в jsdom
               const dom = new JSDOM(html, { runScripts: "dangerously", resources: "usable" });
               const { window } = dom;
-
-              // инжектим axe во "внутренний" window документа
               const scriptEl = window.document.createElement('script');
               scriptEl.textContent = axeCore.source;
               window.document.head.appendChild(scriptEl);
-
               if (!window.axe) {
-                console.log('::error:: axe-core did not attach to window');
-                process.exit(1);
+                console.log('::error::axe-core did not attach to window'); process.exit(1);
               }
-
-              // даем jsdom применить DOMContentLoaded, если нужно
               await new Promise(r => {
                 if (window.document.readyState === 'complete' || window.document.readyState === 'interactive') r();
                 else window.addEventListener('DOMContentLoaded', () => r(), { once: true });
               });
-
               const results = await window.axe.run(window.document, { reporter: 'v2' });
-
               if (results.violations.length) {
                 console.log(`A11y violations in ${file}: ${results.violations.length}`);
                 for (const v of results.violations) {
@@ -252,7 +222,7 @@ jobs:
             echo "has_storybook=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          node -e "const p=require('./package.json'); const get=(o)=>o&&Object.keys(o).some(d=>d.startsWith('@storybook/')); const has = get(p.dependencies)||get(p.devDependencies); require('fs').writeFileSync(process.env.GITHUB_OUTPUT, `has_storybook=${has}\n`);"
+          node -e "const p=require('./package.json'); const has=(deps)=>deps&&Object.keys(deps).some(d=>d.startsWith('@storybook/')); const ok = has(p.dependencies)||has(p.devDependencies); require('fs').writeFileSync(process.env.GITHUB_OUTPUT, `has_storybook=${ok}\n`);"
 
       - name: "Build Storybook (optional if configured)"
         if: ${{ hashFiles('.storybook/**') != '' && steps.detect_storybook.outputs.has_storybook == 'true' }}
