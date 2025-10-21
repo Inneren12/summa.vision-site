@@ -1,0 +1,8 @@
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring-color);
+  outline-offset: var(--a11y-focus-ring-offset);
+}

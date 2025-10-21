@@ -1,10 +1,16 @@
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:18:46 GMT
+ * Generated on Tue, 21 Oct 2025 06:24:48 GMT
  */
 
 :root {
-  --a11y-text-on-canvas-min-ratio: 4.5;
+  --component-tooltip-text: #F9FAFB;
+  --component-tooltip-bg: #111827;
+  --component-button-primary-hover: #189EDB;
+  --a11y-contrast-text-on-surface-min-ratio: 4.5;
+  --a11y-contrast-text-on-canvas-min-ratio: 4.5;
+  --a11y-focus-ring-offset: 1px;
+  --a11y-focus-ring-width: 3px;
   --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
   --motion-easing-entrance: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-easing-emphasized: cubic-bezier(0.3, 0, 0.2, 1);
@@ -94,6 +100,9 @@
   --color-neutral-200: #e6eaf0;
   --color-neutral-100: #f3f5f7;
   --color-brand-blue-500: #2fafea;
+  --component-card-shadow: var(--shadow-z1);
+  --component-button-primary-bg: var(--color-brand-blue-500);
+  --a11y-focus-ring-color: var(--color-brand-blue-500);
   --color-grid-minor: var(--color-neutral-200);
   --color-grid-major: var(--color-neutral-300);
   --color-series-1: var(--color-brand-blue-500);
@@ -116,4 +125,12 @@
   --color-fg-subtle: var(--color-neutral-600);
   --color-fg-muted: var(--color-neutral-700);
   --color-fg-default: var(--color-neutral-950);
+  --component-chip-text: var(--color-fg-muted);
+  --component-chip-bg: var(--color-bg-elevated);
+  --component-card-border: var(--color-border-subtle);
+  --component-card-bg: var(--color-bg-surface);
+  --component-button-secondary-border: var(--color-border-default);
+  --component-button-secondary-text: var(--color-fg-default);
+  --component-button-secondary-bg: var(--color-bg-elevated);
+  --component-button-primary-text: var(--color-fg-inverse);
 }
