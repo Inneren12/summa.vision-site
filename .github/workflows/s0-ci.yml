@@ -110,21 +110,20 @@ jobs:
           test -f styles/tokens.css || { echo "::error::styles/tokens.css not generated"; exit 1; }
           test -f src/shared/theme/tokens.ts || { echo "::error::src/shared/theme/tokens.ts not generated"; exit 1; }
 
-      - name: "No raw colors outside tokens"
+           - name: "No raw colors outside tokens"
         shell: bash
-        run: |
+    run: |
           set -euo pipefail
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
 
-          # собрать директории кода
           dirs=()
           for d in src app styles og; do [ -d "$d" ] && dirs+=("$d"); done
           if [ ${#dirs[@]} -eq 0 ]; then
-            echo "No code directories found (src/app/styles/og); skipping raw color scan."
-            exit 0
+          echo "No code directories found (src/app/styles/og); skipping raw color scan."
+          exit 0
           fi
 
-          # список файлов (исключая системные каталоги и токенные артефакты)
+          # Соберём список файлов: исключаем системные каталоги и токенные артефакты
           mapfile -t FILES < <(
             find "${dirs[@]}" \
               -type d \( -name node_modules -o -name .next -o -name dist -o -name tokens -o -name .storybook -o -path '*/src/shared/theme' \) -prune -o \
@@ -138,33 +137,30 @@ jobs:
             exit 0
           fi
 
-          # поиск HEX
+          # Ищем HEX и сразу отбрасываем tokens.ts/tokens.css независимо от формата пути
           > /tmp/raw_colors.txt
-          grep -nE "$PATTERN" "${FILES[@]}" > /tmp/raw_colors.txt || true
+          grep -nE "$PATTERN" "${FILES[@]}" \
+            | grep -v -E '(^|/|\\)src/shared/theme/tokens\.ts:' \
+            | grep -v -E '(^|/|\\)styles/tokens\.css:' \
+            > /tmp/raw_colors.txt || true
 
-          # нормализуем переводы строк
+          # Нормализуем переводы строк и печатаем отчёт
           sed -i 's/\r$//' /tmp/raw_colors.txt
-
-          # вырезаем tokens.ts и styles/tokens.css (и относительные, и абсолютные пути)
-          sed -i -E '/(^|.*\/)src\/shared\/theme\/tokens\.ts:/d' /tmp/raw_colors.txt
-          sed -i -E '/(^|.*\/)styles\/tokens\.css:/d'         /tmp/raw_colors.txt
-
           if [ -s /tmp/raw_colors.txt ]; then
             echo "### Raw color references found" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             sed 's/\x1b\[[0-9;]*m//g' /tmp/raw_colors.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-
             echo "::group::Raw color references (file:line:match)"
             cat /tmp/raw_colors.txt
             echo "::endgroup::"
-
             echo "::error::Found raw HEX colors outside tokens (see summary for details)."
             exit 1
           else
             echo "OK: no raw colors"
           fi
+
 
       - name: "Contrast sanity for core pairs"
         run: |
