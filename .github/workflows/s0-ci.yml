@@ -44,6 +44,13 @@ jobs:
               core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
             }
 
+      - name: Debug: print workflow SHA and file used
+        run: |
+          echo "Workflow commit SHA: $GITHUB_SHA"
+          echo "::group::.github/workflows/s0-ci.yml"
+          nl -ba .github/workflows/s0-ci.yml
+          echo "::endgroup::"
+
       # 1) Node без кэша (чтобы не трогать pnpm до активации)
       - name: Setup Node (no cache yet)
         uses: actions/setup-node@v4
@@ -138,6 +145,9 @@ jobs:
           # Ищем «сырые» HEX
           > /tmp/raw_colors.txt
           grep -nE "$PATTERN" "${FILES[@]}" > /tmp/raw_colors.txt || true
+          # гарантированно исключаем артефакты токенов, даже если find всё-таки их добавил
+          sed -i '/\/src\/shared\/theme\/tokens\.ts:/d' /tmp/raw_colors.txt
+          sed -i '/\/styles\/tokens\.css:/d' /tmp/raw_colors.txt
 
           if [ -s /tmp/raw_colors.txt ]; then
             echo "### Raw color references found" >> $GITHUB_STEP_SUMMARY
