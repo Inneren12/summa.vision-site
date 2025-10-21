@@ -13,9 +13,9 @@ Keep Summa Vision social previews accessible, legible, and on-brand across platf
 - Photography overlays: apply `color-mix(in srgb, var(--color-neutral-950) 70%, transparent)` on bright imagery or `color-mix(in srgb, var(--color-neutral-050) 30%, transparent)` on dark imagery before placing text.
 
 ## Typography
-- Headline: `.typography-h1` (or `.typography-display` for hero narratives) with `font.weight.semibold` and `letter-spacing: -0.015em`.
-- Supporting copy: `.typography-h4` or `.typography-body` with `color.fg.muted`.
-- Metadata chip: `.typography-caption` inside a pill using `color.bg.subtle` (light) or `color.neutral.800` (dark) with `radius.full` corners.
+- Headline: `.h1` (or `.display` for hero narratives) with `font.weight.semibold` and `letter-spacing: -0.015em`.
+- Supporting copy: `.h4` or `.body` with `color.fg.muted`.
+- Metadata chip: `.caption` inside a pill using `color.bg.subtle` (light) or `color.neutral.800` (dark) with `radius.full` corners.
 - Always enable `font-variant-numeric: tabular-nums` for stats (included in base typography stylesheet).
 
 ## Logo & Accent Placement

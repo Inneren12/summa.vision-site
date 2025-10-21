@@ -1,6 +1,6 @@
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:00:19 GMT
+ * Generated on Tue, 21 Oct 2025 06:22:26 GMT
  */
 
 :root {
@@ -32,37 +32,47 @@
   --space-2: 8px;
   --space-1: 4px;
   --space-0: 0px;
-  --font-size-caption: 0.8125rem;
-  --font-size-body-sm: 0.9375rem;
-  --font-size-body: 1rem;
-  --font-size-h6: 1.125rem;
-  --font-size-h5: 1.25rem;
-  --font-size-h4: 1.5rem;
-  --font-size-h3: 1.875rem;
-  --font-size-h2: 2.25rem;
-  --font-size-h1: 2.75rem;
-  --font-size-display: 3.5rem;
-  --font-line-height-relaxed: 1.7;
-  --font-line-height-normal: 1.5;
-  --font-line-height-snug: 1.25;
-  --font-line-height-tight: 1.1;
+  --font-numeric-tabular: tabular-nums;
+  --font-size-caption: 13px;
+  --font-size-body: 16px;
+  --font-size-h4: 18px;
+  --font-size-h3: 22px;
+  --font-size-h2: 28px;
+  --font-size-h1: 36px;
+  --font-size-display: 44px;
+  --font-line-height-body: 1.55;
+  --font-line-height-headings: 1.2;
+  --font-line-height-display: 1.1;
   --font-weight-bold: 700;
   --font-weight-semibold: 600;
   --font-weight-medium: 500;
   --font-weight-regular: 400;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, SFMono, Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-family-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --font-family-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --color-series-12: #2d9cdb;
-  --color-series-11: #eb5757;
-  --color-series-10: #27ae60;
-  --color-series-9: #9b51e0;
-  --color-series-8: #f2994a;
-  --color-series-7: #bb6bd9;
-  --color-series-6: #56ccf2;
-  --color-series-5: #6fcf97;
-  --color-series-4: #f2c94c;
-  --color-series-3: #f9739a;
-  --color-series-2: #5f75f7;
+  --dataviz-width-line: 1.5px;
+  --dataviz-size-marker-lg: 8px;
+  --dataviz-size-marker-md: 6px;
+  --dataviz-size-marker-sm: 4px;
+  --dataviz-semantic-neutral: #6B7280;
+  --dataviz-semantic-negative: #E24545;
+  --dataviz-semantic-positive: #1FBF75;
+  --dataviz-axis-line: #D3D9E1;
+  --dataviz-axis-label: #3C424A;
+  --dataviz-grid-minor: #F1F4F8;
+  --dataviz-grid-major: #E7ECF2;
+  --dataviz-series-12: #55C1FF;
+  --dataviz-series-11: #33658A;
+  --dataviz-series-10: #F6AE2D;
+  --dataviz-series-9: #2F4858;
+  --dataviz-series-8: #A6C96A;
+  --dataviz-series-7: #C42525;
+  --dataviz-series-6: #77A1E5;
+  --dataviz-series-5: #492970;
+  --dataviz-series-4: #1AADCE;
+  --dataviz-series-3: #910000;
+  --dataviz-series-2: #8BBC21;
+  --dataviz-series-1: #2F7ED8;
   --color-status-surface-info-border: #b8e6f6;
   --color-status-surface-info-bg: #e9f7fd;
   --color-status-surface-alert-border: #f3bec7;
@@ -102,9 +112,6 @@
   --color-brand-blue-300: #6ec8ee;
   --color-brand-blue-200: #9ddcf5;
   --color-brand-blue-100: #c7eefb;
-  --color-grid-minor: var(--color-neutral-100);
-  --color-grid-major: var(--color-neutral-200);
-  --color-series-1: var(--color-brand-blue-500);
   --color-status-surface-info-fg: var(--color-status-info);
   --color-status-surface-alert-fg: var(--color-status-alert);
   --color-status-surface-warn-fg: var(--color-status-warn);
