@@ -9,6 +9,33 @@ This document defines the reusable tokens and layout rules that anchor the Summa
 | --- | --- | --- | --- |
 | `accent.blue.dot` | `#2962FF` | `227° / 83% / 100%` | Primary blue dot used in the "V" logomark nucleus and interactive states.
 
+### Theme Palettes
+
+#### Light Interface
+| Token | Hex | Role |
+| --- | --- | --- |
+| `surface.base.light` | `#FFFFFF` | Primary canvas for marketing pages and documentation.
+| `surface.alt.light` | `#F5F7FA` | Elevated cards and form containers; pairs with subtle shadows.
+| `surface.raised.light` | `#E6EBF0` | Table headers, navigation rails, and input backgrounds.
+| `text.primary.light` | `#161B22` | Default body copy; always 4.5:1 contrast or greater on light surfaces.
+| `text.secondary.light` | `#2D333B` | Muted labels, metadata, and iconography.
+| `accent.active.light` | `#2962FF` | Buttons, links, focus outlines; ensure 3px radius focus halo.
+
+#### Dark Interface
+| Token | Hex | Role |
+| --- | --- | --- |
+| `surface.base.dark` | `#0D1117` | Hero backgrounds and immersive sections.
+| `surface.alt.dark` | `#161B22` | Page chrome, navigation rails, and inset cards.
+| `surface.raised.dark` | `#2D333B` | Overlays, popovers, and segmented controls.
+| `text.primary.dark` | `#F5F7FA` | Primary copy; retains legibility at 4.5:1 or greater contrast.
+| `text.secondary.dark` | `#C1C8D0` | Supporting copy and UI affordances.
+| `accent.active.dark` | `#1DD3F8` | Hover states, data highlights, and secondary CTAs on dark surfaces.
+
+### Background Application
+- Anchor hero sections on `surface.base.dark` to give the dot accent luminosity; introduce gradients only when values stay within the `surface.alt.dark`–`surface.raised.dark` range.
+- Use `surface.base.light` for documentation and long-form reading. Introduce `surface.alt.light` to differentiate cards or data callouts while maintaining a minimum `space.4` separation.
+- When transitioning between themes, fade between the base surfaces over 200ms to avoid abrupt shifts. Accent colors remain constant across modes to strengthen recognition.
+
 ### Grayscale Ramp
 | Token | Hex | HSB | Usage |
 | --- | --- | --- | --- |
@@ -25,6 +52,12 @@ This document defines the reusable tokens and layout rules that anchor the Summa
 | --- | --- | --- | --- |
 | `accent.cyan` | `#1DD3F8` | `189° / 88% / 97%` | Highlights for data visualizations and hover states.
 | `accent.violet` | `#7B61FF` | `252° / 61% / 100%` | Secondary call-to-action emphasis.
+
+### Contrast Guidance
+- **Body copy:** Maintain a minimum 4.5:1 contrast ratio (WCAG AA) between `text.primary.*` tokens and their paired surfaces.
+- **Key actions:** Buttons and links using `accent.active.*` should reach 7:1 (AA+) against the surface they sit on; introduce `text.primary.*` labels inside filled buttons for 4.5:1 contrast.
+- **Supporting copy:** Secondary text may drop to 3:1 contrast only when accompanied by a higher-contrast headline and the content is not critical for task completion.
+- **Dot accent:** The blue nucleus should never sit on colors brighter than `surface.alt.light` or darker than `surface.alt.dark`. If placed over imagery, apply an 80% black overlay for light images or 60% white overlay for dark images to achieve 7:1 contrast with the surrounding surface.
 
 ## Spacing Scale
 
@@ -57,8 +90,9 @@ Use relative units (`rem`) for scalability: 3.5rem (hero), 2.25rem (section), 1.
 ## Logomark Usage
 
 ### Safe Area
-- Maintain a clear space equal to `space.4` (16px) on all sides of the "V" glyph when placed standalone.
-- When paired with the wordmark, extend the safe area to `space.6` (24px) on the trailing side to accommodate the wordmark's optical balance.
+- Maintain a clear space equal to `space.4` (16px) on all sides of the "V" glyph when placed standalone. The safe area is measured from the outermost edges of the glyph to the nearest graphic or text element.
+- When paired with the wordmark, extend the safe area to `space.6` (24px) on the trailing side to accommodate the wordmark's optical balance. Never allow background graphics to intrude on this zone.
+- For campaign lockups, reserve a minimum `space.8` (32px) margin from the artboard edges to the safe area to avoid edge crowding.
 
 ### Sizing
 - **Minimum standalone size:** 24px height (preserves interior angles).
@@ -69,6 +103,32 @@ Use relative units (`rem`) for scalability: 3.5rem (hero), 2.25rem (section), 1.
 - The wordmark baseline aligns with the lower vertex of the "V" glyph.
 - The "V" height sets the cap height of the wordmark: logotype characters scale to 75% of the glyph height.
 - Maintain a gap of `space.6` (24px) between the right edge of the glyph and the left edge of the wordmark to echo the grid module.
+
+### Placement Guidance & Dot Accent
+- **Light backgrounds:** Place the mark on `surface.base.light` or `surface.alt.light`. Introduce a subtle `#D7DFE7` shadow at 20% opacity offset `0 4px 16px` to keep the dot luminous. Example:
+
+```
+[ Light Card ]
+┌────────────────────────────┐
+│                            │
+│      ●   SUMMA VISION      │
+│                            │
+└────────────────────────────┘
+```
+
+- **Dark backgrounds:** Use `surface.base.dark` or hero imagery washed with a 70% black overlay. Add a soft `#0D1117` inner glow to the dot (8px blur) so it appears embedded. Example:
+
+```
+[ Dark Hero ]
+┌────────────────────────────┐
+│                            │
+│      ●   SUMMA VISION      │
+│                            │
+└────────────────────────────┘
+```
+
+- **Dot accent alignment:** The dot should always sit on the vertical centerline of the wordmark when used in horizontal lockups. In stacked compositions, center the dot horizontally above the wordmark with `space.4` separation.
+- **Photography overlap:** If the dot overlaps photography, apply a translucent ring (`rgba(41, 98, 255, 0.24)`) at `space.2` thickness to preserve contrast while maintaining the glow aesthetic.
 
 ## Asset References
 
