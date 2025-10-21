@@ -1,0 +1,139 @@
+name: S0 Code-only Quality Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    # Можно ограничить на code-only изменения (без бинарников), но оставлю общий прогон.
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: s0-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  s0:
+    name: S0 checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # (PR-only) запрет BIN в S0-пулл-реквестах
+      - name: Ensure no BIN files in PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const exts = ['.png','.jpg','.jpeg','.svg','.ico','.webp','.avif','.gif','.woff','.woff2','.ttf','.otf','.pdf','.zip'];
+            const pr = context.payload.pull_request;
+            const files = await github.rest.pulls.listFiles({owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 200});
+            const bin = files.data.filter(f => exts.some(e => f.filename.toLowerCase().endsWith(e)));
+            if (bin.length) {
+              core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
+            }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install deps
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm i --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm i
+          fi
+
+      - name: Verify token source exists
+        run: |
+          test -f tokens/brand.tokens.json || { echo "::error::missing tokens/brand.tokens.json"; exit 1; }
+          echo "Found tokens/brand.tokens.json"
+
+      - name: Build tokens (CSS variables + TS export)
+        run: |
+          set -e
+          if [ -f pnpm-lock.yaml ]; then PKG=pnpm; else PKG=npm; fi
+          # 1) скрипт из package.json
+          if $PKG run -s tokens:build; then
+            echo "tokens:build OK (package script)"
+          # 2) резерв — прямой вызов сборщика
+          elif [ -f scripts/build-tokens.ts ]; then
+            npx -y tsx scripts/build-tokens.ts
+            echo "tokens:build OK (direct tsx)"
+          else
+            echo "::error::No tokens builder found (add scripts/build-tokens.ts or a tokens:build script)"; exit 1
+          fi
+          # Проверим, что артефакты появились
+          test -f styles/tokens.css || { echo "::error::styles/tokens.css not generated"; exit 1; }
+          test -f src/shared/theme/tokens.ts || { echo "::error::src/shared/theme/tokens.ts not generated"; exit 1; }
+
+      - name: No raw colors outside tokens
+        run: |
+          set -e
+          PATTERN='#[0-9A-Fa-f]{3,8}\b'
+          echo "Scanning for raw HEX colors outside tokens/"
+          # Поиск только в кодовых папках; исключаем node_modules/.next/dist/tokens/.storybook
+          if grep -RInE "$PATTERN" \
+            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
+            --exclude-dir=tokens --exclude-dir=.storybook \
+            --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.css' \
+            src app styles 2>/dev/null; then
+            echo "::error::Found raw HEX colors outside tokens"; exit 1
+          else
+            echo "OK: no raw colors"
+          fi
+
+      - name: Contrast sanity for core pairs
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          function hex(c){return c.replace('#','')}
+          function toRgb(h){h=hex(h); if(h.length===3){h=h.split('').map(x=>x+x).join('')}
+            const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]}
+          function srgb2lin(u){u/=255; return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
+          function luminance([r,g,b]){const [R,G,B]=[r,g,b].map(srgb2lin); return 0.2126*R+0.7152*G+0.0722*B}
+          function contrast(a,b){const L1=luminance(toRgb(a)), L2=luminance(toRgb(b)); const [hi,lo]=L1>L2?[L1,L2]:[L2,L1]; return (hi+0.05)/(lo+0.05)}
+          const tok=JSON.parse(fs.readFileSync('tokens/brand.tokens.json','utf8'))
+          const pick=(path)=>path.split('.').reduce((o,k)=>o&&o[k], tok)
+          const pairs=[
+            ['color.fg.default','color.bg.canvas'],
+            ['color.fg.default','color.bg.surface'],
+            ['color.fg.inverse','color.brand.blue.500']
+          ];
+          let ok=true;
+          for(const [fg,bg] of pairs){
+            const cf=pick(fg), cb=pick(bg);
+            if(!cf||!cb){console.log(`::warning::Missing token ${!cf?fg:bg}`); continue;}
+            const ratio=contrast(cf,cb);
+            console.log(`${fg} on ${bg} = ${ratio.toFixed(2)}:1`);
+            if(ratio<4.5){console.log(`::error::Contrast < 4.5 (${ratio.toFixed(2)}) for ${fg} on ${bg}`); ok=false;}
+          }
+          if(!ok) process.exit(1)
+          NODE
+
+      - name: Axe on OG templates (if present)
+        if: ${{ hashFiles('og/templates/*.html') != '' }}
+        run: |
+          npx -y @axe-core/cli -q og/templates/*.html
+
+      - name: Build Storybook (optional if configured)
+        if: ${{ hashFiles('.storybook/**') != '' }}
+        run: |
+          npx -y storybook@latest build --quiet
