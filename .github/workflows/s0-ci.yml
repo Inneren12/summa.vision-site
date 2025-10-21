@@ -44,21 +44,22 @@ jobs:
               core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
             }
 
-      # 1) Ставим Node БЕЗ кэша (чтобы не трогать pnpm до его активации)
+      # 1) Node без кэша (чтобы не трогать pnpm до активации)
       - name: Setup Node (no cache yet)
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 2) Включаем Corepack и активируем pnpm
+      # 2) Corepack + pnpm
       - name: Enable Corepack + PNPM
         run: |
           corepack enable
           corepack prepare pnpm@9.12.3 --activate
           pnpm -v
 
-      # 3) Повторно setup-node, но теперь с кэшем pnpm (он уже доступен)
-      - name: Setup Node cache for pnpm
+      # 3) Включаем кэш ТОЛЬКО если есть pnpm-lock.yaml
+      - name: Setup Node cache for pnpm (only if pnpm-lock.yaml exists)
+        if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -87,18 +88,15 @@ jobs:
       - name: Build tokens (CSS variables + TS export)
         run: |
           set -e
-          # 1) если есть скрипт в package.json
           if npm run -s tokens:build >/dev/null 2>&1; then
             npm run -s tokens:build
             echo "tokens:build OK (package script)"
-          # 2) резерв — прямой вызов tsx-скрипта
           elif [ -f scripts/build-tokens.ts ]; then
             npx -y tsx scripts/build-tokens.ts
             echo "tokens:build OK (direct tsx)"
           else
             echo "::error::No tokens builder found (add scripts/build-tokens.ts or a tokens:build script)"; exit 1
           fi
-          # Проверим артефакты
           test -f styles/tokens.css || { echo "::error::styles/tokens.css not generated"; exit 1; }
           test -f src/shared/theme/tokens.ts || { echo "::error::src/shared/theme/tokens.ts not generated"; exit 1; }
 
@@ -132,87 +130,19 @@ jobs:
         run: |
           node - <<'NODE'
           const fs = require('fs');
-
           const TOK = JSON.parse(fs.readFileSync('tokens/brand.tokens.json','utf8'));
-          const get = (obj, path) => path.split('.').reduce((o,k)=> (o && k in o ? o[k] : undefined), obj);
-
-          const rgbToHex = (r,g,b)=> '#'+[r,g,b].map(n=>{
-            n = Math.max(0, Math.min(255, Math.round(n)));
-            return n.toString(16).padStart(2,'0');
-          }).join('');
-
-          const parseCssRgb = s => {
-            const m = s.match(/^rgba?\(([^)]+)\)/i);
-            if(!m) return null;
-            const parts = m[1].split(',').map(x=>x.trim());
-            if(parts.length < 3) return null;
-            return rgbToHex(+parts[0], +parts[1], +parts[2]);
-          };
-
-          function normalizeColor(val, depth=0) {
-            if (depth > 6 || val == null) return null;
-            if (typeof val === 'string') {
-              const ali = val.match(/^\{([^}]+)\}$/);
-              if (ali) return normalizeColor(get(TOK, ali[1]), depth+1);
-              if (/^#?[0-9a-fA-F]{3,8}$/.test(val)) {
-                let s = val.startsWith('#') ? val : '#'+val;
-                if (s.length === 4) s = '#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
-                return s.toUpperCase();
-              }
-              if (/^rgba?\(/i.test(val)) {
-                const hex = parseCssRgb(val);
-                return hex ? hex.toUpperCase() : null;
-              }
-              return null;
-            }
-            if (Array.isArray(val) && val.length >= 3 && val.every(n => typeof n === 'number')) {
-              return rgbToHex(val[0], val[1], val[2]).toUpperCase();
-            }
-            if (typeof val === 'object') {
-              if ('value'   in val) return normalizeColor(val.value,   depth+1);
-              if ('$value'  in val) return normalizeColor(val.$value,  depth+1);
-              if ('hex'     in val) return normalizeColor(val.hex,     depth+1);
-              if ('r' in val && 'g' in val && 'b' in val) return rgbToHex(val.r, val.g, val.b).toUpperCase();
-              if ('light'   in val) return normalizeColor(val.light,   depth+1);
-              if ('default' in val) return normalizeColor(val.default, depth+1);
-            }
-            return null;
-          }
-
-          function srgb2lin(u){u/=255; return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
-          function luminance(hex){
-            const n=parseInt(hex.replace('#',''),16);
-            const R=srgb2lin((n>>16)&255), G=srgb2lin((n>>8)&255), B=srgb2lin(n&255);
-            return 0.2126*R + 0.7152*G + 0.0722*B;
-          }
-          function contrast(a,b){
-            const L1=luminance(a), L2=luminance(b);
-            const [hi,lo]=L1>L2 ? [L1,L2] : [L2,L1];
-            return (hi+0.05)/(lo+0.05);
-          }
-
-          const PAIRS = [
-            ['color.fg.default','color.bg.canvas'],
-            ['color.fg.default','color.bg.surface'],
-            ['color.fg.inverse','color.brand.blue.500']
-          ];
-
-          let ok = true;
-          for (const [fgP, bgP] of PAIRS) {
-            const fg = normalizeColor(get(TOK, fgP));
-            const bg = normalizeColor(get(TOK, bgP));
-            if (!fg || !bg) {
-              console.log(`::warning::Cannot resolve color tokens for pair: ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);
-              continue;
-            }
-            const ratio = contrast(fg, bg);
-            console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${ratio.toFixed(2)}:1`);
-            if (ratio < 4.5) {
-              console.log(`::error::Contrast < 4.5 (${ratio.toFixed(2)}) for ${fgP} on ${bgP}`);
-              ok = false;
-            }
-          }
-          if (!ok) process.exit(1);
+          const get = (o,p)=>p.split('.').reduce((x,k)=>x&&k in x?x[k]:undefined,o);
+          const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(n=>Math.max(0,Math.min(255,Math.round(n))).toString(16).padStart(2,'0')).join('');
+          const parseCssRgb=s=>{const m=s.match(/^rgba?\(([^)]+)\)/i);if(!m)return null;const a=m[1].split(',').map(x=>x.trim());if(a.length<3)return null;return rgbToHex(+a[0],+a[1],+a[2])};
+          function norm(val,d=0){if(d>6||val==null)return null;if(typeof val==='string'){const al=val.match(/^\{([^}]+)\}$/);if(al)return norm(get(TOK,al[1]),d+1);if(/^#?[0-9a-fA-F]{3,8}$/.test(val)){let s=val.startsWith('#')?val:'#'+val;if(s.length===4)s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];return s.toUpperCase()}if(/^rgba?\(/i.test(val)){const h=parseCssRgb(val);return h?h.toUpperCase():null}return null}
+            if(Array.isArray(val)&&val.length>=3&&val.every(n=>typeof n==='number'))return rgbToHex(val[0],val[1],val[2]).toUpperCase();
+            if(typeof val==='object'){if('value'in val)return norm(val.value,d+1);if('$value'in val)return norm(val.$value,d+1);if('hex'in val)return norm(val.hex,d+1);if('r'in val&&'g'in val&&'b'in val)return rgbToHex(val.r,val.g,val.b).toUpperCase();if('light'in val)return norm(val.light,d+1);if('default'in val)return norm(val.default,d+1)}return null}
+          function lin(u){u/=255;return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
+          function lum(h){const n=parseInt(h.replace('#',''),16);const R=lin((n>>16)&255),G=lin((n>>8)&255),B=lin(n&255);return 0.2126*R+0.7152*G+0.0722*B}
+          function contrast(a,b){const L1=lum(a),L2=lum(b);const[hi,lo]=L1>L2?[L1,L2]:[L2,L1];return(hi+0.05)/(lo+0.05)}
+          const PAIRS=[['color.fg.default','color.bg.canvas'],['color.fg.default','color.bg.surface'],['color.fg.inverse','color.brand.blue.500']];
+          let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}
+          if(!ok)process.exit(1);
           NODE
 
       - name: Axe on OG templates (if present)
