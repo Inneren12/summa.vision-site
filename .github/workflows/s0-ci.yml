@@ -186,52 +186,52 @@ jobs:
           let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}if(!ok)process.exit(1);
           NODE
 
-        - name: "Axe on OG templates (jsdom)"
-          if: ${{ hashFiles('og/templates/*.html') != '' }}
-          run: |
-            npx -y -p axe-core@4.9.1 -p jsdom@23.2.0 -p glob node - <<'NODE'
-            const fs = require('fs');
-            const glob = require('glob');
-            const { JSDOM } = require('jsdom');
-            const axeCore = require('axe-core');
+      - name: "Axe on OG templates (jsdom)"
+        if: ${{ hashFiles('og/templates/*.html') != '' }}
+        run: |
+          npx -y -p axe-core@4.9.1 -p jsdom@23.2.0 -p glob node - <<'NODE'
+          const fs = require('fs');
+          const glob = require('glob');
+          const { JSDOM } = require('jsdom');
+          const axeCore = require('axe-core');
 
-            const files = glob.sync('og/templates/*.html');
-            if (!files.length) process.exit(0);
+          const files = glob.sync('og/templates/*.html');
+          if (!files.length) process.exit(0);
 
-            (async () => {
-              let failures = 0;
-              for (const file of files) {
-                const html = fs.readFileSync(file, 'utf8');
-                const dom = new JSDOM(html);
-                const { window } = dom;
-                window.eval(axeCore.source);
-                const results = await window.axe.run(window.document);
-                if (results.violations.length) {
-                  console.log(`A11y violations in ${file}: ${results.violations.length}`);
-                  for (const v of results.violations) {
-                    console.log(`- ${v.id}: ${v.help} (${v.impact})`);
-                    const node = v.nodes[0];
-                    if (node) console.log(`  node: ${node.target.join(' ')}`);
-                  }
-                  failures++;
-                } else {
-                  console.log(`OK: ${file}`);
+          (async () => {
+            let failures = 0;
+            for (const file of files) {
+              const html = fs.readFileSync(file, 'utf8');
+              const dom = new JSDOM(html);
+              const { window } = dom;
+              window.eval(axeCore.source);
+              const results = await window.axe.run(window.document);
+              if (results.violations.length) {
+                console.log(`A11y violations in ${file}: ${results.violations.length}`);
+                for (const v of results.violations) {
+                  console.log(`- ${v.id}: ${v.help} (${v.impact})`);
+                  const node = v.nodes[0];
+                  if (node) console.log(`  node: ${node.target.join(' ')}`);
                 }
+                failures++;
+              } else {
+                console.log(`OK: ${file}`);
               }
-              if (failures) process.exit(2);
-            })();
-            NODE
+            }
+            if (failures) process.exit(2);
+          })();
+          NODE
 
-        - id: detect_storybook
-          name: "Detect Storybook deps"
-          run: |
-            if [ ! -f package.json ]; then
-              echo "has_storybook=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            node -e "const p=require('./package.json'); const get=(o)=>o&&Object.keys(o).some(d=>d.startsWith('@storybook/')); const has = get(p.dependencies)||get(p.devDependencies); require('fs').writeFileSync(process.env.GITHUB_OUTPUT, `has_storybook=${has}\n`);"
+      - id: detect_storybook
+        name: "Detect Storybook deps"
+        run: |
+          if [ ! -f package.json ]; then
+            echo "has_storybook=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          node -e "const p=require('./package.json'); const get=(o)=>o&&Object.keys(o).some(d=>d.startsWith('@storybook/')); const has = get(p.dependencies)||get(p.devDependencies); require('fs').writeFileSync(process.env.GITHUB_OUTPUT, `has_storybook=${has}\n`);"
 
-        - name: "Build Storybook (optional if configured)"
-          if: ${{ hashFiles('.storybook/**') != '' && steps.detect_storybook.outputs.has_storybook == 'true' }}
-          run: |
-            npx -y storybook@latest build --quiet
+      - name: "Build Storybook (optional if configured)"
+        if: ${{ hashFiles('.storybook/**') != '' && steps.detect_storybook.outputs.has_storybook == 'true' }}
+        run: |
+          npx -y storybook@latest build --quiet
