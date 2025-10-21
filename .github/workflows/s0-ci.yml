@@ -5,7 +5,6 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-    # Можно ограничить на code-only изменения (без бинарников), но оставлю общий прогон.
 
 permissions:
   contents: read
@@ -19,14 +18,13 @@ jobs:
   s0:
     name: S0 checks
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # (PR-only) запрет BIN в S0-пулл-реквестах
+      # (PR-only) блокируем BIN в code-only PR
       - name: Ensure no BIN files in PR
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
@@ -44,20 +42,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Install deps
+      # ✅ фикс: включаем Corepack и активируем pnpm
+      - name: Enable Corepack + PNPM
         run: |
+          corepack enable
+          corepack prepare pnpm@9.12.3 --activate
+          pnpm -v
+
+      - name: Install deps (pnpm if lockfile, otherwise npm)
+        run: |
+          set -e
           if [ -f pnpm-lock.yaml ]; then
+            echo "Using pnpm (lockfile found)"
             pnpm i --frozen-lockfile
           elif [ -f package-lock.json ]; then
+            echo "Using npm ci (package-lock.json found)"
             npm ci
           else
+            echo "Using npm i (no lockfile found)"
             npm i
           fi
 
@@ -69,18 +72,18 @@ jobs:
       - name: Build tokens (CSS variables + TS export)
         run: |
           set -e
-          if [ -f pnpm-lock.yaml ]; then PKG=pnpm; else PKG=npm; fi
-          # 1) скрипт из package.json
-          if $PKG run -s tokens:build; then
+          # 1) если есть скрипт в package.json
+          if npm run -s tokens:build >/dev/null 2>&1; then
+            npm run -s tokens:build
             echo "tokens:build OK (package script)"
-          # 2) резерв — прямой вызов сборщика
+          # 2) резерв — прямой вызов tsx-скрипта
           elif [ -f scripts/build-tokens.ts ]; then
             npx -y tsx scripts/build-tokens.ts
             echo "tokens:build OK (direct tsx)"
           else
             echo "::error::No tokens builder found (add scripts/build-tokens.ts or a tokens:build script)"; exit 1
           fi
-          # Проверим, что артефакты появились
+          # Проверим артефакты
           test -f styles/tokens.css || { echo "::error::styles/tokens.css not generated"; exit 1; }
           test -f src/shared/theme/tokens.ts || { echo "::error::src/shared/theme/tokens.ts not generated"; exit 1; }
 
@@ -89,7 +92,6 @@ jobs:
           set -e
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
           echo "Scanning for raw HEX colors outside tokens/"
-          # Поиск только в кодовых папках; исключаем node_modules/.next/dist/tokens/.storybook
           if grep -RInE "$PATTERN" \
             --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
             --exclude-dir=tokens --exclude-dir=.storybook \
