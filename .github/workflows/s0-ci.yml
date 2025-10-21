@@ -186,10 +186,16 @@ jobs:
           let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}if(!ok)process.exit(1);
           NODE
 
+      # axe без браузера: ставим deps локально (без изменения package.json/lock)
+      - name: "Install a11y deps (axe/jsdom) no-save"
+        if: ${{ hashFiles('og/templates/*.html') != '' }}
+        run: |
+          npm i --no-save --no-package-lock --no-audit --no-fund axe-core@4.9.1 jsdom@23.2.0 glob@10
+
       - name: "Axe on OG templates (jsdom)"
         if: ${{ hashFiles('og/templates/*.html') != '' }}
         run: |
-          npx -y -p axe-core@4.9.1 -p jsdom@23.2.0 -p glob node - <<'NODE'
+          node - <<'NODE'
           const fs = require('fs');
           const glob = require('glob');
           const { JSDOM } = require('jsdom');
