@@ -8,98 +8,98 @@ export const tokens = {
   "color": {
     "brand": {
       "blue": {
-        "500": "#2fafea"
+        "500": "var(--color-brand-blue-500)"
       }
     },
     "neutral": {
-      "100": "#f3f5f7",
-      "200": "#e6eaf0",
-      "300": "#d3d9e1",
-      "400": "#b8c0ca",
-      "500": "#9ca4b1",
-      "600": "#6e7682",
-      "700": "#3c424a",
-      "800": "#272c33",
-      "900": "#181c20",
-      "950": "#101418",
-      "000": "#ffffff",
-      "050": "#fafbfc"
+      "100": "var(--color-neutral-100)",
+      "200": "var(--color-neutral-200)",
+      "300": "var(--color-neutral-300)",
+      "400": "var(--color-neutral-400)",
+      "500": "var(--color-neutral-500)",
+      "600": "var(--color-neutral-600)",
+      "700": "var(--color-neutral-700)",
+      "800": "var(--color-neutral-800)",
+      "900": "var(--color-neutral-900)",
+      "950": "var(--color-neutral-950)",
+      "000": "var(--color-neutral-000)",
+      "050": "var(--color-neutral-050)"
     },
     "accent": {
-      "teal": "#1bb6a1",
-      "violet": "#7056e2",
-      "magenta": "#d6569e",
-      "orange": "#f47c3c",
-      "yellow": "#f5c04a"
+      "teal": "var(--color-accent-teal)",
+      "violet": "var(--color-accent-violet)",
+      "magenta": "var(--color-accent-magenta)",
+      "orange": "var(--color-accent-orange)",
+      "yellow": "var(--color-accent-yellow)"
     },
     "fg": {
-      "default": "#101418",
-      "muted": "#3c424a",
-      "subtle": "#6e7682",
-      "inverse": "#ffffff",
-      "accent": "#2fafea"
+      "default": "var(--color-fg-default)",
+      "muted": "var(--color-fg-muted)",
+      "subtle": "var(--color-fg-subtle)",
+      "inverse": "var(--color-fg-inverse)",
+      "accent": "var(--color-fg-accent)"
     },
     "bg": {
-      "canvas": "#ffffff",
-      "surface": "#fafbfc",
-      "elevated": "#f3f5f7",
-      "subtle": "#e6eaf0",
-      "inverse": "#101418"
+      "canvas": "var(--color-bg-canvas)",
+      "surface": "var(--color-bg-surface)",
+      "elevated": "var(--color-bg-elevated)",
+      "subtle": "var(--color-bg-subtle)",
+      "inverse": "var(--color-bg-inverse)"
     },
     "border": {
-      "subtle": "#e6eaf0",
-      "default": "#d3d9e1",
-      "emphasis": "#b8c0ca",
-      "inverse": "#272c33",
-      "focus": "#2fafea"
+      "subtle": "var(--color-border-subtle)",
+      "default": "var(--color-border-default)",
+      "emphasis": "var(--color-border-emphasis)",
+      "inverse": "var(--color-border-inverse)",
+      "focus": "var(--color-border-focus)"
     },
     "status": {
-      "ok": "#1fbf75",
-      "warn": "#f0a400",
-      "alert": "#e24545",
-      "info": "#2fafea"
+      "ok": "var(--color-status-ok)",
+      "warn": "var(--color-status-warn)",
+      "alert": "var(--color-status-alert)",
+      "info": "var(--color-status-info)"
     },
     "statusSurface": {
       "ok": {
-        "fg": "#1fbf75",
-        "bg": "#e6f7ef",
-        "border": "#b2e4cb"
+        "fg": "var(--color-status-surface-ok-fg)",
+        "bg": "var(--color-status-surface-ok-bg)",
+        "border": "var(--color-status-surface-ok-border)"
       },
       "warn": {
-        "fg": "#f0a400",
-        "bg": "#fff4e0",
-        "border": "#f6d599"
+        "fg": "var(--color-status-surface-warn-fg)",
+        "bg": "var(--color-status-surface-warn-bg)",
+        "border": "var(--color-status-surface-warn-border)"
       },
       "alert": {
-        "fg": "#e24545",
-        "bg": "#fdecef",
-        "border": "#f3bdc6"
+        "fg": "var(--color-status-surface-alert-fg)",
+        "bg": "var(--color-status-surface-alert-bg)",
+        "border": "var(--color-status-surface-alert-border)"
       },
       "info": {
-        "fg": "#2fafea",
-        "bg": "#e9f7fd",
-        "border": "#b8e6f6"
+        "fg": "var(--color-status-surface-info-fg)",
+        "bg": "var(--color-status-surface-info-bg)",
+        "border": "var(--color-status-surface-info-border)"
       }
     }
   },
   "dataviz": {
     "series": {
-      "1": "#2F7ED8",
-      "2": "#8BBC21",
-      "3": "#910000",
-      "4": "#1AADCE",
-      "5": "#492970",
-      "6": "#77A1E5",
-      "7": "#C42525",
-      "8": "#A6C96A",
-      "9": "#2F4858",
-      "10": "#F6AE2D",
-      "11": "#33658A",
-      "12": "#55C1FF"
+      "1": "var(--dataviz-series-1)",
+      "2": "var(--dataviz-series-2)",
+      "3": "var(--dataviz-series-3)",
+      "4": "var(--dataviz-series-4)",
+      "5": "var(--dataviz-series-5)",
+      "6": "var(--dataviz-series-6)",
+      "7": "var(--dataviz-series-7)",
+      "8": "var(--dataviz-series-8)",
+      "9": "var(--dataviz-series-9)",
+      "10": "var(--dataviz-series-10)",
+      "11": "var(--dataviz-series-11)",
+      "12": "var(--dataviz-series-12)"
     },
     "grid": {
-      "major": "#d3d9e1",
-      "minor": "#e6eaf0"
+      "major": "var(--dataviz-grid-major)",
+      "minor": "var(--dataviz-grid-minor)"
     }
   },
   "font": {
@@ -177,7 +177,7 @@ export const tokens = {
   },
   "a11y": {
     "focus": {
-      "ringColor": "#2fafea",
+      "ringColor": "var(--a11y-focus-ring-color)",
       "ringWidth": "3px",
       "ringOffset": "1px"
     },
@@ -193,28 +193,28 @@ export const tokens = {
   "component": {
     "button": {
       "primary": {
-        "bg": "#2fafea",
-        "text": "#ffffff",
-        "hover": "#189EDB"
+        "bg": "var(--component-button-primary-bg)",
+        "text": "var(--component-button-primary-text)",
+        "hover": "var(--component-button-primary-hover)"
       },
       "secondary": {
-        "bg": "#f3f5f7",
-        "text": "#101418",
-        "border": "#d3d9e1"
+        "bg": "var(--component-button-secondary-bg)",
+        "text": "var(--component-button-secondary-text)",
+        "border": "var(--component-button-secondary-border)"
       }
     },
     "card": {
-      "bg": "#fafbfc",
-      "border": "#e6eaf0",
+      "bg": "var(--component-card-bg)",
+      "border": "var(--component-card-border)",
       "shadow": "0 1px 2px rgba(16, 20, 24, 0.12), 0 1px 1px rgba(16, 20, 24, 0.06)"
     },
     "chip": {
-      "bg": "#f3f5f7",
-      "text": "#3c424a"
+      "bg": "var(--component-chip-bg)",
+      "text": "var(--component-chip-text)"
     },
     "tooltip": {
-      "bg": "#111827",
-      "text": "#F9FAFB"
+      "bg": "var(--component-tooltip-bg)",
+      "text": "var(--component-tooltip-text)"
     }
   },
   "dataviz": {
