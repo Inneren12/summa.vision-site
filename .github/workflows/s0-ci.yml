@@ -18,13 +18,14 @@ jobs:
   s0:
     name: S0 checks
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # (PR-only) блокируем BIN в code-only PR
+      # PR-гейт: не пропускаем BIN в S0 (code-only) PR
       - name: Ensure no BIN files in PR
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
@@ -32,7 +33,12 @@ jobs:
           script: |
             const exts = ['.png','.jpg','.jpeg','.svg','.ico','.webp','.avif','.gif','.woff','.woff2','.ttf','.otf','.pdf','.zip'];
             const pr = context.payload.pull_request;
-            const files = await github.rest.pulls.listFiles({owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 200});
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 200
+            });
             const bin = files.data.filter(f => exts.some(e => f.filename.toLowerCase().endsWith(e)));
             if (bin.length) {
               core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
@@ -42,8 +48,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
 
-      # ✅ фикс: включаем Corepack и активируем pnpm
+      # Включаем Corepack и активируем pnpm
       - name: Enable Corepack + PNPM
         run: |
           corepack enable
@@ -88,16 +95,28 @@ jobs:
           test -f src/shared/theme/tokens.ts || { echo "::error::src/shared/theme/tokens.ts not generated"; exit 1; }
 
       - name: No raw colors outside tokens
+        shell: bash
         run: |
           set -e
           PATTERN='#[0-9A-Fa-f]{3,8}\b'
-          echo "Scanning for raw HEX colors outside tokens/"
-          if grep -RInE "$PATTERN" \
+          dirs=()
+          for d in src app styles; do [ -d "$d" ] && dirs+=("$d"); done
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No code directories found (src/app/styles); skipping raw color scan."
+            exit 0
+          fi
+          # Складываем вывод grep во временный файл и анализируем размер
+          grep -RInE "$PATTERN" "${dirs[@]}" \
             --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
             --exclude-dir=tokens --exclude-dir=.storybook \
             --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.css' \
-            src app styles 2>/dev/null; then
-            echo "::error::Found raw HEX colors outside tokens"; exit 1
+            > /tmp/raw_colors.txt || true
+          if [ -s /tmp/raw_colors.txt ]; then
+            echo "::group::Raw color references found"
+            cat /tmp/raw_colors.txt
+            echo "::endgroup::"
+            echo "::error::Found raw HEX colors outside tokens"
+            exit 1
           else
             echo "OK: no raw colors"
           fi
@@ -105,29 +124,98 @@ jobs:
       - name: Contrast sanity for core pairs
         run: |
           node - <<'NODE'
-          const fs=require('fs');
-          function hex(c){return c.replace('#','')}
-          function toRgb(h){h=hex(h); if(h.length===3){h=h.split('').map(x=>x+x).join('')}
-            const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]}
+          const fs = require('fs');
+
+          // ---- load tokens ----
+          const TOK = JSON.parse(fs.readFileSync('tokens/brand.tokens.json','utf8'));
+
+          // ---- helpers ----
+          const get = (obj, path) => path.split('.').reduce((o,k)=> (o && k in o ? o[k] : undefined), obj);
+
+          const rgbToHex = (r,g,b)=> '#'+[r,g,b].map(n=>{
+            n = Math.max(0, Math.min(255, Math.round(n)));
+            return n.toString(16).padStart(2,'0');
+          }).join('');
+
+          const parseCssRgb = s => {
+            const m = s.match(/^rgba?\(([^)]+)\)/i);
+            if(!m) return null;
+            const parts = m[1].split(',').map(x=>x.trim());
+            if(parts.length < 3) return null;
+            return rgbToHex(+parts[0], +parts[1], +parts[2]);
+          };
+
+          function normalizeColor(val, depth=0) {
+            if (depth > 6 || val == null) return null;
+
+            // strings
+            if (typeof val === 'string') {
+              const ali = val.match(/^\{([^}]+)\}$/);             // "{path.to.token}"
+              if (ali) return normalizeColor(get(TOK, ali[1]), depth+1);
+              if (/^#?[0-9a-fA-F]{3,8}$/.test(val)) {
+                let s = val.startsWith('#') ? val : '#'+val;
+                if (s.length === 4) s = '#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
+                return s.toUpperCase();
+              }
+              if (/^rgba?\(/i.test(val)) {
+                const hex = parseCssRgb(val);
+                return hex ? hex.toUpperCase() : null;
+              }
+              return null;
+            }
+
+            // arrays [r,g,b]
+            if (Array.isArray(val) && val.length >= 3 && val.every(n => typeof n === 'number')) {
+              return rgbToHex(val[0], val[1], val[2]).toUpperCase();
+            }
+
+            // objects
+            if (typeof val === 'object') {
+              if ('value'   in val) return normalizeColor(val.value,   depth+1);
+              if ('$value'  in val) return normalizeColor(val.$value,  depth+1);
+              if ('hex'     in val) return normalizeColor(val.hex,     depth+1);
+              if ('r' in val && 'g' in val && 'b' in val) return rgbToHex(val.r, val.g, val.b).toUpperCase();
+              if ('light'   in val) return normalizeColor(val.light,   depth+1);
+              if ('default' in val) return normalizeColor(val.default, depth+1);
+            }
+            return null;
+          }
+
           function srgb2lin(u){u/=255; return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
-          function luminance([r,g,b]){const [R,G,B]=[r,g,b].map(srgb2lin); return 0.2126*R+0.7152*G+0.0722*B}
-          function contrast(a,b){const L1=luminance(toRgb(a)), L2=luminance(toRgb(b)); const [hi,lo]=L1>L2?[L1,L2]:[L2,L1]; return (hi+0.05)/(lo+0.05)}
-          const tok=JSON.parse(fs.readFileSync('tokens/brand.tokens.json','utf8'))
-          const pick=(path)=>path.split('.').reduce((o,k)=>o&&o[k], tok)
-          const pairs=[
+          function luminance(hex){
+            const n=parseInt(hex.replace('#',''),16);
+            const R=srgb2lin((n>>16)&255), G=srgb2lin((n>>8)&255), B=srgb2lin(n&255);
+            return 0.2126*R + 0.7152*G + 0.0722*B;
+          }
+          function contrast(a,b){
+            const L1=luminance(a), L2=luminance(b);
+            const [hi,lo]=L1>L2 ? [L1,L2] : [L2,L1];
+            return (hi+0.05)/(lo+0.05);
+          }
+
+          // Базовые пары для sanity-check
+          const PAIRS = [
             ['color.fg.default','color.bg.canvas'],
             ['color.fg.default','color.bg.surface'],
             ['color.fg.inverse','color.brand.blue.500']
           ];
-          let ok=true;
-          for(const [fg,bg] of pairs){
-            const cf=pick(fg), cb=pick(bg);
-            if(!cf||!cb){console.log(`::warning::Missing token ${!cf?fg:bg}`); continue;}
-            const ratio=contrast(cf,cb);
-            console.log(`${fg} on ${bg} = ${ratio.toFixed(2)}:1`);
-            if(ratio<4.5){console.log(`::error::Contrast < 4.5 (${ratio.toFixed(2)}) for ${fg} on ${bg}`); ok=false;}
+
+          let ok = true;
+          for (const [fgP, bgP] of PAIRS) {
+            const fg = normalizeColor(get(TOK, fgP));
+            const bg = normalizeColor(get(TOK, bgP));
+            if (!fg || !bg) {
+              console.log(`::warning::Cannot resolve color tokens for pair: ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);
+              continue; // предупреждаем, но не падаем на нерешённых алиасах
+            }
+            const ratio = contrast(fg, bg);
+            console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${ratio.toFixed(2)}:1`);
+            if (ratio < 4.5) {
+              console.log(`::error::Contrast < 4.5 (${ratio.toFixed(2)}) for ${fgP} on ${bgP}`);
+              ok = false;
+            }
           }
-          if(!ok) process.exit(1)
+          if (!ok) process.exit(1);
           NODE
 
       - name: Axe on OG templates (if present)
