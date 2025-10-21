@@ -177,7 +177,12 @@ jobs:
           function lin(u){u/=255;return u<=0.04045?u/12.92:Math.pow((u+0.055)/1.055,2.4)}
           function lum(h){const n=parseInt(h.replace('#',''),16);const R=lin((n>>16)&255),G=lin((n>>8)&255),B=lin(n&255);return 0.2126*R+0.7152*G+0.0722*B}
           function contrast(a,b){const L1=lum(a),L2=lum(b);const[hi,lo]=L1>L2?[L1,L2]:[L2,L1];return(hi+0.05)/(lo+0.05)}
-          const PAIRS=[['color.fg.default','color.bg.canvas'],['color.fg.default','color.bg.surface'],['color.fg.inverse','color.brand.blue.500']];
+          // Brand blue 500 — светлый акцент; требуем тёмный текст на нём.
+          const PAIRS = [
+            ['color.fg.default','color.bg.canvas'],
+            ['color.fg.default','color.bg.surface'],
+            ['color.fg.default','color.brand.blue.500']
+          ];
           let ok=true;for(const[fgP,bgP]of PAIRS){const fg=norm(get(TOK,fgP)),bg=norm(get(TOK,bgP));if(!fg||!bg){console.log(`::warning::Cannot resolve ${fgP} on ${bgP} (fg=${fg}, bg=${bg})`);continue}const r=contrast(fg,bg);console.log(`${fgP} (${fg}) ON ${bgP} (${bg}) = ${r.toFixed(2)}:1`);if(r<4.5){console.log(`::error::Contrast < 4.5 (${r.toFixed(2)}) for ${fgP} on ${bgP}`);ok=false}}if(!ok)process.exit(1);
           NODE
 
