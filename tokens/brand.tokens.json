@@ -217,5 +217,23 @@
       "bg": { "value": "#111827" },
       "text": { "value": "#F9FAFB" }
     }
+  },
+  "dataviz": {
+    "shape": {
+      "lineWidth": {
+        "thin": { "value": "1px" },
+        "regular": { "value": "1.5px" },
+        "bold": { "value": "2.5px" }
+      },
+      "markerSize": {
+        "s": { "value": "4px" },
+        "m": { "value": "6px" },
+        "l": { "value": "8px" }
+      },
+      "gridOpacity": {
+        "major": { "value": "90%" },
+        "minor": { "value": "60%" }
+      }
+    }
   }
 }

@@ -216,6 +216,24 @@ export const tokens = {
       "bg": "#111827",
       "text": "#F9FAFB"
     }
+  },
+  "dataviz": {
+    "shape": {
+      "lineWidth": {
+        "thin": "1px",
+        "regular": "1.5px",
+        "bold": "2.5px"
+      },
+      "markerSize": {
+        "s": "4px",
+        "m": "6px",
+        "l": "8px"
+      },
+      "gridOpacity": {
+        "major": "90%",
+        "minor": "60%"
+      }
+    }
   }
 } as const;
 

@@ -3,6 +3,16 @@
 
 :root {
   color-scheme: light dark;
+  --og-grid-major-color: color-mix(
+    in srgb,
+    var(--color-grid-major) var(--dataviz-shape-grid-opacity-major),
+    transparent
+  );
+  --og-grid-minor-color: color-mix(
+    in srgb,
+    var(--color-grid-minor) var(--dataviz-shape-grid-opacity-minor),
+    transparent
+  );
 }
 
 body {
@@ -93,7 +103,7 @@ body {
   padding: var(--space-4);
   border-radius: var(--radius-m);
   background: var(--color-bg-subtle, var(--color-bg-surface));
-  border: 1px solid var(--color-border-subtle);
+  border: var(--dataviz-shape-line-width-thin) solid var(--color-border-subtle);
 }
 
 .og-highlight__value {
@@ -117,7 +127,7 @@ body {
   padding: var(--space-4);
   border-radius: var(--radius-m);
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-default);
+  border: var(--dataviz-shape-line-width-regular) solid var(--color-border-default);
 }
 
 .og-chart-grid {
@@ -134,7 +144,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid var(--color-border-subtle);
+  border: var(--dataviz-shape-line-width-thin) solid var(--color-border-subtle);
 }
 
 .og-series-sample {
@@ -151,8 +161,8 @@ body {
 }
 
 .og-series-dot {
-  width: 12px;
-  height: 12px;
+  width: calc(var(--dataviz-shape-marker-size-l) + var(--dataviz-shape-marker-size-s));
+  height: calc(var(--dataviz-shape-marker-size-l) + var(--dataviz-shape-marker-size-s));
   border-radius: var(--radius-full);
 }
 
