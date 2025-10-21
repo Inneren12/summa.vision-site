@@ -38,16 +38,8 @@ body {
   --color-fg-default: var(--color-neutral-050);
   --color-fg-muted: var(--color-neutral-400);
   --color-border-default: var(--color-neutral-800);
-  --og-grid-major-color: color-mix(
-    in srgb,
-    var(--color-neutral-050) var(--dataviz-shape-grid-opacity-major),
-    transparent
-  );
-  --og-grid-minor-color: color-mix(
-    in srgb,
-    var(--color-neutral-050) var(--dataviz-shape-grid-opacity-minor),
-    transparent
-  );
+  --dataviz-grid-major: color-mix(in srgb, var(--color-neutral-050) 18%, transparent);
+  --dataviz-grid-minor: color-mix(in srgb, var(--color-neutral-050) 8%, transparent);
 }
 
 .og-card {
@@ -59,7 +51,7 @@ body {
   gap: var(--space-4);
   padding: clamp(var(--space-6), 6vw, var(--space-8));
   background: var(--color-bg-surface);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-l);
   border: 1px solid var(--color-border-default);
   box-shadow: var(--shadow-z2);
 }
@@ -73,7 +65,7 @@ body {
 
 .og-title {
   font-size: var(--font-size-h1);
-  line-height: var(--font-line-height-tight);
+  line-height: var(--font-line-height-headings);
   font-weight: var(--font-weight-semibold);
   color: var(--color-fg-default);
   margin: 0;
@@ -81,7 +73,7 @@ body {
 
 .og-subtitle {
   font-size: var(--font-size-h4);
-  line-height: var(--font-line-height-normal);
+  line-height: var(--font-line-height-headings);
   color: var(--color-fg-muted);
   margin: 0;
 }
@@ -91,7 +83,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   color: var(--color-fg-subtle);
 }
 
@@ -109,21 +101,21 @@ body {
 
 .og-highlight__item {
   padding: var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-m);
   background: var(--color-bg-subtle, var(--color-bg-surface));
   border: var(--dataviz-shape-line-width-thin) solid var(--color-border-subtle);
 }
 
 .og-highlight__value {
   font-size: var(--font-size-h2);
-  line-height: var(--font-line-height-tight);
+  line-height: var(--font-line-height-headings);
   font-weight: var(--font-weight-semibold);
   color: var(--color-fg-accent);
 }
 
 .og-highlight__label {
   margin-top: var(--space-2);
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   color: var(--color-fg-muted);
 }
 
@@ -133,15 +125,15 @@ body {
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-m);
   background: var(--color-bg-elevated);
   border: var(--dataviz-shape-line-width-regular) solid var(--color-border-default);
 }
 
 .og-chart-grid {
   flex: 1 1 auto;
-  background-image: linear-gradient(var(--og-grid-major-color) var(--dataviz-shape-line-width-thin), transparent var(--dataviz-shape-line-width-thin)),
-    linear-gradient(90deg, var(--og-grid-minor-color) var(--dataviz-shape-line-width-thin), transparent var(--dataviz-shape-line-width-thin));
+  background-image: linear-gradient(var(--dataviz-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dataviz-grid-minor) 1px, transparent 1px);
   background-size: 100% 64px, 64px 100%;
   border-radius: inherit;
   position: relative;

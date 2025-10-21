@@ -25,9 +25,9 @@ The `build:tokens` script compiles `tokens/brand.tokens.json` using Style Dictio
   background-color: var(--color-fg-accent);
   color: var(--color-fg-inverse);
   padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-m);
   box-shadow: var(--shadow-z1);
-  transition: background-color var(--motion-duration-base) var(--motion-easing-cubic);
+  transition: background-color var(--motion-duration-base) var(--motion-easing-standard);
 }
 
 .button-primary:focus-visible {

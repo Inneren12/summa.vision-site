@@ -19,16 +19,21 @@ The canonical token source lives in `tokens/brand.tokens.json` and compiles to C
 - `color.statusSurface.<state>.{fg,bg,border}` — Accessible alert combinations.
 
 ### Data Visualization
-- `color.series.1–12` — Ordered categorical palette; follow numeric sequence.
-- `color.grid.major` / `color.grid.minor` — Major/minor gridlines for charts.
+- `dataviz.series.1–12` — Ordered categorical palette; follow numeric sequence.
+- `dataviz.grid.major` / `dataviz.grid.minor` — Major/minor gridlines for charts.
+- `dataviz.axis.label` / `dataviz.axis.line` — Axes typography and strokes.
+- `dataviz.semantic.positive|negative|neutral` — Sentiment cues for annotations.
+- `dataviz.size.marker.sm|md|lg` — Marker sizes in pixels (4 / 6 / 8).
+- `dataviz.width.line` — Default line weight (1.5px).
 
 ## Typography
-- Families: `font.family.sans`, `font.family.mono`.
+- Families: `font.family.sans`, `font.family.serif`, `font.family.mono`.
 - Sizes: `font.size.display` through `font.size.caption`.
-- Line heights: `font.lineHeight.tight|snug|normal|relaxed`.
+- Line heights: `font.lineHeight.display|headings|body`.
 - Weights: `font.weight.regular|medium|semibold|bold`.
+- Numeric variants: `font.numeric.tabular` (use with `font-variant-numeric`).
 
-Use `styles/typography.css` for ready-made classnames (e.g., `.typography-h1`).
+Use `styles/typography.css` for ready-made classnames (e.g., `.h1`, `.body`, `.mono`).
 
 ## Spacing & Layout
 - `space.0` = 0px, `space.1` = 4px up to `space.10` = 48px (8pt grid).
