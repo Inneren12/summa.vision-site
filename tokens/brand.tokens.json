@@ -177,8 +177,45 @@
     }
   },
   "a11y": {
-    "textOnCanvas": {
-      "minRatio": { "value": 4.5 }
+    "focus": {
+      "ringColor": { "value": "{color.brand.blue.500.value}" },
+      "ringWidth": { "value": "3px" },
+      "ringOffset": { "value": "1px" }
+    },
+    "contrast": {
+      "textOnCanvas": {
+        "minRatio": { "value": 4.5 }
+      },
+      "textOnSurface": {
+        "minRatio": { "value": 4.5 }
+      }
+    }
+  },
+  "component": {
+    "button": {
+      "primary": {
+        "bg": { "value": "{color.brand.blue.500.value}" },
+        "text": { "value": "{color.fg.inverse.value}" },
+        "hover": { "value": "#189EDB" }
+      },
+      "secondary": {
+        "bg": { "value": "{color.bg.elevated.value}" },
+        "text": { "value": "{color.fg.default.value}" },
+        "border": { "value": "{color.border.default.value}" }
+      }
+    },
+    "card": {
+      "bg": { "value": "{color.bg.surface.value}" },
+      "border": { "value": "{color.border.subtle.value}" },
+      "shadow": { "value": "{shadow.z1.value}" }
+    },
+    "chip": {
+      "bg": { "value": "{color.bg.elevated.value}" },
+      "text": { "value": "{color.fg.muted.value}" }
+    },
+    "tooltip": {
+      "bg": { "value": "#111827" },
+      "text": { "value": "#F9FAFB" }
     }
   }
 }

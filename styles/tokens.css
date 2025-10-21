@@ -105,6 +105,9 @@
   --color-neutral-200: #e6eaf0;
   --color-neutral-100: #f3f5f7;
   --color-brand-blue-500: #2fafea;
+  --component-card-shadow: var(--shadow-z1);
+  --component-button-primary-bg: var(--color-brand-blue-500);
+  --a11y-focus-ring-color: var(--color-brand-blue-500);
   --color-grid-minor: var(--color-neutral-200);
   --color-grid-major: var(--color-neutral-300);
   --color-series-1: var(--color-brand-blue-500);
@@ -127,4 +130,12 @@
   --color-fg-subtle: var(--color-neutral-600);
   --color-fg-muted: var(--color-neutral-700);
   --color-fg-default: var(--color-neutral-950);
+  --component-chip-text: var(--color-fg-muted);
+  --component-chip-bg: var(--color-bg-elevated);
+  --component-card-border: var(--color-border-subtle);
+  --component-card-bg: var(--color-bg-surface);
+  --component-button-secondary-border: var(--color-border-default);
+  --component-button-secondary-text: var(--color-fg-default);
+  --component-button-secondary-bg: var(--color-bg-elevated);
+  --component-button-primary-text: var(--color-fg-inverse);
 }

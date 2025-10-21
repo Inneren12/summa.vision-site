@@ -176,8 +176,45 @@ export const tokens = {
     }
   },
   "a11y": {
-    "textOnCanvas": {
-      "minRatio": 4.5
+    "focus": {
+      "ringColor": "#2fafea",
+      "ringWidth": "3px",
+      "ringOffset": "1px"
+    },
+    "contrast": {
+      "textOnCanvas": {
+        "minRatio": 4.5
+      },
+      "textOnSurface": {
+        "minRatio": 4.5
+      }
+    }
+  },
+  "component": {
+    "button": {
+      "primary": {
+        "bg": "#2fafea",
+        "text": "#ffffff",
+        "hover": "#189EDB"
+      },
+      "secondary": {
+        "bg": "#f3f5f7",
+        "text": "#101418",
+        "border": "#d3d9e1"
+      }
+    },
+    "card": {
+      "bg": "#fafbfc",
+      "border": "#e6eaf0",
+      "shadow": "0 1px 2px rgba(16, 20, 24, 0.12), 0 1px 1px rgba(16, 20, 24, 0.06)"
+    },
+    "chip": {
+      "bg": "#f3f5f7",
+      "text": "#3c424a"
+    },
+    "tooltip": {
+      "bg": "#111827",
+      "text": "#F9FAFB"
     }
   }
 } as const;
@@ -186,7 +223,11 @@ export type Tokens = typeof tokens;
 export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.emphasized' | 'motion.easing.standard' | 'radius.2xl' | 'radius.full' | 'radius.l' | 'radius.m' | 'radius.s' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'z.base' | 'z.below' | 'z.modal' | 'z.nav' | 'z.popover' | 'z.toast';
 
 export const tokenPaths = [
-  'a11y.textOnCanvas.minRatio',
+  'a11y.contrast.textOnCanvas.minRatio',
+  'a11y.contrast.textOnSurface.minRatio',
+  'a11y.focus.ringColor',
+  'a11y.focus.ringOffset',
+  'a11y.focus.ringWidth',
   'color.accent.magenta',
   'color.accent.orange',
   'color.accent.teal',
