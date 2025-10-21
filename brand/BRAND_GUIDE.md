@@ -45,30 +45,31 @@ Use the following combinations for alerts and inline statuses:
 | Info | `color.statusSurface.info.fg` | `color.statusSurface.info.bg` | `color.statusSurface.info.border` |
 
 ### Data Visualization Series
-- Always map categorical series from `color.series.1` through `color.series.12` in order; do not shuffle unless you reset the legend.
-- For diverging charts, pair `color.series.1` with `color.series.11` and `color.series.2` with `color.series.10` to maintain balance.
-- Gridlines should only use `color.grid.major` and `color.grid.minor` to maintain sufficient contrast against both light and dark backgrounds.
+- Always map categorical series from `dataviz.series.1` through `dataviz.series.12` in order; do not shuffle unless you reset the legend.
+- For diverging charts, pair `dataviz.series.1` with `dataviz.series.11` and `dataviz.series.2` with `dataviz.series.10` to maintain balance.
+- Gridlines should only use `dataviz.grid.major` and `dataviz.grid.minor` to maintain sufficient contrast against both light and dark backgrounds.
+- Axis labels and lines should reference `dataviz.axis.label` and `dataviz.axis.line` to ensure consistent readability.
+- Encode sentiment with `dataviz.semantic.positive`, `.negative`, and `.neutral` for annotations and thresholds.
 
 ## Typography
 
 ### System Stack
 - Primary sans-serif: `font.family.sans`
+- Editorial serif: `font.family.serif`
 - Monospace / data: `font.family.mono`
-- Apply `font-variant-numeric: tabular-nums` to all numeric data blocks.
+- Apply `font-variant-numeric: var(--font-numeric-tabular)` (token `font.numeric.tabular`) to all numeric data blocks.
 
 ### Scale & Usage
 | Style | Token | Line Height | Usage |
 | --- | --- | --- | --- |
-| Display | `font.size.display` | `font.lineHeight.tight` | Hero headlines, marquee storytelling moments. |
-| H1 | `font.size.h1` | `font.lineHeight.tight` | Section anchors and product hero titles. |
-| H2 | `font.size.h2` | `font.lineHeight.snug` | Feature callouts and high-level metrics. |
-| H3 | `font.size.h3` | `font.lineHeight.snug` | Card titles, inline analytics. |
-| H4 | `font.size.h4` | `font.lineHeight.normal` | Subheadlines, summary text. |
-| H5 | `font.size.h5` | `font.lineHeight.normal` | UI labels, secondary navigation. |
-| H6 | `font.size.h6` | `font.lineHeight.normal` | Caption headers, taglines. |
-| Body | `font.size.body` | `font.lineHeight.normal` | Long-form copy, paragraphs. |
-| Caption | `font.size.caption` | `font.lineHeight.snug` | Eyebrow labels, metadata, chart axes. |
-| Mono | `font.size.bodySm` | `font.lineHeight.snug` | Tables, code snippets, inline stats. |
+| Display | `font.size.display` | `font.lineHeight.display` | Hero headlines, marquee storytelling moments. |
+| H1 | `font.size.h1` | `font.lineHeight.headings` | Section anchors and product hero titles. |
+| H2 | `font.size.h2` | `font.lineHeight.headings` | Feature callouts and high-level metrics. |
+| H3 | `font.size.h3` | `font.lineHeight.headings` | Card titles, inline analytics. |
+| H4 | `font.size.h4` | `font.lineHeight.headings` | Subheadlines, summary text. |
+| Body | `font.size.body` | `font.lineHeight.body` | Long-form copy, paragraphs. |
+| Caption | `font.size.caption` | `font.lineHeight.headings` | Eyebrow labels, metadata, chart axes. |
+| Mono | `font.size.body` | `font.lineHeight.body` | Tables, code snippets, inline stats. |
 
 ### Motion & Interaction
 - Use `motion.duration.fast` for hover states, `motion.duration.base` for standard transitions, and `motion.duration.gentle` for theme changes or page loads.
