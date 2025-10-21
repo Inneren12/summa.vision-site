@@ -1,7 +1,7 @@
 /* eslint-disable */
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:18:46 GMT
+ * Generated on Tue, 21 Oct 2025 06:26:09 GMT
  */
 
 export const tokens = {
@@ -174,11 +174,29 @@ export const tokens = {
     "textOnCanvas": {
       "minRatio": 4.5
     }
+  },
+  "dataviz": {
+    "shape": {
+      "lineWidth": {
+        "thin": "1px",
+        "regular": "1.5px",
+        "bold": "2.5px"
+      },
+      "markerSize": {
+        "s": "4px",
+        "m": "6px",
+        "l": "8px"
+      },
+      "gridOpacity": {
+        "major": "90%",
+        "minor": "60%"
+      }
+    }
   }
 } as const;
 
 export type Tokens = typeof tokens;
-export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.cubic' | 'motion.easing.emphasized' | 'motion.easing.entrance' | 'motion.easing.exit' | 'radius.2xl' | 'radius.full' | 'radius.lg' | 'radius.md' | 'radius.sm' | 'radius.xl' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.10' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'space.9';
+export type TokenPath = 'a11y.textOnCanvas.minRatio' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.grid.major' | 'color.grid.minor' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.series.1' | 'color.series.10' | 'color.series.11' | 'color.series.12' | 'color.series.2' | 'color.series.3' | 'color.series.4' | 'color.series.5' | 'color.series.6' | 'color.series.7' | 'color.series.8' | 'color.series.9' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'dataviz.shape.gridOpacity.major' | 'dataviz.shape.gridOpacity.minor' | 'dataviz.shape.lineWidth.bold' | 'dataviz.shape.lineWidth.regular' | 'dataviz.shape.lineWidth.thin' | 'dataviz.shape.markerSize.l' | 'dataviz.shape.markerSize.m' | 'dataviz.shape.markerSize.s' | 'font.family.mono' | 'font.family.sans' | 'font.lineHeight.normal' | 'font.lineHeight.relaxed' | 'font.lineHeight.snug' | 'font.lineHeight.tight' | 'font.size.body' | 'font.size.bodySm' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.size.h5' | 'font.size.h6' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.cubic' | 'motion.easing.emphasized' | 'motion.easing.entrance' | 'motion.easing.exit' | 'radius.2xl' | 'radius.full' | 'radius.lg' | 'radius.md' | 'radius.sm' | 'radius.xl' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.10' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'space.9';
 
 export const tokenPaths = [
   'a11y.textOnCanvas.minRatio',
@@ -245,6 +263,14 @@ export const tokenPaths = [
   'color.statusSurface.warn.bg',
   'color.statusSurface.warn.border',
   'color.statusSurface.warn.fg',
+  'dataviz.shape.gridOpacity.major',
+  'dataviz.shape.gridOpacity.minor',
+  'dataviz.shape.lineWidth.bold',
+  'dataviz.shape.lineWidth.regular',
+  'dataviz.shape.lineWidth.thin',
+  'dataviz.shape.markerSize.l',
+  'dataviz.shape.markerSize.m',
+  'dataviz.shape.markerSize.s',
   'font.family.mono',
   'font.family.sans',
   'font.lineHeight.normal',

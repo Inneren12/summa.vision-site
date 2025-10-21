@@ -1,9 +1,17 @@
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:18:46 GMT
+ * Generated on Tue, 21 Oct 2025 06:26:09 GMT
  */
 
 :root {
+  --dataviz-shape-grid-opacity-minor: 60%;
+  --dataviz-shape-grid-opacity-major: 90%;
+  --dataviz-shape-marker-size-l: 8px;
+  --dataviz-shape-marker-size-m: 6px;
+  --dataviz-shape-marker-size-s: 4px;
+  --dataviz-shape-line-width-bold: 2.5px;
+  --dataviz-shape-line-width-regular: 1.5px;
+  --dataviz-shape-line-width-thin: 1px;
   --a11y-text-on-canvas-min-ratio: 4.5;
   --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
   --motion-easing-entrance: cubic-bezier(0.2, 0.8, 0.2, 1);

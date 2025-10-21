@@ -3,6 +3,16 @@
 
 :root {
   color-scheme: light dark;
+  --og-grid-major-color: color-mix(
+    in srgb,
+    var(--color-grid-major) var(--dataviz-shape-grid-opacity-major),
+    transparent
+  );
+  --og-grid-minor-color: color-mix(
+    in srgb,
+    var(--color-grid-minor) var(--dataviz-shape-grid-opacity-minor),
+    transparent
+  );
 }
 
 body {
@@ -28,8 +38,16 @@ body {
   --color-fg-default: var(--color-neutral-050);
   --color-fg-muted: var(--color-neutral-400);
   --color-border-default: var(--color-neutral-800);
-  --color-grid-major: color-mix(in srgb, var(--color-neutral-050) 18%, transparent);
-  --color-grid-minor: color-mix(in srgb, var(--color-neutral-050) 8%, transparent);
+  --og-grid-major-color: color-mix(
+    in srgb,
+    var(--color-neutral-050) var(--dataviz-shape-grid-opacity-major),
+    transparent
+  );
+  --og-grid-minor-color: color-mix(
+    in srgb,
+    var(--color-neutral-050) var(--dataviz-shape-grid-opacity-minor),
+    transparent
+  );
 }
 
 .og-card {
@@ -93,7 +111,7 @@ body {
   padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--color-bg-subtle, var(--color-bg-surface));
-  border: 1px solid var(--color-border-subtle);
+  border: var(--dataviz-shape-line-width-thin) solid var(--color-border-subtle);
 }
 
 .og-highlight__value {
@@ -117,13 +135,13 @@ body {
   padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-default);
+  border: var(--dataviz-shape-line-width-regular) solid var(--color-border-default);
 }
 
 .og-chart-grid {
   flex: 1 1 auto;
-  background-image: linear-gradient(var(--color-grid-major) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-grid-minor) 1px, transparent 1px);
+  background-image: linear-gradient(var(--og-grid-major-color) var(--dataviz-shape-line-width-thin), transparent var(--dataviz-shape-line-width-thin)),
+    linear-gradient(90deg, var(--og-grid-minor-color) var(--dataviz-shape-line-width-thin), transparent var(--dataviz-shape-line-width-thin));
   background-size: 100% 64px, 64px 100%;
   border-radius: inherit;
   position: relative;
@@ -134,7 +152,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid var(--color-border-subtle);
+  border: var(--dataviz-shape-line-width-thin) solid var(--color-border-subtle);
 }
 
 .og-series-sample {
@@ -151,8 +169,8 @@ body {
 }
 
 .og-series-dot {
-  width: 12px;
-  height: 12px;
+  width: calc(var(--dataviz-shape-marker-size-l) + var(--dataviz-shape-marker-size-s));
+  height: calc(var(--dataviz-shape-marker-size-l) + var(--dataviz-shape-marker-size-s));
   border-radius: var(--radius-full);
 }
 
