@@ -1,8 +1,13 @@
-.focus-ring {
-  outline: none;
-}
+@import url('./tokens.css');
+@import url('./typography.css');
 
-.focus-ring:focus-visible {
-  outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring-color);
-  outline-offset: var(--a11y-focus-ring-offset);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
