@@ -1,0 +1,17 @@
+{
+  "color": {
+    "brand": {
+      "blue": {
+        "500": "#2FAFEA"
+      }
+    },
+    "fg": {
+      "default": "#101418",
+      "inverse": "#FFFFFF"
+    },
+    "bg": {
+      "canvas": "#FFFFFF",
+      "surface": "#FAFBFC"
+    }
+  }
+}
