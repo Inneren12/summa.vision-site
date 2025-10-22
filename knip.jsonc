@@ -9,15 +9,24 @@
 
     "apps/web": {
       // Пути указываются ОТНОСИТЕЛЬНО каталога 'apps/web'
-      "entry": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "scripts/**/*.ts"],
-      "project": ["**/*.{ts,tsx,js,json,css}"],
+      // prettier-ignore
+      "entry": [
+        "app/**/*.{ts,tsx}",
+        "components/**/*.{ts,tsx}",
+        "scripts/**/*.ts"
+      ],
+      // prettier-ignore
+      "project": [
+        "**/*.{ts,tsx,js,json,css}"
+      ],
+      // prettier-ignore
       "ignore": [
         ".next/**",
         "node_modules/**",
         "**/__tests__/**",
         "**/*.stories.tsx",
         "e2e/**",
-        "playwright.config.ts",
+        "playwright.config.ts"
       ],
     },
   },
