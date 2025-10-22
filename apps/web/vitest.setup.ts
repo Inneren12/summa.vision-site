@@ -1,8 +1,17 @@
 import "@testing-library/jest-dom";
+import { TextDecoder, TextEncoder } from "node:util";
 
 process.env.NEXT_PUBLIC_APP_NAME ??= "Summa Vision";
 process.env.NEXT_PUBLIC_API_BASE_URL ??= "http://localhost:3000";
 process.env.NEXT_PUBLIC_SITE_URL ??= "http://localhost:3000";
+
+const globalWithEncoding = globalThis as typeof globalThis & {
+  TextEncoder?: typeof TextEncoder;
+  TextDecoder?: typeof TextDecoder;
+};
+
+globalWithEncoding.TextEncoder ??= TextEncoder;
+globalWithEncoding.TextDecoder ??= TextDecoder;
 
 if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = (query: string): MediaQueryList => ({

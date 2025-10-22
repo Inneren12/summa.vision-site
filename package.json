@@ -11,7 +11,7 @@
     "web:dev": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run dev",
     "web:build": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run build",
     "web:start": "npm --workspace apps/web run start",
-    "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
+    "web:test": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run test",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
     "format": "prettier --write .",
@@ -28,7 +28,14 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o .out-sb",
     "prepare": "husky install",
-    "postinstall": "node scripts/patch-next.cjs"
+    "postinstall": "node scripts/patch-next.cjs",
+    "analyze:knip": "knip --config=knip.jsonc",
+    "analyze:knip:ci": "knip --config=knip.jsonc --reporter=github-actions",
+    "analyze:cycles": "madge --config=madge.config.mjs --circular",
+    "quality:check": "npm run analyze:knip:ci && npm run analyze:cycles",
+    "perf:size": "size-limit",
+    "perf:lhci": "lhci autorun --config=.lighthouserc.cjs || (echo 'LHCI warnings allowed initially' && exit 0)",
+    "perf:check": "npm run web:build && npm run perf:size && npm run perf:lhci"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
@@ -61,6 +68,25 @@
     "storybook": "^8.1.0",
     "style-dictionary": "^3.9.1",
     "tsx": "^4.8.1",
-    "typescript": "5.5.4"
-  }
+    "typescript": "5.5.4",
+    "@lhci/cli": "^0.12.0",
+    "@next/bundle-analyzer": "^14.2.0",
+    "@size-limit/file": "^11.2.0",
+    "size-limit": "^11.2.0",
+    "knip": "^5.27.0",
+    "madge": "^6.1.0",
+    "cross-env": "^7.0.3"
+  },
+  "size-limit": [
+    {
+      "name": "Client JS total",
+      "path": "apps/web/.next/static/chunks/**/*.js",
+      "limit": "180 KB"
+    },
+    {
+      "name": "Client CSS total",
+      "path": "apps/web/.next/static/css/*.css",
+      "limit": "40 KB"
+    }
+  ]
 }
