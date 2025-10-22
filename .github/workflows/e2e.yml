@@ -8,8 +8,18 @@ jobs:
     env:
       HUSKY: "0"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify no auto-install action left
+        run: |
+          if grep -R "bahmutov/npm-install" -n .github/workflows; then
+            echo "::error::Remove bahmutov/npm-install action — it forces 'npm ci' before lock sync"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
