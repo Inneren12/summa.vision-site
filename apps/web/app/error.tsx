@@ -5,7 +5,10 @@ import { useEffect } from "react";
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    const hub = typeof Sentry.getCurrentHub === "function" ? Sentry.getCurrentHub() : undefined;
+    if (hub?.getClient()) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   return (
