@@ -1,7 +1,7 @@
 import { render, screen, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import Healthz from "../../app/(system)/healthz/page";
+import Healthz from "./page";
 
 const headerValues: Record<string, string> = {
   "x-forwarded-proto": "http",

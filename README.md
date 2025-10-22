@@ -38,32 +38,11 @@ npm run build:tokens && npm run copy:tokens
 - CSS-переменные и базовые стили подключаются в `apps/web/app/globals.css` (сюда копируются токены и типографика).
 - Запустить Storybook с атомами и переключателем темы: `npm run storybook`.
 
-## Tests & QA: unit/e2e/coverage
+## Tests & QA
 
-### Unit tests (Vitest + RTL)
-
-```bash
-npm run test:ci
-```
-
-Vitest runs in a jsdom environment with React Testing Library and enforces coverage thresholds of ≥70% for lines and ≥60% for branches. Coverage reports (text + LCOV) are emitted to `apps/web/coverage/`.
-
-### E2E smoke (Playwright)
-
-```bash
-npx playwright install --with-deps  # first-time setup
-npm run e2e
-```
-
-The smoke scenario builds the production bundle, starts it via `next start`, navigates from `/` to `/healthz`, and asserts both the rendered JSON and the `/api/healthz` response payload.
-
-### Quality gate
-
-```bash
-CI=1 npm run ci:check
-```
-
-Combines type-checking, linting (including the raw color guard), covered unit tests, and the production build in a single command.
+- Unit: `npm test` / CI: `npm run test:ci`
+- E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
+- Full gate: `CI=1 npm run ci:check`
 
 ## Тема и токены
 

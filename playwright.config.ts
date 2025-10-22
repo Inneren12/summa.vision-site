@@ -3,13 +3,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   webServer: {
-    command: "node .next/standalone/apps/web/server.js",
-    cwd: "apps/web",
+    command: "npm run web:dev",
     port: 3000,
-    env: {
-      HOSTNAME: "0.0.0.0",
-      PORT: "3000",
-    },
     reuseExistingServer: !process.env.CI,
     timeout: 90_000,
   },
