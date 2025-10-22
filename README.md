@@ -27,6 +27,17 @@ npm run web:build && npm run web:start
 npm run build:tokens && npm run copy:tokens
 ```
 
+- `tokens/brand.tokens.json` — single source of truth for tokens.
+- `styles/tokens.css` — generated CSS custom properties (`:root`).
+- `styles/typography.css` — base typography and utility classes.
+- `src/shared/theme/tokens.ts` — generated token map for TypeScript projects.
+
+## Тема и токены
+
+- Провайдер темы: `apps/web/app/providers.tsx` использует `next-themes` с `attribute="class"` и системным значением по умолчанию.
+- CSS-переменные и базовые стили подключаются в `apps/web/app/globals.css` (сюда копируются токены и типографика).
+- Запустить Storybook с атомами и переключателем темы: `npm run storybook`.
+
 ## Tests
 
 ```bash
@@ -47,11 +58,6 @@ npm run ci:check
 ```
 
 Runs type-checks, linting (including the raw color guard), unit tests, and the Next.js production build.
-
-- `tokens/brand.tokens.json` — single source of truth for tokens.
-- `styles/tokens.css` — generated CSS custom properties (`:root`).
-- `styles/typography.css` — base typography and utility classes.
-- `src/shared/theme/tokens.ts` — generated token map for TypeScript projects.
 
 ## Scripts
 
