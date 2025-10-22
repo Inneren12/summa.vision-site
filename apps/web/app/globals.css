@@ -5,3 +5,18 @@
 /* generated tokens and typography are copied via scripts */
 @import "./tokens.css";
 @import "./typography.css";
+
+:root {
+  --bg: 255 255 255;
+  --fg: 17 24 39;
+  --muted: 107 114 128;
+  --primary: 37 99 235;
+  --radius: 12px;
+}
+
+.dark {
+  --bg: 17 24 39;
+  --fg: 243 244 246;
+  --muted: 156 163 175;
+  --primary: 59 130 246;
+}

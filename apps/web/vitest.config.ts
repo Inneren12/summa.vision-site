@@ -1,8 +1,18 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
+const rootDir = fileURLToPath(new URL("./", import.meta.url));
+
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(rootDir),
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,
@@ -16,6 +26,8 @@ export default defineConfig({
         "next.config.mjs",
         "postcss.config.cjs",
         "tailwind.config.ts",
+        "components/**/*.stories.tsx",
+        "components/index.ts",
         "app/**/page.tsx",
         "app/**/layout.tsx",
         "app/**/error.tsx",
