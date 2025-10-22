@@ -8,10 +8,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Ensure no auto-install actions
+        shell: bash
         run: |
           set -e
-          if git grep -n "bahmutov/npm-install" -- .github/workflows; then
-            echo "::error::Remove bahmutov/npm-install from workflows — it forces 'npm ci' before lock sync"
+          if egrep -R -n '^[[:space:]]*uses:[[:space:]]*bahmutov/npm-install@' .github/workflows >/tmp/_forbidden.txt; then
+            echo "::group::Forbidden auto-install usages"
+            cat /tmp/_forbidden.txt
+            echo "::endgroup::"
+            echo "::error::Remove 'bahmutov/npm-install' actions — they force 'npm ci' before lock sync"
             exit 1
           fi
 
@@ -22,7 +26,6 @@ jobs:
       HUSKY: "0"
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -41,6 +44,5 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
-
       - name: Run E2E
         run: npm run e2e

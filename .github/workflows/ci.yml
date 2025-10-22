@@ -8,10 +8,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Ensure no auto-install actions
+        shell: bash
         run: |
           set -e
-          if git grep -n "bahmutov/npm-install" -- .github/workflows; then
-            echo "::error::Remove bahmutov/npm-install from workflows — it forces 'npm ci' before lock sync"
+          # Ищем ТОЛЬКО реальные вызовы экшена (ключ uses: ...)
+          if egrep -R -n '^[[:space:]]*uses:[[:space:]]*bahmutov/npm-install@' .github/workflows >/tmp/_forbidden.txt; then
+            echo "::group::Forbidden auto-install usages"
+            cat /tmp/_forbidden.txt
+            echo "::endgroup::"
+            echo "::error::Remove 'bahmutov/npm-install' actions — they force 'npm ci' before lock sync"
             exit 1
           fi
 
@@ -22,22 +27,21 @@ jobs:
       HUSKY: "0"
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # 1) Синхронизируем lock с package.json (без запуска скриптов)
+      # 1) Синхронизируем lock с package.json (без lifecycle скриптов)
       - name: Sync lockfile (no scripts)
         run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
 
-      # 2) Строгая установка без lifecycle-скриптов; fallback на install
+      # 2) Строгая установка без скриптов; fallback на install
       - name: Clean install (ci, ignore scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
-      # 3) Явно запускаем postinstall-патч Next, если он есть
+      # 3) Ручной postinstall-патч Next (если присутствует)
       - name: Postinstall (manual Next patch)
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
