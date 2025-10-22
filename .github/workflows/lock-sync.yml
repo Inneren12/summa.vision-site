@@ -1,0 +1,48 @@
+name: Lockfile Sync
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Target branch to update package-lock.json"
+        required: true
+        default: "codex/s1-gh-perf-static-analysis-v2"
+
+jobs:
+  sync:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Генерируем lock под текущий package.json (выполняются lifecycle-скрипты, поэтому отключаем Husky)
+      - name: Install (generate lock)
+        env:
+          HUSKY: "0"
+        run: npm install --no-audit --no-fund
+
+      - name: Commit updated lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- package-lock.json; then
+            echo "No lockfile changes to commit."
+            exit 0
+          fi
+          git add package-lock.json
+          git commit -m "chore(lock): sync package-lock.json via Actions"
+          git push origin HEAD:${{ github.event.inputs.branch }}
