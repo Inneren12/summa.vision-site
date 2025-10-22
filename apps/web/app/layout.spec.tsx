@@ -4,6 +4,8 @@ import { describe, it, expect } from "vitest";
 
 import Root, { metadata } from "./layout";
 
+const Layout = Root as unknown as React.ComponentType<{ children: React.ReactNode }>;
+
 describe("layout", () => {
   it("defines metadata", () => {
     expect(metadata?.title).toBeDefined();
@@ -11,10 +13,9 @@ describe("layout", () => {
 
   it("renders skip-link and main landmark", () => {
     const html = ReactDOMServer.renderToString(
-      // @ts-expect-error server component is fine for SSR render in tests
-      <Root>
+      <Layout>
         <div>child</div>
-      </Root>,
+      </Layout>,
     );
     expect(html).toContain("Skip to content");
     expect(html).toContain('id="main"');
