@@ -1,6 +1,13 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
+
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <section className="p-8">
       <h2 className="text-xl font-bold">Error</h2>

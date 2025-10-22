@@ -44,6 +44,14 @@ npm run build:tokens && npm run copy:tokens
 - E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
 - Full gate: `CI=1 npm run ci:check`
 
+## Security & Observability
+
+- Заголовки безопасности и CSP собираются в `apps/web/security/*` и подключаются через `apps/web/next.config.mjs`.
+- В development `script-src` допускает `'unsafe-eval'`, в production — нет.
+- Чтобы включить отчёты CSP, установите `CSP_REPORT_ONLY=1` и используйте endpoint `POST /api/csp-report`.
+- Интеграция Sentry активируется при наличии `SENTRY_DSN`; настройте `SENTRY_ENV` и `SENTRY_TRACES_SAMPLE_RATE` при необходимости.
+- В бою рекомендуем отключить режим Report-Only и использовать полноценный `Content-Security-Policy`.
+
 ## Тема и токены
 
 - Актуальные CSS-переменные копируются в `apps/web/app/tokens.css` и подключаются через `apps/web/app/globals.css`.
