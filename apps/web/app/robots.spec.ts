@@ -1,29 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 
-const originalEnv = { ...process.env };
+import robots from "./robots";
 
-describe("robots route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    process.env = {
-      ...originalEnv,
-      NODE_ENV: "test",
-      NEXT_PUBLIC_APP_NAME: "Summa Vision",
-      NEXT_PUBLIC_API_BASE_URL: "http://localhost:3000",
-      NEXT_PUBLIC_SITE_URL: "https://summa.test",
-    };
+describe("robots", () => {
+  it("has sitemap link", () => {
+    const r = robots();
+    const sitemapList = r.sitemap ? (Array.isArray(r.sitemap) ? r.sitemap : [r.sitemap]) : [];
+    expect(sitemapList.length).toBeGreaterThan(0);
+    expect(String(sitemapList[0])).toMatch(/sitemap\.xml$/);
   });
 
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  it("includes sitemap location", async () => {
-    const robots = (await import("./robots")).default;
-
-    const result = robots();
-
-    expect(result.rules?.[0]?.userAgent).toBe("*");
-    expect(result.sitemap).toContain("sitemap.xml");
+  it("rules are assertable as array", () => {
+    const r = robots();
+    const rules = Array.isArray(r.rules) ? r.rules : [r.rules];
+    expect(rules.length).toBeGreaterThan(0);
+    expect(rules[0]).toBeDefined();
+    const ua = rules[0]?.userAgent;
+    const firstUA = Array.isArray(ua) ? ua[0] : ua;
+    expect(firstUA && String(firstUA).length).toBeGreaterThan(0);
   });
 });

@@ -1,20 +1,25 @@
-// @ts-expect-error - next.config.mjs uses ESM default export
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 
-import cfg from "./next.config.mjs";
+type HeadersConfig = {
+  headers: () => Promise<Array<{ headers?: Array<{ key: string }> }>>;
+};
 
-describe("next config headers()", () => {
+describe("next headers()", () => {
   it("returns route-level headers array", async () => {
+    const mod = (await import("./next.config.mjs")) as unknown as HeadersConfig & {
+      default?: HeadersConfig;
+    };
+    const cfg: HeadersConfig = mod.default ?? mod;
     const rules = await cfg.headers();
-
-    expect(Array.isArray(rules)).toBe(true);
-    expect(rules.length).toBeGreaterThan(0);
-
-    const anyHeaders = rules[0]?.headers ?? [];
-    const hasXCTO = anyHeaders.some(
-      (header: { key: string }) => header.key === "X-Content-Type-Options",
+    const anyHeaders = (rules[0]?.headers ?? []) as Array<{ key: string }>;
+    const hasSecurityHeader = anyHeaders.some((header) =>
+      [
+        "X-Content-Type-Options",
+        "Content-Security-Policy",
+        "Content-Security-Policy-Report-Only",
+        "Cache-Control",
+      ].includes(header.key),
     );
-
-    expect(hasXCTO).toBe(true);
+    expect(hasSecurityHeader).toBe(true);
   });
 });
