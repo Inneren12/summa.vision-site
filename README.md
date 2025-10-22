@@ -44,6 +44,14 @@ npm run build:tokens && npm run copy:tokens
 - E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
 - Full gate: `CI=1 npm run ci:check`
 
+## A11y & SEO
+
+- A11y: линтер `jsx-a11y`, unit-проверки через `jest-axe`, e2e-сканы `@axe-core/playwright`. Цвета только через токены CSS.
+- SEO: метаданные централизованы в `apps/web/lib/seo.ts`, страницы задают `export const metadata` через `buildMetadata`.
+- Robots/Sitemap: `apps/web/app/robots.ts` и `apps/web/app/sitemap.ts`.
+- ENV: задайте `NEXT_PUBLIC_SITE_URL` для корректных canonical и sitemap.
+- Команды: `npm test`, `npm run a11y:e2e`, `npm run ci:check`.
+
 ## Security & Observability
 
 - Заголовки безопасности и CSP собираются в `apps/web/security/*` и подключаются через `apps/web/next.config.mjs`.
