@@ -1,15 +1,13 @@
-import type { StorybookConfig } from '@storybook/react-vite';
+import type { StorybookConfig } from "@storybook/nextjs";
 
 const config: StorybookConfig = {
-  stories: ['../src/stories/**/*.stories.@(ts|tsx)'],
-  addons: ['@storybook/addon-essentials'],
+  stories: ["../apps/web/components/**/*.stories.@(ts|tsx)"],
+  addons: ["@storybook/addon-essentials", "@storybook/addon-a11y"],
   framework: {
-    name: '@storybook/react-vite',
+    name: "@storybook/nextjs",
     options: {},
   },
-  core: {
-    disableTelemetry: true,
-  },
+  docs: { autodocs: "tag" },
 };
 
 export default config;

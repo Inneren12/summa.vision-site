@@ -1,26 +1,26 @@
-import type { Preview } from '@storybook/react';
-import '../styles/tokens.css';
-import '../styles/typography.css';
-import '../styles/og.css';
+import type { Preview } from "@storybook/react";
+import { ThemeProvider } from "next-themes";
+import "../apps/web/app/globals.css";
 
 const preview: Preview = {
   parameters: {
-    layout: 'fullscreen',
-    backgrounds: {
-      default: 'Canvas',
-      values: [
-        { name: 'Canvas', value: 'var(--color-bg-canvas)' },
-        { name: 'Surface', value: 'var(--color-bg-surface)' },
-        { name: 'Elevated', value: 'var(--color-bg-elevated)' },
-        { name: 'Inverse', value: 'var(--color-bg-inverse)' },
-      ],
-    },
-    options: {
-      storySort: {
-        order: ['Brand', ['Palette', 'Typography', 'Elevation', 'Data Viz Series']],
+    layout: "fullscreen",
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/,
       },
     },
   },
+  decorators: [
+    (Story) => (
+      <ThemeProvider attribute="class" defaultTheme="light">
+        <div className="min-h-screen bg-bg p-8 text-fg">
+          <Story />
+        </div>
+      </ThemeProvider>
+    ),
+  ],
 };
 
 export default preview;
