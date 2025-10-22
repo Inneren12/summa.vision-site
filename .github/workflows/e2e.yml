@@ -13,7 +13,7 @@ jobs:
 
       - name: Verify no auto-install action left
         run: |
-          if grep -R "bahmutov/npm-install" -n .github/workflows; then
+          if git grep -n --color=never "bahmutov/npm-install" -- .github/workflows; then
             echo "::error::Remove bahmutov/npm-install action — it forces 'npm ci' before lock sync"
             exit 1
           fi
