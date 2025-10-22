@@ -7,8 +7,15 @@ export const metadata: Metadata = { title: "Summa Vision", description: "Site ba
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <a href="#main" className="sr-only focus:not-sr-only">
+          Skip to content
+        </a>
+        <main id="main" role="main">
+          {children}
+        </main>
+      </body>
     </html>
   );
 }
