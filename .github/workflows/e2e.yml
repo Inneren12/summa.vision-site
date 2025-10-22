@@ -16,10 +16,10 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Sync lockfile (no scripts)
-        run: npm install --package-lock-only --no-audit --no-fund --omit=optional --ignore-scripts
+        run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
 
       - name: Clean install (ci, ignore scripts)
-        run: npm ci --no-audit --no-fund --omit=optional --ignore-scripts || npm install --no-audit --no-fund --omit=optional --ignore-scripts
+        run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
       - name: Postinstall (manual Next patch)
         run: |

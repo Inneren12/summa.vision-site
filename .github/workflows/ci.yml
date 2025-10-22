@@ -17,11 +17,11 @@ jobs:
 
       # 1) Синхронизируем lock c package.json, не выполняя скриптов
       - name: Sync lockfile (no scripts)
-        run: npm install --package-lock-only --no-audit --no-fund --omit=optional --ignore-scripts
+        run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
 
-      # 2) Строгая установка, без скриптов и optional; fallback на npm install
+      # 2) Строгая установка без скриптов; fallback на npm install
       - name: Clean install (ci, ignore scripts)
-        run: npm ci --no-audit --no-fund --omit=optional --ignore-scripts || npm install --no-audit --no-fund --omit=optional --ignore-scripts
+        run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
       # 3) Явно выполняем нужный патч Next, если он есть
       - name: Postinstall (manual Next patch)
