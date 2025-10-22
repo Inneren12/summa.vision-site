@@ -1,6 +1,18 @@
+# actions/labeler@v5 config (rule-based)
+# Каждая метка — массив правил. См. README экшена.
 docs:
-  - "**/*.md"
+  - changed-files:
+      any-glob-to-any-file:
+        - "**/*.md"
+        - "docs/**"
+
 ci:
-  - ".github/workflows/**"
+  - changed-files:
+      any-glob-to-any-file:
+        - ".github/workflows/**"
+        - ".github/**/*.yml"
+
 web:
-  - "apps/web/**"
+  - changed-files:
+      any-glob-to-any-file:
+        - "apps/web/**"
