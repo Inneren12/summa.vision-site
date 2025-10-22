@@ -9,3 +9,5 @@ apps/web/app/typography.css
 apps/web/.next
 apps/web/coverage
 apps/web/tsconfig.tsbuildinfo
+playwright-report
+test-results

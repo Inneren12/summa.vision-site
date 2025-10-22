@@ -1,34 +1,31 @@
-"use client";
+import { headers } from "next/headers";
 
-import { useEffect, useState } from "react";
+type HealthzPayload = { status: string; ts: string } | null;
 
-export default function Healthz() {
-  const [data, setData] = useState<unknown>(null);
+async function loadHealthz(): Promise<HealthzPayload> {
+  try {
+    const headerList = headers();
+    const protocol = headerList.get("x-forwarded-proto") ?? "http";
+    const host = headerList.get("host") ?? "localhost:3000";
+    const response = await fetch(`${protocol}://${host}/api/healthz`, { cache: "no-store" });
 
-  useEffect(() => {
-    let isMounted = true;
-    fetch("/api/healthz")
-      .then((response) => response.json())
-      .then((json) => {
-        if (isMounted) {
-          setData(json);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setData(null);
-        }
-      });
+    if (!response.ok) {
+      return null;
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    return (await response.json()) as HealthzPayload;
+  } catch {
+    return null;
+  }
+}
+
+export default async function Healthz() {
+  const data = await loadHealthz();
 
   return (
     <main className="min-h-screen bg-bg text-fg p-6">
       <pre className="rounded-lg bg-primary/10 p-4 text-sm text-fg/80 shadow">
-        {JSON.stringify(data, null, 2) || "loading..."}
+        {data ? JSON.stringify(data, null, 2) : "null"}
       </pre>
     </main>
   );
