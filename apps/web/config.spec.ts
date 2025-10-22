@@ -1,4 +1,3 @@
-// @ts-expect-error ESM default export import in Vitest
 import { describe, it, expect } from "vitest";
 
 import cfg from "./next.config.mjs";
@@ -16,7 +15,9 @@ describe("next config", () => {
 
   it("images.remotePatterns defined", () => {
     const arr = cfg?.images?.remotePatterns;
-    expect(Array.isArray(arr)).toBe(true);
+    if (!Array.isArray(arr)) {
+      throw new Error("remotePatterns should be an array");
+    }
     expect(arr.length).toBeGreaterThan(0);
   });
 });
