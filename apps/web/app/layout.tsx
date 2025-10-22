@@ -6,8 +6,9 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Summa Vision", description: "Site baseline" };
+export const metadata: Metadata = buildMetadata();
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
