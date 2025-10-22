@@ -1,6 +1,20 @@
+# actions/labeler@v5 config (rule-based)
+# Каждое имя лейбла -> массив правил (config options).
+# Документация: https://github.com/actions/labeler
+
 docs:
-  - "**/*.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
 ci:
-  - ".github/workflows/**"
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/**.yml"
+
 web:
-  - "apps/web/**"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/web/**"
