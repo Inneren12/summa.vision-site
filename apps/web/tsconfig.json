@@ -23,6 +23,6 @@
       }
     ]
   },
-  "include": ["app", "components", "*.ts", "*.tsx", "*.d.ts", ".next/types/**/*.ts"],
+  "include": ["app", "components", "lib", "*.ts", "*.tsx", "*.d.ts", ".next/types/**/*.ts"],
   "exclude": ["vitest.config.ts"]
 }

@@ -1,0 +1,18 @@
+# Generated files
+styles/tokens.css
+src/shared/theme/tokens.ts
+
+# Assets and docs managed outside Prettier
+ASSET_MANIFEST.yaml
+brand/
+docs/
+og/templates/
+public/
+
+# Scripts and styles with hand-tuned formatting
+scripts/og-render.ts
+styles/global.css
+styles/og.css
+style-dictionary.config.cjs
+.github/workflows/
+.storybook/
