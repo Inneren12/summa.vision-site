@@ -3,23 +3,26 @@ on:
   push: { branches: ["*"] }
   pull_request: { branches: ["*"] }
 jobs:
-  e2e:
+  sentinel:
     runs-on: ubuntu-latest
-    env:
-      HUSKY: "0"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Verify no auto-install action left
+      - uses: actions/checkout@v4
+      - name: Ensure no auto-install actions
         run: |
-          if git grep -n --color=never "bahmutov/npm-install" -- .github/workflows; then
-            echo "::error::Remove bahmutov/npm-install action — it forces 'npm ci' before lock sync"
+          if git grep -n "bahmutov/npm-install" -- .github/workflows > /dev/null; then
+            echo "::error::Remove bahmutov/npm-install from workflows — it forces 'npm ci' before lock sync"
             exit 1
           fi
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [sentinel]
+    env:
+      HUSKY: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
