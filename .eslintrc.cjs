@@ -10,11 +10,12 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
-  plugins: ["@typescript-eslint", "unused-imports", "import"],
+  plugins: ["@typescript-eslint", "unused-imports", "import", "jsx-a11y"],
   extends: [
     "next/core-web-vitals",
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:jsx-a11y/recommended",
     "prettier",
   ],
   ignorePatterns: ["dist", ".next", "**/generated/**"],
@@ -28,6 +29,8 @@ module.exports = {
       },
     ],
     "@next/next/no-html-link-for-pages": "off",
+    "jsx-a11y/anchor-is-valid": "error",
+    "jsx-a11y/no-redundant-roles": "warn",
   },
   overrides: [
     {
