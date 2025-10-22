@@ -27,6 +27,7 @@ module.exports = {
         "newlines-between": "always",
       },
     ],
+    "import/no-cycle": ["error", { maxDepth: 1 }],
     "@next/next/no-html-link-for-pages": "off",
   },
   overrides: [

@@ -1,0 +1,27 @@
+name: E2E
+on:
+  push: { branches: ["*"] }
+  pull_request: { branches: ["*"] }
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Sync lockfile to package.json (no install)
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Clean install (npm ci)
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E
+        run: npm run e2e
