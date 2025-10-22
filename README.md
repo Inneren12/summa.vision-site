@@ -93,3 +93,10 @@ npx tsx scripts/og-render.ts --template chart --theme dark --data '{"title":"Nig
 ```
 
 The renderer fills `[data-slot]` placeholders in `og/templates/*.html` and captures a 1200×630 PNG using the shared token theme.
+
+## Release & Ops
+
+- Автоверсии/CHANGELOG: GitHub Actions **Release Please**.
+- Старт вручную: _Actions → Release Please → Run workflow_.
+- Автозапуск: на `push` в `main`.
+- Версии/ChangeLog для `apps/web` формируются из Conventional Commits (commitlint уже включён).

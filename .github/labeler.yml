@@ -1,0 +1,6 @@
+docs:
+  - "**/*.md"
+ci:
+  - ".github/workflows/**"
+web:
+  - "apps/web/**"
