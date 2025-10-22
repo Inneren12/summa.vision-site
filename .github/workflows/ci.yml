@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "*" ]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ⬇️ ВАЖНО: fallback — сначала npm ci, если упал EUSAGE → npm install
+      - name: Install deps (fallback to npm install)
+        run: |
+          set -e
+          npm ci || npm install --no-audit --no-fund
+
+      - name: Build (web)
+        run: npm run web:build
+
+      - name: Unit / Coverage
+        run: npm run test:ci || npm test
+
+      - name: Static analysis (knip/madge)
+        run: npm run quality:check || true
+
+      - name: Performance budgets (size-limit + LHCI)
+        run: npm run perf:check

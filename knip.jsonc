@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "workspaces": [
+    {
+      "name": "web",
+      "entry": ["apps/web/app/**/*.{ts,tsx}", "apps/web/components/**/*.{ts,tsx}"],
+      "project": ["apps/web/**/*.{ts,tsx,js,json,css}"],
+      "ignore": [
+        "apps/web/.next/**",
+        "apps/web/node_modules/**",
+        "apps/web/**/__tests__/**",
+        "apps/web/**/*.stories.tsx",
+      ],
+    },
+  ],
+  "ignoreDependencies": [
+    // добавить при ложных срабатываниях (например, dev-only)
+  ],
+}
