@@ -1,17 +1,28 @@
 /** @type {import('next').NextConfig} */
+import { securityHeaders } from "./security/headers.mjs";
+
+const isDev = process.env.NODE_ENV !== "production";
+const reportOnly = process.env.CSP_REPORT_ONLY === "1";
+const withSentry = Boolean(process.env.SENTRY_DSN);
+
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  // В ряде версий Next experimental.typedRoutes доступен; если поле убрали — просто удалите блок experimental.
   experimental: { typedRoutes: true },
   images: {
-    // Замените список на ваши реальные источники, как только они определены.
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "cdn.jsdelivr.net" },
     ],
     formats: ["image/avif", "image/webp"],
+  },
+  async headers() {
+    const headers = securityHeaders({ reportOnly, isDev, withSentry });
+    return [
+      { source: "/:path*", headers },
+      { source: "/api/:path*", headers },
+    ];
   },
 };
 

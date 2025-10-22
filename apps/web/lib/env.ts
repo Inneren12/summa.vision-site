@@ -6,6 +6,27 @@ type InferEnv<TSchema extends ZodObjectShape> = z.infer<TSchema>;
 
 const serverSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]),
+  SENTRY_DSN: z
+    .preprocess((value) => {
+      if (typeof value !== "string" || value.length === 0) {
+        return undefined;
+      }
+
+      return value;
+    }, z.string().url())
+    .optional(),
+  SENTRY_ENV: z.enum(["development", "staging", "production"]).optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z
+    .preprocess((value) => {
+      if (value === undefined || value === "") {
+        return undefined;
+      }
+
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : value;
+    }, z.number().min(0).max(1))
+    .optional(),
+  CSP_REPORT_ONLY: z.enum(["0", "1"]).optional(),
 });
 
 const clientSchema = z.object({
