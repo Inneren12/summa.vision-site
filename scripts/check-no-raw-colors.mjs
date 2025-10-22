@@ -8,11 +8,10 @@ const ALLOWED_PATHS = [
   path.join(ROOT, "tokens"),
   path.join(ROOT, "styles", "tokens.css"),
   path.join(ROOT, "src", "shared", "theme", "tokens.ts"),
-  path.join(ROOT, "package-lock.json"),
-  path.join(ROOT, "public"),
   path.join(ROOT, "apps", "web", "app", "tokens.css"),
-  path.join(ROOT, "apps", "web", "app", "typography.css"),
   path.join(ROOT, "apps", "web", "tailwind.config.ts"),
+  path.join(ROOT, "og", "templates"),
+  path.join(ROOT, "public", "icons", "site.webmanifest"),
 ];
 const BINARY_EXTENSIONS = new Set([
   ".png",

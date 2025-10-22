@@ -33,6 +33,14 @@ npm run build:tokens && npm run copy:tokens
 npm test
 ```
 
+## Quality Gate
+
+```bash
+npm run ci:check
+```
+
+Runs type-checks, linting (including the raw color guard), unit tests, and the Next.js production build.
+
 - `tokens/brand.tokens.json` — single source of truth for tokens.
 - `styles/tokens.css` — generated CSS custom properties (`:root`).
 - `styles/typography.css` — base typography and utility classes.
