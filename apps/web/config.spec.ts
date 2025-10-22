@@ -14,8 +14,10 @@ describe("next config", () => {
   });
 
   it("images.remotePatterns defined", () => {
-    const arr = cfg?.images?.remotePatterns ?? [];
-    expect(Array.isArray(arr)).toBe(true);
+    const arr = cfg?.images?.remotePatterns;
+    if (!Array.isArray(arr)) {
+      throw new Error("remotePatterns should be an array");
+    }
     expect(arr.length).toBeGreaterThan(0);
   });
 });

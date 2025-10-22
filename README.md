@@ -44,6 +44,13 @@ npm run build:tokens && npm run copy:tokens
 npm test
 ```
 
+## Тема и токены
+
+- Актуальные CSS-переменные копируются в `apps/web/app/tokens.css` и подключаются через `apps/web/app/globals.css`.
+- Tailwind использует токены через форму `rgb` c выражением `var(--token) / <alpha-value>` — см. `apps/web/tailwind.config.ts`.
+- Светлая/тёмная темы переключаются компонентом `ThemeToggle` (поставляется из `apps/web/components`).
+- Storybook с примерами атомов и тем запускается командой `npm run storybook`.
+
 ## Quality Gate
 
 ```bash

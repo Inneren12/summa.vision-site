@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 
 import Root, { metadata } from "./layout";
 
-const Layout = Root as unknown as React.ComponentType<{ children: React.ReactNode }>;
+const RootLayout = Root as unknown as (props: { children: React.ReactNode }) => JSX.Element;
 
 describe("layout", () => {
   it("defines metadata", () => {
@@ -13,9 +13,7 @@ describe("layout", () => {
 
   it("renders skip-link and main landmark", () => {
     const html = ReactDOMServer.renderToString(
-      <Layout>
-        <div>child</div>
-      </Layout>,
+      React.createElement(RootLayout, undefined, <div>child</div>),
     );
     expect(html).toContain("Skip to content");
     expect(html).toContain('id="main"');
