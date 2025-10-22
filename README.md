@@ -44,6 +44,14 @@ npm run build:tokens && npm run copy:tokens
 - E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
 - Full gate: `CI=1 npm run ci:check`
 
+## Performance & Static Analysis
+
+- **Perf**: `npm run perf:analyze` (bundle), `npm run perf:size` (JS/CSS budgets),
+  `npm run perf:lhci` (Lighthouse 3x на / и /healthz), `npm run perf:check` (всё вместе).
+- **Static Analysis**: `npm run analyze:knip:ci` (мертвый код/экспорты/зависимости),
+  `npm run analyze:cycles` (циклы), `npm run quality:check` (оба шага).
+- Первые недели держим Lighthouse-assert’ы как **warn**, затем можно перевести в **error** и добавить в CI.
+
 ## Security & Observability
 
 - Заголовки безопасности и CSP собираются в `apps/web/security/*` и подключаются через `apps/web/next.config.mjs`.

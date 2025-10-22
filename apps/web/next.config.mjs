@@ -1,11 +1,19 @@
-/** @type {import('next').NextConfig} */
+import bundleAnalyzer from "@next/bundle-analyzer";
+
 import { securityHeaders } from "./security/headers.mjs";
 
 const isDev = process.env.NODE_ENV !== "production";
 const reportOnly = process.env.CSP_REPORT_ONLY === "1";
 const withSentry = Boolean(process.env.SENTRY_DSN);
 
-const nextConfig = {
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  analyzerMode: "static",
+  openAnalyzer: false,
+});
+
+/** @type {import('next').NextConfig} */
+const baseConfig = {
   reactStrictMode: true,
   output: "standalone",
   experimental: { typedRoutes: true },
@@ -25,5 +33,7 @@ const nextConfig = {
     ];
   },
 };
+
+const nextConfig = withBundleAnalyzer(baseConfig);
 
 export default nextConfig;
