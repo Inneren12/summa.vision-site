@@ -1,16 +1,28 @@
 {
-  "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "workspaces": [
-    {
-      "name": "web",
-      "entry": ["apps/web/app/**/*.{ts,tsx}", "apps/web/components/**/*.{ts,tsx}"],
-      "project": ["apps/web/**/*.{ts,tsx,js,json,css}"],
+  "$schema": "https://unpkg.com/knip@5/schema-jsonc.json",
+
+  // Конфигурация для монорепо: указываем рабочие пространства как ключи объекта.
+  "workspaces": {
+    ".": {
+      // при необходимости можно добавить локальные entry/project для рута
+    },
+
+    "apps/web": {
+      // Пути указываются ОТНОСИТЕЛЬНО каталога 'apps/web'
+      "entry": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      "project": ["**/*.{ts,tsx,js,json,css}"],
       "ignore": [
-        "apps/web/.next/**",
-        "apps/web/node_modules/**",
-        "apps/web/**/__tests__/**",
-        "apps/web/**/*.stories.tsx",
+        ".next/**",
+        "node_modules/**",
+        "**/__tests__/**",
+        "**/*.stories.tsx",
+        "e2e/**",
+        "playwright.config.ts",
       ],
     },
-  ],
+  },
+
+  // при необходимости можно точечно добавлять:
+  // "ignoreDependencies": ["some-dev-only-pkg"]
+  // "ignoreIssues": { "apps/web/**.generated.ts": ["exports","types"] }
 }
