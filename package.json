@@ -27,14 +27,15 @@
     "analyze:cycles": "node scripts/run-madge.mjs",
     "quality:check": "npm run analyze:knip:ci && npm run analyze:cycles",
     "pree2e": "npm run web:build",
-    "e2e": "playwright test",
+    "e2e": "npx -y @playwright/test@1.48.0 test e2e/smoke.spec.ts",
     "build": "npm run build:tokens",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o .out-sb",
     "prepare": "husky install",
     "postinstall": "node scripts/patch-next.cjs",
     "perf:lhci": "npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs",
-    "perf:check": "npm run web:build && npm run perf:lhci"
+    "perf:check": "npm run web:build && npm run perf:lhci",
+    "test:visual": "npx -y @playwright/test@1.48.0 test e2e/visual"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
