@@ -5,6 +5,10 @@
   "workspaces": [
     "apps/*"
   ],
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "packageManager": "npm@10",
   "scripts": {
     "build:tokens": "tsx scripts/build-tokens.ts",
     "copy:tokens": "node ./scripts/copy-tokens.cjs",
@@ -69,5 +73,9 @@
     "style-dictionary": "^3.9.1",
     "tsx": "^4.8.1",
     "typescript": "5.5.4"
+  },
+  "overrides": {
+    "@playwright/test": "1.48.0",
+    "playwright": "1.48.0"
   }
 }

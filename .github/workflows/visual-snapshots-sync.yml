@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Sync lockfile (no scripts)
         run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
@@ -40,7 +41,7 @@ jobs:
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
 
-      - name: Prepare apps/web/.env.local
+      - name: Prepare env for apps/web
         run: |
           mkdir -p apps/web
           cat > apps/web/.env.local <<'EOENV'
@@ -49,13 +50,13 @@ jobs:
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
 
-      - name: Install Playwright browsers (same version)
+      - name: Install Playwright browsers (1.48.0)
         run: npx -y playwright@1.48.0 install --with-deps chromium
 
-      - name: Build web
+      - name: Build site
         run: npm run web:build
 
-      - name: Update visual snapshots (Playwright starts server)
+      - name: Update snapshots (runner @ 1.48.0)
         run: npx -y @playwright/test@1.48.0 test e2e/visual --update-snapshots
 
       - name: Commit baseline PNGs

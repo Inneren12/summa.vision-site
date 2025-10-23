@@ -43,12 +43,12 @@ jobs:
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
 
-      - name: Install Playwright browsers (same version)
+      - name: Install Playwright browsers (1.48.0)
         run: npx -y playwright@1.48.0 install --with-deps chromium
 
-      - name: Build web
+      - name: Build web (standalone)
         run: npm run web:build
 
       # Сервер стартует Playwright (через config.webServer.command)
-      - name: Run E2E smoke (visual excluded by config)
+      - name: Run E2E (smoke; visual excluded by config)
         run: npm run e2e
