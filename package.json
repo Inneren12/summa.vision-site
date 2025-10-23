@@ -11,7 +11,7 @@
     "web:dev": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run dev",
     "web:build": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run build",
     "web:start": "npm --workspace apps/web run start",
-    "web:start:ci": "node apps/web/.next/standalone/server.js",
+    "web:start:ci": "PORT=3000 node apps/web/.next/standalone/server.js",
     "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
