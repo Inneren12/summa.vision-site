@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   testIgnore: ["visual/**"],
   webServer: {
-    command: "PORT=3010 node apps/web/.next/standalone/server.js",
+    command: "PORT=3010 node apps/web/.next/standalone/apps/web/server.js",
     url: "http://localhost:3010",
     reuseExistingServer: false,
     timeout: 120_000,

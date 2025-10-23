@@ -69,22 +69,21 @@ jobs:
       
       - name: Prepare standalone server
         run: |
-          # Находим где именно находится server.js
-          SERVER_JS=$(find apps/web/.next -name "server.js" -type f | head -n 1)
-          
-          if [ -z "$SERVER_JS" ]; then
-            echo "Error: server.js not found anywhere in .next directory!"
+          # Копируем public и static файлы в правильное место
+          mkdir -p apps/web/.next/standalone/apps/web/public
+          cp -r apps/web/public/* apps/web/.next/standalone/apps/web/public/ 2>/dev/null || true
+    
+          mkdir -p apps/web/.next/standalone/apps/web/.next/static
+          cp -r apps/web/.next/static/* apps/web/.next/standalone/apps/web/.next/static/ 2>/dev/null || true
+    
+          # Проверяем что server.js существует
+          if [ ! -f apps/web/.next/standalone/apps/web/server.js ]; then
+            echo "Error: server.js not found!"
             exit 1
           fi
-          
-          echo "Found server.js at: $SERVER_JS"
-          
-          # Копируем public и static файлы
-          if [ -d apps/web/.next/standalone ]; then
-            cp -r apps/web/public apps/web/.next/standalone/apps/web/public 2>/dev/null || true
-            cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static 2>/dev/null || true
-          fi
-      
+    
+          echo "Standalone server is ready at: apps/web/.next/standalone/apps/web/server.js"
+
       - name: Run E2E smoke
         run: npx -y @playwright/test@1.48.0 test
       
