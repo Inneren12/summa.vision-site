@@ -59,7 +59,7 @@ jobs:
           EOENV
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx -y @playwright/test@1.48.0 test
 
       - name: Build web
         run: npm run web:build
