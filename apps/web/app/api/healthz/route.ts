@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 export function GET() {
-  return Response.json({ status: "ok", ts: new Date().toISOString() });
+  return Response.json({ ok: true, ts: Date.now() }, { headers: { "Cache-Control": "no-store" } });
 }

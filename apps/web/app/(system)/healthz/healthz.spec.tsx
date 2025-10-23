@@ -27,14 +27,14 @@ describe("/healthz page", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ status: "ok", ts: "2025-01-01T00:00:00.000Z" }),
+        json: vi.fn().mockResolvedValue({ ok: true, ts: 1_735_680_000_000 }),
       }),
     );
 
     render(await Healthz());
 
-    expect(screen.getByText(/"status":\s*"ok"/)).toBeInTheDocument();
-    expect(screen.getByText(/"ts":\s*"2025-01-01T00:00:00.000Z"/)).toBeInTheDocument();
+    expect(screen.getByText(/"ok":\s*true/)).toBeInTheDocument();
+    expect(screen.getByText(/"ts":\s*1735680000000/)).toBeInTheDocument();
   });
 
   it("falls back to null when fetch fails", async () => {

@@ -17,6 +17,7 @@
     "allowJs": true,
     "incremental": true,
     "esModuleInterop": true,
+    "types": ["vitest", "vitest/importMeta", "node"],
     "plugins": [
       {
         "name": "next"

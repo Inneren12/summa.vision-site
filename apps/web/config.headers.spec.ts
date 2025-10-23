@@ -1,4 +1,3 @@
-// @ts-expect-error - next.config.mjs uses ESM default export
 import { describe, expect, it } from "vitest";
 
 import cfg from "./next.config.mjs";

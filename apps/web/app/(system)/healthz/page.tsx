@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-type HealthzPayload = { status: string; ts: string } | null;
+type HealthzPayload = { ok: boolean; ts: number } | null;
 
 async function loadHealthz(): Promise<HealthzPayload> {
   try {

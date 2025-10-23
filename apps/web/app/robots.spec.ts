@@ -22,8 +22,9 @@ describe("robots route", () => {
     const robots = (await import("./robots")).default;
 
     const result = robots();
+    const firstRule = Array.isArray(result.rules) ? result.rules[0] : result.rules;
 
-    expect(result.rules?.[0]?.userAgent).toBe("*");
+    expect(firstRule?.userAgent).toBe("*");
     expect(result.sitemap).toContain("sitemap.xml");
   });
 });
