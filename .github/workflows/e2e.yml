@@ -10,11 +10,9 @@ on:
     paths:
       - "apps/web/**"
       - "e2e/**"
-
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -23,30 +21,24 @@ jobs:
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
       NEXT_PUBLIC_SITE_URL: "http://localhost:3010"
-
     steps:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-
       - name: Sync lockfile (no scripts)
         run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
-
       - name: Install deps (ignore scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
-
       - name: Postinstall (manual Next patch)
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
-
       - name: Prepare apps/web/.env.local
         run: |
           mkdir -p apps/web
@@ -55,13 +47,28 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL=https://example.invalid
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
-
       - name: Install Playwright browsers (1.48.0)
         run: npx -y playwright@1.48.0 install --with-deps chromium
-
       - name: Build web (standalone)
         run: npm run web:build
-
-      # Сервер поднимает Playwright (см. playwright.config.ts)
+      - name: Prepare standalone server
+        run: |
+          # Копируем public и static файлы в standalone директорию
+          cp -r apps/web/public apps/web/.next/standalone/apps/web/public
+          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          
+          # Проверяем что server.js существует
+          if [ ! -f apps/web/.next/standalone/server.js ]; then
+            echo "Error: server.js not found after build!"
+            ls -la apps/web/.next/standalone/
+            exit 1
+          fi
       - name: Run E2E smoke
         run: npx -y @playwright/test@1.48.0 test
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
