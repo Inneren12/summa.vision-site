@@ -6,7 +6,12 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     env:
+      # Блокируем husky/prepare в CI
       HUSKY: "0"
+      # CI-дефолты, чтобы sitemap/SEO-мета не падали на build
+      NEXT_PUBLIC_APP_NAME: "Summa Vision"
+      NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
