@@ -51,20 +51,43 @@ jobs:
         run: npx -y playwright@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
+      
+      # ОТЛАДКА: проверяем что создалось после сборки
+      - name: Debug - Check build output
+        run: |
+          echo "=== Checking .next directory structure ==="
+          ls -la apps/web/.next/ || echo "No .next directory"
+          echo ""
+          echo "=== Checking standalone directory ==="
+          ls -la apps/web/.next/standalone/ || echo "No standalone directory"
+          echo ""
+          echo "=== Looking for server.js recursively ==="
+          find apps/web/.next -name "server.js" -type f || echo "No server.js found"
+          echo ""
+          echo "=== Full .next/standalone tree ==="
+          tree -L 3 apps/web/.next/standalone/ || ls -R apps/web/.next/standalone/
+      
       - name: Prepare standalone server
         run: |
-          # Копируем public и static файлы в standalone директорию
-          cp -r apps/web/public apps/web/.next/standalone/apps/web/public
-          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          # Находим где именно находится server.js
+          SERVER_JS=$(find apps/web/.next -name "server.js" -type f | head -n 1)
           
-          # Проверяем что server.js существует
-          if [ ! -f apps/web/.next/standalone/server.js ]; then
-            echo "Error: server.js not found after build!"
-            ls -la apps/web/.next/standalone/
+          if [ -z "$SERVER_JS" ]; then
+            echo "Error: server.js not found anywhere in .next directory!"
             exit 1
           fi
+          
+          echo "Found server.js at: $SERVER_JS"
+          
+          # Копируем public и static файлы
+          if [ -d apps/web/.next/standalone ]; then
+            cp -r apps/web/public apps/web/.next/standalone/apps/web/public 2>/dev/null || true
+            cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static 2>/dev/null || true
+          fi
+      
       - name: Run E2E smoke
         run: npx -y @playwright/test@1.48.0 test
+      
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
