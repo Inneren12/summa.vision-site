@@ -44,6 +44,41 @@ npm run build:tokens && npm run copy:tokens
 - E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
 - Full gate: `CI=1 npm run ci:check`
 
+## Visual snapshots (S1‑I)
+
+Визуальные тесты вынесены в отдельный конфиг, чтобы не ломать общий E2E/CI.
+
+**Локальный первый запуск (создание базовых PNG):**
+
+```bash
+# 1) Собрать приложение (standalone)
+npm run web:build
+
+# 2) Установить браузер для раннера проекта
+npm run visual:browsers
+
+# 3) Обновить снепшоты (создаст PNG):
+npm run test:visual:update
+```
+
+Снимки пишутся рядом с тестами:
+
+```
+e2e/visual/home.spec.ts-snapshots/home-<os>.png
+e2e/visual/healthz.spec.ts-snapshots/healthz-<os>.png
+e2e/visual/atoms.spec.ts-snapshots/atoms-<os>.png
+```
+
+**Коммит PNG baseline** сделай вручную после первого прогона.
+
+**Обычная проверка без обновления:**
+
+```bash
+npm run test:visual
+```
+
+> Примечание: мы не меняем CI и не добавляем workflow. Визуальные тесты не участвуют в общем гейте и не падают при отсутствии PNG.
+
 ## A11y & SEO
 
 - A11y: линтер `jsx-a11y`, unit-проверки через `jest-axe`, e2e-сканы `@axe-core/playwright`. Цвета только через токены CSS.

@@ -35,7 +35,9 @@
     "postinstall": "node scripts/patch-next.cjs",
     "perf:lhci": "npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs",
     "perf:check": "npm run web:build && npm run perf:lhci",
-    "test:visual": "npx -y @playwright/test@1.48.0 test e2e/visual"
+    "visual:browsers": "playwright install --with-deps chromium",
+    "test:visual": "playwright test -c playwright.visual.config.ts",
+    "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
