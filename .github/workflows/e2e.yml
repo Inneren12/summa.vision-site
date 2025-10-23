@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
+          ref: ${{ github.event.inputs.branch || github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
           fetch-depth: 0
       - name: Ensure no auto-install actions
         shell: bash
