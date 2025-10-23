@@ -6,9 +6,7 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     env:
-      # Блокируем husky/prepare в CI
       HUSKY: "0"
-      # CI-дефолты, чтобы sitemap/SEO-мета не падали на build
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
@@ -33,15 +31,41 @@ jobs:
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
 
+      - name: Prepare .env.local for build
+        run: |
+          cat > .env.local <<'EOF'
+          NEXT_PUBLIC_APP_NAME=Summa Vision
+          NEXT_PUBLIC_API_BASE_URL=https://example.invalid
+          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          EOF
+
       - name: Build web
         run: npm run web:build
 
       - name: Resolve Chromium path
-        id: chromium-path
-        run: echo "path=$(node -e \"console.log(require('playwright-core').chromium.executablePath())\")" >> "$GITHUB_OUTPUT"
+        id: chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 1) Попробуем системный Chrome/Chromium
+          P="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          # 2) Если нет — поставим браузер Playwright и спросим его путь (best-effort)
+          if [ -z "$P" ]; then
+            npx -y playwright@1.48.0 install --with-deps chromium
+            P="$(node -e 'try{console.log(require("playwright-core").chromium.executablePath())}catch(e){process.exit(0)}' || true)"
+          fi
+          # 3) Вернём output (или пусто, тогда LHCI будет авто-детектить)
+          echo "path=$P" >> "$GITHUB_OUTPUT"
 
       - name: Start & LHCI (warn)
         continue-on-error: true
-        env:
-          CHROME_PATH: ${{ steps.chromium-path.outputs.path }}
-        run: npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs
+        shell: bash
+        run: |
+          npm run web:start:ci & sleep 6
+          if [ -n "${{ steps.chrome.outputs.path }}" ]; then
+            echo "Using chrome at: ${{ steps.chrome.outputs.path }}"
+            npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs -- --collect.chromePath="${{ steps.chrome.outputs.path }}"
+          else
+            echo "No explicit chrome path; letting LHCI auto-detect."
+            npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs
+          fi
