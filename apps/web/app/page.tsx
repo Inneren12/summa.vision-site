@@ -5,6 +5,8 @@ import { Link } from "@/components/Link";
 import { Text } from "@/components/Text";
 import { buildMetadata, jsonLd, siteMeta } from "@/lib/seo";
 
+export const revalidate = 300;
+
 export const metadata: Metadata = buildMetadata({
   title: `${siteMeta.siteName} — Home`,
   openGraph: {
