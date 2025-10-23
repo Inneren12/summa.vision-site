@@ -48,8 +48,7 @@ jobs:
             echo "::error::Branch '$BR' not found on origin"
             exit 1
           fi
-          git fetch origin "$BR:$BR" --depth=1
-          git switch "$BR"
+        
 
       - name: Setup Node
         uses: actions/setup-node@v4
