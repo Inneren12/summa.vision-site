@@ -25,6 +25,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
       - name: Resolve target branch
         id: br
         shell: bash
@@ -77,6 +82,9 @@ jobs:
 
       - name: Build site
         run: npm run web:build
+
+      - name: Show Playwright effective config
+        run: npx -y playwright@1.48.0 show-config | sed -n '/webServer:/,/^$/p'
 
       - name: Run visual tests (update snapshots)
         run: |
