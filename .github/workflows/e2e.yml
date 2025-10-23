@@ -46,9 +46,9 @@ jobs:
       - name: Install Playwright browsers (same version)
         run: npx -y playwright@1.48.0 install --with-deps chromium
 
-      - name: Build web (standalone)
+      - name: Build web
         run: npm run web:build
 
       # Сервер стартует Playwright (через config.webServer.command)
-      - name: Run E2E (smoke only — visual ignored by config)
+      - name: Run E2E smoke (visual excluded by config)
         run: npm run e2e
