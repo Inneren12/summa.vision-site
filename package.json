@@ -11,7 +11,7 @@
     "web:dev": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run dev",
     "web:build": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run build",
     "web:start": "npm --workspace apps/web run start",
-    "web:start:ci": "node scripts/start-web-ci.cjs",
+    "web:start:ci": "npm --workspace apps/web run start",
     "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
@@ -34,7 +34,8 @@
     "prepare": "husky install",
     "postinstall": "node scripts/patch-next.cjs",
     "perf:lhci": "npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs",
-    "perf:check": "npm run web:build && npm run perf:lhci"
+    "perf:check": "npm run web:build && npm run perf:lhci",
+    "test:visual": "npx -y playwright@1.48.0 test e2e/visual"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
