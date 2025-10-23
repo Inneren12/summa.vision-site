@@ -16,42 +16,16 @@ jobs:
       HUSKY: "0"
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
-      NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3010"
 
     steps:
-      - name: Checkout (fetch all refs)
-        uses: actions/checkout@v4
-        with:
-         fetch-depth: 0
-         persist-credentials: true
-
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.inputs.branch || github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
           fetch-depth: 0
-      - name: Resolve target branch
-        id: br
-        shell: bash
-        run: |
-          set -e
-          BR="${{ github.event.inputs.branch }}"
-          if [ -z "$BR" ]; then
-            if [ -n "${{ github.head_ref }}" ]; then
-              BR="${{ github.head_ref }}"
-            else
-              BR="${{ github.ref_name }}"
-            fi
-          fi
-          echo "branch=$BR" >> "$GITHUB_OUTPUT"
-          if ! git ls-remote --exit-code origin "refs/heads/$BR" >/dev/null 2>&1; then
-            echo "::error::Branch '$BR' not found on origin"
-            exit 1
-          fi
-        
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -60,7 +34,7 @@ jobs:
       - name: Sync lockfile (no scripts)
         run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
 
-      - name: Install (ignore scripts)
+      - name: Install deps (ignore scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
       - name: Postinstall (manual Next patch)
@@ -73,22 +47,17 @@ jobs:
           cat > apps/web/.env.local <<'EOF_ENV'
           NEXT_PUBLIC_APP_NAME=Summa Vision
           NEXT_PUBLIC_API_BASE_URL=https://example.invalid
-          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOF_ENV
 
-      - name: Install Playwright browsers
+      - name: Install Playwright browsers (same version)
         run: npx -y playwright@1.48.0 install --with-deps chromium
 
       - name: Build site
         run: npm run web:build
 
-      - name: Show Playwright effective config
-        run: npx -y playwright@1.48.0 show-config | sed -n '/webServer:/,/^$/p'
-
-      - name: Run visual tests (update snapshots)
-        run: |
-          echo "web:start:ci = $(node -p "require('./package.json').scripts['web:start:ci']")"
-          npx -y playwright@1.48.0 test e2e/visual --update-snapshots
+      - name: Update snapshots (Playwright starts server)
+        run: npx -y @playwright/test@1.48.0 test e2e/visual --update-snapshots
 
       - name: Commit baseline PNGs
         env:
@@ -99,14 +68,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Добавляем только baseline-скриншоты
-          git add -N e2e/visual/**/*.png >/dev/null 2>&1 || true
+          git add -N "e2e/visual/**-snapshots/*.png" >/dev/null 2>&1 || true
           CHANGED=$(git status --porcelain | awk '/^ [AM] / && $0 ~ /\.png$/ {print $2}' | wc -l)
           if [ "$CHANGED" -eq 0 ]; then
-            echo "No PNG changes detected."
+            echo "No baseline PNG changes."
             exit 0
           fi
 
-          git add e2e/visual/**/*.png
+          git add e2e/visual/**-snapshots/*.png
           git commit -m "test(visual): update baseline snapshots via Actions"
-          git push origin HEAD:${{ steps.br.outputs.branch }}
+          git push origin HEAD:${{ github.event.inputs.branch || github.event.pull_request.head.ref || github.ref_name }}

@@ -3,8 +3,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   webServer: {
-    command: "PORT=3010 node apps/web/.next/standalone/server.js", // <-- Playwright сам стартует
-    url: "http://localhost:3010",                                  // <-- новый порт
+    command: "PORT=3010 node apps/web/.next/standalone/server.js",
+    url: "http://localhost:3010",
     reuseExistingServer: false,
     timeout: 120_000,
   },
