@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema-jsonc.json",
+  "workspaces": {
+    ".": {
+      "entry": [],
+      "project": [],
+      "ignore": ["**"],
+    },
+    "apps/web": {
+      "entry": ["app/**/*.{ts,tsx}", "instrumentation.ts", "next.config.mjs"],
+      "project": ["**/*.{ts,tsx,js,jsx,json,css,mjs,cjs}", "vitest.config.ts"],
+      "ignore": [
+        "**/.next/**",
+        "**/node_modules/**",
+        "**/e2e/**",
+        "**/dist/**",
+        "**/*.stories.tsx",
+      ],
+    },
+  },
+}
