@@ -27,7 +27,7 @@
     "analyze:cycles": "node scripts/run-madge.mjs",
     "quality:check": "npm run analyze:knip:ci && npm run analyze:cycles",
     "pree2e": "npm run web:build",
-    "e2e": "npx -y @playwright/test@1.48.0 test e2e/smoke.spec.ts",
+    "e2e": "npx -y @playwright/test@1.48.0 test",
     "build": "npm run build:tokens",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o .out-sb",

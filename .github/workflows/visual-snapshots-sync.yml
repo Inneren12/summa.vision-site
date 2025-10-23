@@ -56,7 +56,7 @@ jobs:
       - name: Build site
         run: npm run web:build
 
-      - name: Update snapshots (Playwright starts server)
+      - name: Update visual snapshots (Playwright starts server)
         run: npx -y @playwright/test@1.48.0 test e2e/visual --update-snapshots
 
       - name: Commit baseline PNGs
