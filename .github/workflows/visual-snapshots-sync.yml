@@ -80,6 +80,7 @@ jobs:
 
       - name: Run visual tests (update snapshots)
         run: |
+          echo "web:start:ci = $(node -p "require('./package.json').scripts['web:start:ci']")"
           npm run web:start:ci & sleep 6
           npx -y playwright@1.48.0 test e2e/visual --update-snapshots
 
