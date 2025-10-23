@@ -1,0 +1,105 @@
+name: Visual Snapshot Baselines
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to update baselines (PR head)"
+        required: false
+        default: ""
+
+jobs:
+  sync:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: "0"
+      NEXT_PUBLIC_APP_NAME: "Summa Vision"
+      NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+
+    steps:
+      - name: Checkout (fetch all refs)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Resolve target branch
+        id: br
+        shell: bash
+        run: |
+          set -e
+          BR="${{ github.event.inputs.branch }}"
+          if [ -z "$BR" ]; then
+            if [ -n "${{ github.head_ref }}" ]; then
+              BR="${{ github.head_ref }}"
+            else
+              BR="${{ github.ref_name }}"
+            fi
+          fi
+          echo "branch=$BR" >> "$GITHUB_OUTPUT"
+          if ! git ls-remote --exit-code origin "refs/heads/$BR" >/dev/null 2>&1; then
+            echo "::error::Branch '$BR' not found on origin"
+            exit 1
+          fi
+          git fetch origin "$BR:$BR" --depth=1
+          git switch "$BR"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Sync lockfile (no scripts)
+        run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
+
+      - name: Install (ignore scripts)
+        run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Postinstall (manual Next patch)
+        run: |
+          if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
+
+      - name: Prepare env for apps/web
+        run: |
+          mkdir -p apps/web
+          cat > apps/web/.env.local <<'EOF_ENV'
+          NEXT_PUBLIC_APP_NAME=Summa Vision
+          NEXT_PUBLIC_API_BASE_URL=https://example.invalid
+          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          EOF_ENV
+
+      - name: Install Playwright browsers
+        run: npx -y playwright@1.48.0 install --with-deps chromium
+
+      - name: Build site
+        run: npm run web:build
+
+      - name: Run visual tests (update snapshots)
+        run: |
+          npm run web:start:ci & sleep 6
+          npx -y playwright@1.48.0 test e2e/visual --update-snapshots
+
+      - name: Commit baseline PNGs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Добавляем только baseline-скриншоты
+          git add -N e2e/visual/**/*.png >/dev/null 2>&1 || true
+          CHANGED=$(git status --porcelain | awk '/^ [AM] / && $0 ~ /\.png$/ {print $2}' | wc -l)
+          if [ "$CHANGED" -eq 0 ]; then
+            echo "No PNG changes detected."
+            exit 0
+          fi
+
+          git add e2e/visual/**/*.png
+          git commit -m "test(visual): update baseline snapshots via Actions"
+          git push origin HEAD:${{ steps.br.outputs.branch }}
