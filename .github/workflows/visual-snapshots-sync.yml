@@ -81,7 +81,8 @@ jobs:
       - name: Run visual tests (update snapshots)
         run: |
           echo "web:start:ci = $(node -p "require('./package.json').scripts['web:start:ci']")"
-          npm run web:start:ci & sleep 6
+          - name: Start standalone server
+          run: PORT=3000 node apps/web/.next/standalone/server.js & sleep 6
           npx -y playwright@1.48.0 test e2e/visual --update-snapshots
 
       - name: Commit baseline PNGs
