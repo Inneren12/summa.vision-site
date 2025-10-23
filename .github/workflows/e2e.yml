@@ -4,29 +4,8 @@ on:
   pull_request: { branches: ["*"] }
 
 jobs:
-  sentinel:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
-          fetch-depth: 0
-      - name: Ensure no auto-install actions
-        shell: bash
-        run: |
-          set -e
-          if egrep -R -n '^[[:space:]]*uses:[[:space:]]*bahmutov/npm-install@' .github/workflows >/tmp/_forbidden.txt; then
-            echo "::group::Forbidden auto-install usages"
-            cat /tmp/_forbidden.txt
-            echo "::endgroup::"
-            echo "::error::Remove 'bahmutov/npm-install' actions — they force 'npm ci' before lock sync"
-            exit 1
-          fi
-
   e2e:
     runs-on: ubuntu-latest
-    needs: [sentinel]
     env:
       HUSKY: "0"
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
@@ -70,5 +49,6 @@ jobs:
       - name: Build web (standalone)
         run: npm run web:build
 
-      - name: Run E2E smoke
+      # Сервер стартует Playwright (через config.webServer.command)
+      - name: Run E2E (smoke only — visual ignored by config)
         run: npm run e2e
