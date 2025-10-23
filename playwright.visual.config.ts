@@ -1,18 +1,20 @@
-import { defineConfig } from "@playwright/test";
+import { definePlugin } from "@playwright/test"; // или import { defineConfig } from '@playwright/test';
 
-export default defineConfig({
+export default {
   testDir: "./e2e/visual",
+  // даём Playwright-у самому поднять Next в прод-режиме
   webServer: {
-    // Используем standalone билд Next.js на 3010, чтобы не конфликтовать с 3000
-    command: "PORT=3010 node apps/web/.next/standalone/server.js",
-    url: "http://localhost:3010",
+    command: "node .next/standalone/server.js", // без inline PORT для Windows
+    cwd: "apps/web", // запускаем из каталога сборки
+    env: { PORT: "3010" }, // порт задаём через env (Windows-friendly)
+    url: "http://localhost:3010", // должен совпадать с PORT
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 120000,
   },
   use: {
-    baseURL: "http://localhost:3010",
+    baseURL: "http://localhost:3010", // чтобы можно было писать page.goto('/…')
     headless: true,
     trace: "retain-on-failure",
   },
-  retries: process.env.CI ? 1 : 0,
-});
+  retries: 0,
+} satisfies ReturnType<typeof definePlugin>;

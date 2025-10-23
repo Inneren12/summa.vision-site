@@ -1,18 +1,16 @@
 /**
  * Do not edit directly
- * Generated on Tue, 21 Oct 2025 06:24:41 GMT
+ * Generated on Thu, 23 Oct 2025 20:27:30 GMT
  */
 
 :root {
-  --dataviz-shape-grid-opacity-minor: 60%;
-  --dataviz-shape-grid-opacity-major: 90%;
-  --dataviz-shape-marker-size-l: 8px;
-  --dataviz-shape-marker-size-m: 6px;
-  --dataviz-shape-marker-size-s: 4px;
-  --dataviz-shape-line-width-bold: 2.5px;
-  --dataviz-shape-line-width-regular: 1.5px;
-  --dataviz-shape-line-width-thin: 1px;
-  --a11y-text-on-canvas-min-ratio: 4.5;
+  --component-tooltip-text: #F9FAFB;
+  --component-tooltip-bg: #111827;
+  --component-button-primary-hover: #189EDB;
+  --a11y-contrast-text-on-surface-min-ratio: 4.5;
+  --a11y-contrast-text-on-canvas-min-ratio: 4.5;
+  --a11y-focus-ring-offset: 1px;
+  --a11y-focus-ring-width: 3px;
   --motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1.2);
   --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --motion-duration-gentle: 240ms;
@@ -60,31 +58,14 @@
   --font-family-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --font-family-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --dataviz-width-line: 1.5px;
-  --dataviz-size-marker-lg: 8px;
-  --dataviz-size-marker-md: 6px;
-  --dataviz-size-marker-sm: 4px;
-  /* semantic → foundation (dataviz) */
-  --dataviz-semantic-neutral: var(--color-fg-subtle);
-  --dataviz-semantic-negative: var(--color-status-alert);
-  --dataviz-semantic-positive: var(--color-status-ok);
-  --dataviz-axis-line: var(--color-border-default);
-  --dataviz-axis-label: var(--color-fg-muted);
-  --dataviz-grid-minor: var(--color-grid-minor);
-  --dataviz-grid-major: var(--color-grid-major);
-  --dataviz-series-12: #55C1FF;
-  --dataviz-series-11: #33658A;
-  --dataviz-series-10: #F6AE2D;
-  --dataviz-series-9: #2F4858;
-  --dataviz-series-8: #A6C96A;
-  --dataviz-series-7: #C42525;
-  --dataviz-series-6: #77A1E5;
-  --dataviz-series-5: #492970;
-  --dataviz-series-4: #1AADCE;
-  --dataviz-series-3: #910000;
-  --dataviz-series-2: #8BBC21;
-  --dataviz-series-1: #2F7ED8;
-  /* foundation values (оставляем HEX): status-surface-* */
+  --dataviz-shape-grid-opacity-minor: 60%;
+  --dataviz-shape-grid-opacity-major: 90%;
+  --dataviz-shape-marker-size-l: 8px;
+  --dataviz-shape-marker-size-m: 6px;
+  --dataviz-shape-marker-size-s: 4px;
+  --dataviz-shape-line-width-bold: 2.5px;
+  --dataviz-shape-line-width-regular: 1.5px;
+  --dataviz-shape-line-width-thin: 1px;
   --color-status-surface-info-border: #b8e6f6;
   --color-status-surface-info-bg: #e9f7fd;
   --color-status-surface-alert-border: #f3bdc6;
@@ -117,14 +98,7 @@
   --color-brand-blue-500: #2fafea;
   --component-card-shadow: var(--shadow-z1);
   --component-button-primary-bg: var(--color-brand-blue-500);
-  /* semantic → foundation (components) */
-  --component-button-primary-hover: var(--color-brand-blue-500);
-  --component-tooltip-bg: var(--color-neutral-950);
-  --component-tooltip-text: var(--color-neutral-000);
   --a11y-focus-ring-color: var(--color-brand-blue-500);
-  --color-grid-minor: var(--color-neutral-200);
-  --color-grid-major: var(--color-neutral-300);
-  --color-series-1: var(--color-brand-blue-500);
   --color-status-surface-info-fg: var(--color-status-info);
   --color-status-surface-alert-fg: var(--color-status-alert);
   --color-status-surface-warn-fg: var(--color-status-warn);
