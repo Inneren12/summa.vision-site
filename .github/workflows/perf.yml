@@ -1,0 +1,50 @@
+name: Performance Budgets
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    env:
+      # Блокируем husky/prepare в CI
+      HUSKY: "0"
+      # CI-дефолты, чтобы sitemap/SEO-мета не падали на build
+      NEXT_PUBLIC_APP_NAME: "Summa Vision"
+      NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Sync lockfile (no scripts)
+        run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
+
+      - name: Install (ignore scripts)
+        run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Postinstall (manual Next patch)
+        run: |
+          if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
+
+      # Дублируем в файл, если код читает именно из .env.local
+      - name: Prepare .env.local for build
+        run: |
+          cat > .env.local <<'EOF'
+          NEXT_PUBLIC_APP_NAME=Summa Vision
+          NEXT_PUBLIC_API_BASE_URL=https://example.invalid
+          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          EOF
+
+      - name: Build web
+        run: npm run web:build
+
+      - name: Start & LHCI (warn)
+        continue-on-error: true
+        run: |
+          npm run web:start:ci & sleep 6
+          npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs
