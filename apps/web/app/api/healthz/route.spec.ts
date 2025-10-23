@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
 
-import * as routeModule from "./route";
+import { GET } from "./route";
 
 describe("GET /api/healthz", () => {
-  it("returns ok json payload", async () => {
-    const response = await routeModule.GET();
+  it("returns compatible body and no-store", async () => {
+    const response = await GET();
 
-    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+
     const json = await response.json();
-    expect(json).toMatchObject({ ok: true });
-    expect(typeof json.ts).toBe("number");
+    expect(json.status).toBe("ok");
+    expect(json.ok).toBe(true);
+    expect(typeof json.ts).toBe("string");
   });
 });
