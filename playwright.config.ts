@@ -2,10 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  webServer: {
-    command: "node apps/web/.next/standalone/server.js", // можно оставить, но он не запустится
-    port: 3000,
-    reuseExistingServer: true,  // <- ключевое: не пытаться стартовать второй раз
+ webServer: {
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
     timeout: 120_000,
   },
   use: {
