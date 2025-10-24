@@ -26,6 +26,14 @@ export const FLAG_REGISTRY = {
     description: "Max items per page",
     owner: "team-web",
   },
+  // Защищённый rollout-флаг (для тестов и политики ignoreOverrides)
+  protectedRollout: {
+    type: "rollout",
+    defaultValue: { enabled: true, percent: 100 } as RolloutConfig,
+    description: "Security-sensitive rollout",
+    owner: "sec",
+    ignoreOverrides: true,
+  },
 } as const;
 
 export type FlagName = keyof typeof FLAG_REGISTRY;
