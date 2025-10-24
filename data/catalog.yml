@@ -1,0 +1,11 @@
+datasets:
+  - id: municipal-budgets-2023
+    title: "Municipal Budget Allocations 2023"
+    source: "Northbridge and Southport Open Data Portal"
+    license: "CC-BY 4.0"
+    freshness: annual
+  - id: population-census-2021
+    title: "Regional Population Census 2021"
+    source: "Regional Statistics Bureau"
+    license: "CC0 1.0"
+    freshness: quinquennial
