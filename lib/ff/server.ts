@@ -4,9 +4,10 @@ import path from "node:path";
 import { getServerEnv } from "../env.server";
 import { isEdgeRuntime, assertServer } from "../runtime-guards";
 
-import { isKnownFlag, FLAG_REGISTRY } from "./flags";
+import { isKnownFlag, FLAG_REGISTRY, type FlagName } from "./flags";
 import { readOverridesFromCookieHeader, type Overrides } from "./overrides";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
+import type { TelemetrySource } from "./telemetry";
 
 const DEFAULT_LOCAL_PATH = path.join(process.cwd(), "config", "feature-flags.local.json");
 
@@ -60,10 +61,12 @@ function hasCookieString(value: unknown): value is { cookie: string } {
   );
 }
 
-export async function getFeatureFlagsFromHeaders(
+export type FlagSources = Record<FlagName, TelemetrySource>;
+
+export async function getFeatureFlagsFromHeadersWithSources(
   h?: Headers | Record<string, string>,
-): Promise<FeatureFlags> {
-  assertServer("getFeatureFlagsFromHeaders");
+): Promise<{ merged: FeatureFlags; sources: FlagSources }> {
+  assertServer("getFeatureFlagsFromHeadersWithSources");
   const base = await getFeatureFlags();
   let cookieHeader: string | undefined;
   if (isHeadersLike(h)) {
@@ -79,5 +82,23 @@ export async function getFeatureFlagsFromHeaders(
       return !("ignoreOverrides" in definition && definition.ignoreOverrides === true);
     }),
   );
-  return mergeFlags(base, filtered);
+  const merged = mergeFlags(base, filtered);
+  const sources = {} as FlagSources;
+  for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
+    if (Object.prototype.hasOwnProperty.call(filtered, name)) {
+      sources[name] = "override";
+    } else if (Object.prototype.hasOwnProperty.call(base, name)) {
+      sources[name] = "env";
+    } else {
+      sources[name] = "default";
+    }
+  }
+  return { merged, sources };
+}
+
+export async function getFeatureFlagsFromHeaders(
+  h?: Headers | Record<string, string>,
+): Promise<FeatureFlags> {
+  const { merged } = await getFeatureFlagsFromHeadersWithSources(h);
+  return merged;
 }

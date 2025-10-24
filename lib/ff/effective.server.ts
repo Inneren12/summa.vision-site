@@ -2,10 +2,11 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
-import { resolveEffectiveFlags } from "./effective.shared";
-import { type EffectiveFlags } from "./flags";
-import { getFeatureFlagsFromHeaders } from "./server";
-import { stableId as buildStableId } from "./stable-id";
+import { resolveEffectiveFlag } from "./effective.shared";
+import { FLAG_REGISTRY, type EffectiveFlags, type FlagName } from "./flags";
+import { getFeatureFlagsFromHeadersWithSources } from "./server";
+import { stableId as buildStableId, STABLEID_USER_PREFIX } from "./stable-id";
+import { trackFlagEvaluation } from "./telemetry";
 
 function buildCookieHeaderString(): string {
   // next/headers cookies() в Next14 синхронен; формируем header-подобную строку для реюза
@@ -18,7 +19,29 @@ function buildCookieHeaderString(): string {
 /** Вычисляет "эффективные" флаги (булево/строка/число) для SSR/RSC, учитывая percent/overrides. */
 export async function getFlagsServer(opts?: { userId?: string }): Promise<EffectiveFlags> {
   const cookieHeader = buildCookieHeaderString();
-  const merged = await getFeatureFlagsFromHeaders({ cookie: cookieHeader });
+  const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
   const id = buildStableId(opts?.userId);
-  return resolveEffectiveFlags(id, merged);
+  const userId = id.startsWith(STABLEID_USER_PREFIX)
+    ? id.slice(STABLEID_USER_PREFIX.length)
+    : undefined;
+  const out: Partial<EffectiveFlags> = {};
+  for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
+    const start = Date.now();
+    const raw = Object.prototype.hasOwnProperty.call(merged, name) ? merged[name] : undefined;
+    const value = resolveEffectiveFlag(name, raw, id);
+    const end = Date.now();
+    const evaluationTime = end - start;
+    out[name] = value as EffectiveFlags[typeof name];
+    trackFlagEvaluation({
+      ts: end,
+      flag: name,
+      value,
+      source: sources[name] ?? "default",
+      stableId: id,
+      userId,
+      evaluationTime,
+      cacheHit: false,
+    });
+  }
+  return out as EffectiveFlags;
 }
