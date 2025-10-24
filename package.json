@@ -23,6 +23,7 @@
     "test": "npm run test:ci",
     "test:ci": "npm run web:test",
     "ff:codegen": "node ./scripts/ff-codegen.mjs",
+    "ff:docs:check": "node ./scripts/ff-docs-verify.mjs",
     "ff:doctor": "npm run ff:codegen && node ./scripts/ff-doctor.mjs || exit 0",
     "ff:doctor:strict": "npm run ff:codegen && node ./scripts/ff-doctor.mjs",
     "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
