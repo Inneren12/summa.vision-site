@@ -111,7 +111,27 @@ for (const dataset of doc.datasets) {
     process.exit(1);
   }
 
-  console.log(`${dataset.id}\t${dataset.sla_days}`);
+  let licenseId = '';
+  let licenseUrl = '';
+  const license = dataset.license;
+  if (license && typeof license === 'object') {
+    if (typeof license.id === 'string') {
+      licenseId = license.id;
+    }
+    if (typeof license.url === 'string') {
+      licenseUrl = license.url;
+    }
+  } else if (typeof license === 'string') {
+    licenseId = license;
+  }
+
+  let sourceUrl = '';
+  const source = dataset.source;
+  if (source && typeof source === 'object' && typeof source.url === 'string') {
+    sourceUrl = source.url;
+  }
+
+  console.log(`${dataset.id}\t${dataset.sla_days}\t${licenseId}\t${licenseUrl}\t${sourceUrl}`);
 }
 NODE
 )
@@ -128,9 +148,10 @@ fi
 
 expired=()
 report_lines=()
+freshness_ok=1
 
 for line in "${DATASET_LINES[@]}"; do
-  IFS=$'\t' read -r dataset_id sla_days <<<"$line"
+  IFS=$'\t' read -r dataset_id sla_days _license_id _license_url _source_url <<<"$line"
   dataset_dir="$RAW_ROOT/$dataset_id"
   if [[ ! -d "$dataset_dir" ]]; then
     expired+=("$dataset_id (no data files found)")
@@ -181,8 +202,59 @@ if (( ${#expired[@]} > 0 )); then
   for entry in "${expired[@]}"; do
     printf ' - %s\n' "$entry"
   done
-  exit 1
+  freshness_ok=0
 else
   printf '\nAll datasets are within the freshness SLA.\n'
+fi
+
+license_ok=1
+license_issues=()
+
+for line in "${DATASET_LINES[@]}"; do
+  IFS=$'\t' read -r dataset_id _sla_days license_id license_url source_url <<<"$line"
+  missing_fields=()
+
+  if [[ -z "$license_id" ]]; then
+    missing_fields+=("license.id")
+  fi
+
+  if [[ -z "$license_url" ]]; then
+    missing_fields+=("license.url")
+  fi
+
+  if [[ -z "$source_url" ]]; then
+    missing_fields+=("source.url")
+  fi
+
+  if (( ${#missing_fields[@]} > 0 )); then
+    license_ok=0
+    license_issues+=("$dataset_id missing: ${missing_fields[*]}")
+  fi
+done
+
+if (( ${#license_issues[@]} > 0 )); then
+  license_msg="Datasets with missing metadata: ${license_issues[0]}"
+  for ((i = 1; i < ${#license_issues[@]}; i++)); do
+    license_msg+="; ${license_issues[i]}"
+  done
+else
+  license_msg="All datasets include license.id, license.url, and source.url."
+fi
+
+if (( license_ok == 1 )); then
+  license_ok_text="true"
+else
+  license_ok_text="false"
+fi
+
+printf '\nlicense {\n'
+printf '  ok: %s\n' "$license_ok_text"
+printf '  msg: %s\n' "$license_msg"
+printf '}\n'
+
+if (( freshness_ok == 1 && license_ok == 1 )); then
+  exit 0
+else
+  exit 1
 fi
 

@@ -37,7 +37,16 @@ describe("data freshness validator", () => {
     mkdirSync(rawDir, { recursive: true });
     createDatasetFile(rawDir, "fresh-dataset", 2, now);
 
-    const catalog = ["datasets:", "  - id: fresh-dataset", "    sla_days: 5"].join("\n");
+    const catalog = [
+      "datasets:",
+      "  - id: fresh-dataset",
+      "    sla_days: 5",
+      "    license:",
+      "      id: CC-BY-4.0",
+      "      url: https://example.com/licenses/cc-by-4.0",
+      "    source:",
+      "      url: https://example.com/datasets/fresh",
+    ].join("\n");
     writeFileSync(catalogPath, catalog);
 
     const result = runValidator(catalogPath, rawDir, now);
@@ -60,8 +69,18 @@ describe("data freshness validator", () => {
       "datasets:",
       "  - id: fresh-dataset",
       "    sla_days: 10",
+      "    license:",
+      "      id: CC-BY-4.0",
+      "      url: https://example.com/licenses/cc-by-4.0",
+      "    source:",
+      "      url: https://example.com/datasets/fresh",
       "  - id: stale-dataset",
       "    sla_days: 5",
+      "    license:",
+      "      id: CC0-1.0",
+      "      url: https://example.com/licenses/cc0-1.0",
+      "    source:",
+      "      url: https://example.com/datasets/stale",
     ].join("\n");
     writeFileSync(catalogPath, catalog);
 
