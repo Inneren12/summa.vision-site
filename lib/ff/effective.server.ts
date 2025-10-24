@@ -16,9 +16,9 @@ function buildCookieHeaderString(): string {
 }
 
 /** Вычисляет "эффективные" флаги (булево/строка/число) для SSR/RSC, учитывая percent/overrides. */
-export async function getFlagsServer(): Promise<EffectiveFlags> {
+export async function getFlagsServer(opts?: { userId?: string }): Promise<EffectiveFlags> {
   const cookieHeader = buildCookieHeaderString();
   const merged = await getFeatureFlagsFromHeaders({ cookie: cookieHeader });
-  const id = buildStableId();
+  const id = buildStableId(opts?.userId);
   return resolveEffectiveFlags(id, merged);
 }
