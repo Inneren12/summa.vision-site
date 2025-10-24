@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { isKnownFlag, knownFlags } from "../../../lib/ff/flags";
 import {
   parseFFQuery,
   applyOverrideDiff,
@@ -38,6 +39,18 @@ export async function GET(req: Request) {
 
     const candidate = applyOverrideDiff(existing, diff);
     validateOverridesCandidate(candidate);
+
+    const enforceKnown = process.env.FF_ENFORCE_KNOWN_FLAGS === "true";
+    if (enforceKnown) {
+      const unknown = Object.keys(candidate).filter((name) => !isKnownFlag(name));
+      if (unknown.length) {
+        return NextResponse.json(
+          { error: "Unknown flags", unknown, known: knownFlags() },
+          { status: 400 },
+        );
+      }
+    }
+
     const json = encodeOverridesCookie(candidate as Overrides);
 
     const res = NextResponse.redirect(removeFFParam(req.url), { status: 302 });
