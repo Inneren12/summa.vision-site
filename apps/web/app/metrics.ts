@@ -29,13 +29,26 @@ function postMetric(url: string, payload: Record<string, unknown>) {
 export function reportWebVitals(metric: NextWebVitalsMetric) {
   const id = snapshotId();
   if (!id) return;
+
+  // NextWebVitalsMetric не объявляет delta / navigationType / rating, но web-vitals их
+  // прокидывает. Забираем их опционально и не ломаем типы.
+  const metricWithOptionals = metric as NextWebVitalsMetric & {
+    rating?: string;
+    delta?: number;
+    navigationType?: string;
+    attribution?: Record<string, unknown>;
+  };
+
   postMetric("/api/metrics/vitals", {
     snapshotId: id,
     metric: metric.name,
     value: metric.value,
-    rating: (metric as { rating?: string }).rating,
-    delta: metric.delta,
-    navigationType: metric.navigationType,
     id: metric.id,
+    startTime: metric.startTime,
+    label: metric.label,
+    rating: metricWithOptionals.rating,
+    delta: metricWithOptionals.delta,
+    navigationType: metricWithOptionals.navigationType,
+    attribution: metricWithOptionals.attribution,
   });
 }
