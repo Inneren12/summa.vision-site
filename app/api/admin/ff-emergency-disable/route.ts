@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FLAG_REGISTRY, isKnownFlag } from "@/lib/ff/flags";
 import { setGlobal, type GlobalValue } from "@/lib/ff/global";
+import { getInstanceId } from "@/lib/ff/instance";
+import { tscmp } from "@/lib/ff/tscmp";
 
 export const runtime = "nodejs";
 
@@ -91,7 +93,7 @@ export async function POST(req: Request) {
   if (!token) {
     return NextResponse.json({ error: "Admin token required" }, { status: 401 });
   }
-  if (token !== expected) {
+  if (!tscmp(token, expected)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -121,6 +123,7 @@ export async function POST(req: Request) {
       value: validation.value,
       ttlSeconds: ttl,
       reason,
+      instanceId: getInstanceId(),
     });
     return NextResponse.json(
       {
