@@ -7,6 +7,9 @@ import { getClientEnv } from "../env.client";
 import { readOverridesFromCookieHeader } from "./overrides";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 
+import { useFlags } from "@/components/FlagsProvider";
+import type { GeneratedFlagTypeMap, GeneratedFlagName } from "@/types/flags.generated";
+
 export function getFeatureFlags(): FeatureFlags {
   const env = getClientEnv();
   const envFlags = parseFlagsJson(env.NEXT_PUBLIC_FEATURE_FLAGS_JSON);
@@ -24,7 +27,7 @@ export function getFlag<T extends FlagValue = boolean>(name: string, fallback?: 
   return (value as T | undefined) ?? fallback;
 }
 
-export function useFlag<T extends FlagValue = boolean>(
+export function useFlagValue<T extends FlagValue = boolean>(
   name: string | undefined,
   fallback?: T,
 ): T | undefined {
@@ -32,4 +35,19 @@ export function useFlag<T extends FlagValue = boolean>(
     if (!name) return fallback;
     return getFlag<T>(name, fallback);
   }, [name, fallback]);
+}
+
+/** useFlag с жёсткой типизацией возвращаемого значения по имени флага. */
+export function useFlag<N extends GeneratedFlagName>(name: N): GeneratedFlagTypeMap[N] {
+  const flags = useFlags() as Record<string, unknown>;
+  return flags[name] as GeneratedFlagTypeMap[N];
+}
+
+/** Получить значение флага, если имя известно; иначе вернуть undefined. */
+export function useOptionalFlag<N extends GeneratedFlagName>(
+  name: N | undefined,
+): GeneratedFlagTypeMap[N] | undefined {
+  const flags = useFlags() as Record<string, unknown>;
+  if (!name) return undefined;
+  return flags[name] as GeneratedFlagTypeMap[N];
 }

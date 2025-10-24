@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 
-import { getFlagsServer } from "@/lib/ff/effective.server";
+import { getFlagsServerWithMeta } from "@/lib/ff/effective.server";
+import { trackExposure } from "@/lib/ff/exposure";
 import { FLAG_REGISTRY, type FlagName } from "@/lib/ff/flags";
+import { stableId as buildStableId } from "@/lib/ff/stable-id";
 
 type VariantFlagName = {
   [K in FlagName]: (typeof FLAG_REGISTRY)[K]["type"] extends "variant" ? K : never;
@@ -22,8 +24,24 @@ export default async function VariantGateServer<N extends VariantFlagName>({
   children,
   userId,
 }: Props<N>) {
-  const flags = await getFlagsServer({ userId });
+  const {
+    flags,
+    sources,
+    stableId,
+    userId: resolvedUserId,
+  } = await getFlagsServerWithMeta({ userId });
   const val = flags[name];
   const should = typeof val === "string" ? val === variant : false;
+  if (should) {
+    const effectiveUserId = userId ?? resolvedUserId;
+    const sid = stableId ?? buildStableId(effectiveUserId);
+    trackExposure({
+      flag: name,
+      value: val,
+      source: sources[name] ?? "default",
+      stableId: sid,
+      userId: effectiveUserId,
+    });
+  }
   return <>{should ? children : fallback}</>;
 }

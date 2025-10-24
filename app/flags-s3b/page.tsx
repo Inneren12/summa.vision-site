@@ -2,6 +2,7 @@ import FlagsProvider from "@/components/FlagsProvider";
 import FlagGateServer from "@/components/gates/FlagGate.server";
 import PercentGateServer from "@/components/gates/PercentGate.server";
 import { getFlagsServer } from "@/lib/ff/effective.server";
+import { withExposureContext } from "@/lib/ff/exposure";
 import { stableId } from "@/lib/ff/stable-id";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export default async function Page({
 }) {
   const userId = typeof searchParams?.user === "string" ? searchParams!.user : undefined;
   const sid = stableId(userId);
-  return (
+  return withExposureContext(async () => (
     <main style={{ padding: 16 }}>
       <h1>S3-B StableId Test</h1>
       <p>
@@ -33,5 +34,5 @@ export default async function Page({
         </section>
       </FlagsProvider>
     </main>
-  );
+  ));
 }

@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { resolveEffectiveFlag } from "./effective.shared";
 import { FLAG_REGISTRY, type EffectiveFlags, type FlagName } from "./flags";
 import { unitFromIdSalt } from "./hash";
-import { getFeatureFlagsFromHeadersWithSources } from "./server";
+import { getFeatureFlagsFromHeadersWithSources, type FlagSources } from "./server";
 import { stableId as buildStableId, STABLEID_USER_PREFIX } from "./stable-id";
 import { trackFlagEvaluation } from "./telemetry";
 import { unitFromVariantSalt } from "./variant";
@@ -18,8 +18,15 @@ function buildCookieHeaderString(): string {
   return all.map((c) => `${c.name}=${c.value}`).join("; ");
 }
 
+export type FlagsWithMeta = {
+  flags: EffectiveFlags;
+  sources: FlagSources;
+  stableId: string;
+  userId?: string;
+};
+
 /** Вычисляет "эффективные" флаги (булево/строка/число) для SSR/RSC, учитывая percent/overrides. */
-export async function getFlagsServer(opts?: { userId?: string }): Promise<EffectiveFlags> {
+export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promise<FlagsWithMeta> {
   const cookieHeader = buildCookieHeaderString();
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
   const id = buildStableId(opts?.userId);
@@ -57,7 +64,18 @@ export async function getFlagsServer(opts?: { userId?: string }): Promise<Effect
       userId,
       evaluationTime,
       cacheHit: false,
+      type: "evaluation",
     });
   }
-  return out as EffectiveFlags;
+  return {
+    flags: out as EffectiveFlags,
+    sources,
+    stableId: id,
+    userId,
+  };
+}
+
+export async function getFlagsServer(opts?: { userId?: string }): Promise<EffectiveFlags> {
+  const { flags } = await getFlagsServerWithMeta(opts);
+  return flags;
 }
