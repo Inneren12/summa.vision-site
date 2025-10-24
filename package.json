@@ -39,7 +39,8 @@
     "test:visual": "playwright test -c playwright.visual.config.ts",
     "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit:watch": "vitest",
+    "test:e2e:flags": "playwright test --config=playwright.flags.config.ts"
   },
   "dependencies": {
     "zod": "^3.23.8"
