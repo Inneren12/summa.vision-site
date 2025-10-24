@@ -11,14 +11,14 @@ export function stripComments(code) {
     BLOCK = 4,
     LINE = 5,
     TEMPLATE_EXPR = 6;
-  let state = NORMAL;
-  let out = "";
-  let i = 0;
-  let braceDepth = 0;
-  const len = code.length;
+  let state = NORMAL,
+    out = "",
+    i = 0,
+    braceDepth = 0,
+    len = code.length;
   while (i < len) {
-    const c = code[i];
-    const n = i + 1 < len ? code[i + 1] : "";
+    const c = code[i],
+      n = i + 1 < len ? code[i + 1] : "";
     if (state === NORMAL) {
       if (c === "'") {
         state = SQUOTE;
@@ -58,8 +58,6 @@ export function stripComments(code) {
       if (c === "\n") {
         state = NORMAL;
         out += "\n";
-        i++;
-        continue;
       }
       i++;
       continue;
@@ -69,63 +67,38 @@ export function stripComments(code) {
         state = NORMAL;
         out += " ";
         i += 2;
-        continue;
+      } else {
+        if (c === "\n") out += "\n";
+        i++;
       }
-      if (c === "\n") out += "\n";
-      i++;
       continue;
     }
     if (state === SQUOTE) {
       if (c === "\\") {
-        out += c;
-        if (i + 1 < len) {
-          out += code[i + 1];
-          i += 2;
-        } else {
-          i++;
-        }
-        continue;
-      }
-      if (c === "'") {
-        state = NORMAL;
+        out += c + (code[i + 1] ?? "");
+        i += 2;
+      } else {
         out += c;
         i++;
-        continue;
+        if (c === "'") state = NORMAL;
       }
-      out += c;
-      i++;
       continue;
     }
     if (state === DQUOTE) {
       if (c === "\\") {
-        out += c;
-        if (i + 1 < len) {
-          out += code[i + 1];
-          i += 2;
-        } else {
-          i++;
-        }
-        continue;
-      }
-      if (c === '"') {
-        state = NORMAL;
+        out += c + (code[i + 1] ?? "");
+        i += 2;
+      } else {
         out += c;
         i++;
-        continue;
+        if (c === '"') state = NORMAL;
       }
-      out += c;
-      i++;
       continue;
     }
     if (state === TEMPLATE) {
       if (c === "\\") {
-        out += c;
-        if (i + 1 < len) {
-          out += code[i + 1];
-          i += 2;
-        } else {
-          i++;
-        }
+        out += c + (code[i + 1] ?? "");
+        i += 2;
         continue;
       }
       if (c === "`") {

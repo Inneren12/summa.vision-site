@@ -1,7 +1,7 @@
 // AUTO-GENERATED. Do not edit.
 import type { EffectiveValueFor } from "../lib/ff/flags";
 
-// Map of effective types: name -> return type of useFlag(name)
+// Map of effective types: flag name -> return type of useFlag(name)
 export interface GeneratedFlagTypeMap {
   newCheckout: EffectiveValueFor<"newCheckout">;
   betaUI: EffectiveValueFor<"betaUI">;
