@@ -7,6 +7,7 @@ import { isEdgeRuntime, assertServer } from "../runtime-guards";
 import { isKnownFlag, FLAG_REGISTRY, type FlagName } from "./flags";
 import { readGlobals } from "./global";
 import { readOverridesFromCookieHeader, type Overrides } from "./overrides";
+import { perfInc } from "./perf";
 import { devWarnFeatureFlagsSchemaOnce } from "./schema";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 import type { TelemetrySource } from "./telemetry";
@@ -23,6 +24,14 @@ async function readLocalFlagsFile(filePath: string): Promise<FeatureFlags> {
   }
 }
 
+let __envCacheSig = "";
+let __envCacheParsed: FeatureFlags = {};
+
+function envSignature(str: string | undefined | null): string {
+  if (!str) return "0:";
+  return String(str.length) + ":" + str.slice(0, 32);
+}
+
 /** Server-side flags: dev-local (dev+Node) -> ENV(JSON) -> overrides(cookie). Later ones win. */
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   assertServer("getFeatureFlags (server)");
@@ -36,7 +45,15 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     localFlags = await readLocalFlagsFile(localPath);
   }
 
-  const envFlags = parseFlagsJson(env.FEATURE_FLAGS_JSON);
+  const raw = env.FEATURE_FLAGS_JSON;
+  const sig = envSignature(raw);
+  if (sig !== __envCacheSig) {
+    perfInc("ff.env.parse");
+    const parsed = parseFlagsJson(raw);
+    __envCacheParsed = parsed;
+    __envCacheSig = sig;
+  }
+  const envFlags = __envCacheParsed;
   return mergeFlags(localFlags, envFlags);
 }
 
@@ -113,4 +130,9 @@ export function __devSetFeatureFlagsJson(next: string) {
   if (process.env.NODE_ENV === "production") return;
   process.env.FEATURE_FLAGS_JSON = next;
   __resetServerEnvCacheForTests();
+}
+
+export function __resetFeatureFlagsCacheForTests() {
+  __envCacheSig = "";
+  __envCacheParsed = {};
 }
