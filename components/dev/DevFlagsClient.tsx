@@ -105,7 +105,14 @@ export default function DevFlagsClient({
             cookie: <code>sv_flags_override</code>
           </span>
         </div>
-        <pre style={{ background: "#111", color: "#eee", padding: 8, whiteSpace: "pre-wrap" }}>
+        <pre
+          style={{
+            background: "var(--color-bg-inverse)",
+            color: "var(--color-fg-inverse)",
+            padding: 8,
+            whiteSpace: "pre-wrap",
+          }}
+        >
           {overridesJson ?? "{}"}
         </pre>
       </section>
@@ -151,10 +158,14 @@ export default function DevFlagsClient({
                       {m.name}
                     </button>
                     {m.deprecated && (
-                      <span style={{ marginLeft: 6, color: "#d97706" }}>&nbsp;deprecated</span>
+                      <span style={{ marginLeft: 6, color: "var(--color-status-warn)" }}>
+                        &nbsp;deprecated
+                      </span>
                     )}
                     {m.ignoreOverrides && (
-                      <span style={{ marginLeft: 6, color: "#ef4444" }}>&nbsp;ignoreOverrides</span>
+                      <span style={{ marginLeft: 6, color: "var(--color-status-alert)" }}>
+                        &nbsp;ignoreOverrides
+                      </span>
                     )}
                   </td>
                   <td style={{ padding: 6 }}>{m.type}</td>

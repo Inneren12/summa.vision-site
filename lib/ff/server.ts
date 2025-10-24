@@ -7,6 +7,7 @@ import { isEdgeRuntime, assertServer } from "../runtime-guards";
 import { isKnownFlag, FLAG_REGISTRY, type FlagName } from "./flags";
 import { readGlobals } from "./global";
 import { readOverridesFromCookieHeader, type Overrides } from "./overrides";
+import { devWarnFeatureFlagsSchemaOnce } from "./schema";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 import type { TelemetrySource } from "./telemetry";
 
@@ -25,6 +26,7 @@ async function readLocalFlagsFile(filePath: string): Promise<FeatureFlags> {
 /** Server-side flags: dev-local (dev+Node) -> ENV(JSON) -> overrides(cookie). Later ones win. */
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   assertServer("getFeatureFlags (server)");
+  devWarnFeatureFlagsSchemaOnce();
   const env = getServerEnv();
 
   // dev-local file only if not production AND not Edge runtime
