@@ -8,6 +8,8 @@ type Props<N extends FlagName = FlagName> = {
   equals?: EffectiveValueFor<N>;
   fallback?: ReactNode;
   children: ReactNode;
+  /** Опционально: принудительно использовать userId как stableId для кросс‑девайс консистентности. */
+  userId?: string;
 };
 
 export default async function FlagGateServer<N extends FlagName>({
@@ -15,8 +17,9 @@ export default async function FlagGateServer<N extends FlagName>({
   equals,
   fallback = null,
   children,
+  userId,
 }: Props<N>) {
-  const flags = await getFlagsServer();
+  const flags = await getFlagsServer({ userId });
   const meta = FLAG_REGISTRY[name];
   const value = flags[name];
 

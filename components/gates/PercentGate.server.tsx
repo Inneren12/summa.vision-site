@@ -12,14 +12,17 @@ type Props<N extends RolloutName = RolloutName> = {
   fallbackPercent?: number; // используется только как ENV-fallback в будущем; вычисление уже на сервере
   fallback?: ReactNode;
   children: ReactNode;
+  /** Опционально: принудительно использовать userId как stableId. */
+  userId?: string;
 };
 
 export default async function PercentGateServer<N extends RolloutName>({
   name,
   children,
   fallback = null,
+  userId,
 }: Props<N>) {
-  const flags = await getFlagsServer();
+  const flags = await getFlagsServer({ userId });
   const val = flags[name]; // уже булево после серверного резолва
   return <>{val ? children : fallback}</>;
 }
