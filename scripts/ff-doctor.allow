@@ -1,0 +1,6 @@
+# Optional allow-list
+# Mark known flag as "used" when referenced dynamically (avoid "unused" warning):
+# use: betaUI
+
+# Allow specific unknown tokens (e.g., external docs links) to not fail strict:
+# allow-unknown: demoFlag
