@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import "./globals.css";
@@ -11,9 +12,15 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata: Metadata = buildMetadata();
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  let snapshotId = "";
+  try {
+    snapshotId = headers().get("x-ff-snapshot") ?? "";
+  } catch {
+    snapshotId = "";
+  }
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-bg text-fg">
+      <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
         <Providers>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content
