@@ -1,32 +1,57 @@
+import { FLAG_REGISTRY, type FlagName, type EffectiveFlags } from "./flags";
 import { inRollout } from "./hash";
-import type { FeatureFlags, FlagValue } from "./shared";
+import { type FeatureFlags, type RolloutConfig } from "./shared";
+import { warnFlagTypeMismatch, typeOfValue } from "./warn";
 
-export type EffectiveFlagValue = boolean | number | string;
-export type EffectiveFlags = Record<string, EffectiveFlagValue>;
-
-function evaluateRollout(
-  name: string,
-  value: Extract<FlagValue, { enabled: boolean }>,
-  stableId?: string,
-): boolean {
-  if (!value.enabled) return false;
-  const percent = typeof value.percent === "number" ? value.percent : 100;
-  const salt = value.salt ?? name;
-  const id = stableId || "__anonymous__";
-  return inRollout(id, percent, salt);
+function isRolloutConfig(value: unknown): value is RolloutConfig {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("enabled" in value)) return false;
+  return typeof (value as { enabled: unknown }).enabled === "boolean";
 }
 
-function evaluateFlag(name: string, value: FlagValue, stableId?: string): EffectiveFlagValue {
-  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
-    return value;
+/** Разрешить значение флага согласно реестру, учитывая overrides и percent rollout. */
+export function resolveEffectiveFlag(
+  name: FlagName,
+  raw: unknown,
+  stableId: string,
+): boolean | string | number {
+  const meta = FLAG_REGISTRY[name];
+
+  if (meta.type === "rollout") {
+    if (typeof raw === "boolean") return raw;
+    const defaultConfig = meta.defaultValue;
+    const candidate = raw ?? defaultConfig;
+    if (!isRolloutConfig(candidate)) {
+      if (typeof raw !== "undefined") {
+        warnFlagTypeMismatch(name, "RolloutConfig or boolean override", typeOfValue(raw));
+      }
+      if (!defaultConfig.enabled) return false;
+      const percent = typeof defaultConfig.percent === "number" ? defaultConfig.percent : 100;
+      const salt = defaultConfig.salt ?? name;
+      return inRollout(stableId, percent, salt);
+    }
+    if (!candidate.enabled) return false;
+    const percent = typeof candidate.percent === "number" ? candidate.percent : 100;
+    const salt = candidate.salt ?? name;
+    return inRollout(stableId, percent, salt);
   }
-  return evaluateRollout(name, value, stableId);
+
+  if (meta.type === "boolean") {
+    return typeof raw === "boolean" ? raw : meta.defaultValue;
+  }
+  if (meta.type === "string") {
+    return typeof raw === "string" ? raw : meta.defaultValue;
+  }
+  // number
+  return typeof raw === "number" ? raw : meta.defaultValue;
 }
 
-export function computeEffectiveFlags(flags: FeatureFlags, stableId?: string): EffectiveFlags {
-  const out: EffectiveFlags = {};
-  for (const [key, value] of Object.entries(flags)) {
-    out[key] = evaluateFlag(key, value, stableId);
+/** Построить карту эффективных флагов только по известным именам из реестра. */
+export function resolveEffectiveFlags(stableId: string, merged: FeatureFlags): EffectiveFlags {
+  const result: Partial<EffectiveFlags> = {};
+  for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
+    const rawValue = Object.prototype.hasOwnProperty.call(merged, name) ? merged[name] : undefined;
+    result[name] = resolveEffectiveFlag(name, rawValue, stableId) as EffectiveFlags[typeof name];
   }
-  return out;
+  return result as EffectiveFlags;
 }

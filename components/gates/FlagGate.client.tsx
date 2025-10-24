@@ -1,22 +1,23 @@
-import type { ReactNode } from "react";
+"use client";
+import React from "react";
 
-import { getFlagsServer } from "../../lib/ff/effective.server";
 import { FLAG_REGISTRY, type FlagName, type EffectiveValueFor } from "../../lib/ff/flags";
+import { useFlags } from "../FlagsProvider";
 
 type Props<N extends FlagName = FlagName> = {
   name: N;
   equals?: EffectiveValueFor<N>;
-  fallback?: ReactNode;
-  children: ReactNode;
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
 };
 
-export default async function FlagGateServer<N extends FlagName>({
+export default function FlagGate<N extends FlagName>({
   name,
   equals,
   fallback = null,
   children,
 }: Props<N>) {
-  const flags = await getFlagsServer();
+  const flags = useFlags();
   const meta = FLAG_REGISTRY[name];
   const value = flags[name];
 

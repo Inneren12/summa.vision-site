@@ -1,23 +1,29 @@
 import "server-only";
+
 import { cookies } from "next/headers";
-import { cache } from "react";
 
-import { computeEffectiveFlags, type EffectiveFlags } from "./effective.shared";
-import { readOverridesFromCookieHeader } from "./overrides";
-import { getFeatureFlags } from "./server";
-import { mergeFlags, type FeatureFlags } from "./shared";
+import { resolveEffectiveFlags } from "./effective.shared";
+import { type EffectiveFlags } from "./flags";
+import { getFeatureFlagsFromHeaders } from "./server";
 
-function getOverridesFromCookies(): Record<string, boolean | number | string> {
+function buildCookieHeaderString(): string {
+  // next/headers cookies() в Next14 синхронен; формируем header-подобную строку для реюза
   const ck = cookies();
-  const raw = ck.get("sv_flags_override")?.value;
-  if (!raw) return {};
-  return readOverridesFromCookieHeader(`sv_flags_override=${raw}`);
+  const all = ck.getAll();
+  if (!all.length) return "";
+  return all.map((c) => `${c.name}=${c.value}`).join("; ");
 }
 
-export const getFlagsServer = cache(async (): Promise<EffectiveFlags> => {
-  const base = await getFeatureFlags();
-  const overrides = getOverridesFromCookies();
-  const combined = mergeFlags(base, overrides as FeatureFlags);
-  const stableId = cookies().get("sv_id")?.value;
-  return computeEffectiveFlags(combined, stableId);
-});
+function getStableIdFromCookies(): string {
+  const ck = cookies();
+  const value = ck.get("sv_id")?.value;
+  return value ?? "anon";
+}
+
+/** Вычисляет "эффективные" флаги (булево/строка/число) для SSR/RSC, учитывая percent/overrides. */
+export async function getFlagsServer(): Promise<EffectiveFlags> {
+  const cookieHeader = buildCookieHeaderString();
+  const merged = await getFeatureFlagsFromHeaders({ cookie: cookieHeader });
+  const stableId = getStableIdFromCookies();
+  return resolveEffectiveFlags(stableId, merged);
+}

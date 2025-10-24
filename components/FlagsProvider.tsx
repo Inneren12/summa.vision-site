@@ -1,44 +1,29 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
-import type { ReactNode } from "react";
+import React, { createContext, useContext } from "react";
 
-import { getFeatureFlags as getClientFlags } from "../lib/ff/client";
-import type { EffectiveFlags } from "../lib/ff/effective.shared";
-import { computeEffectiveFlags } from "../lib/ff/effective.shared";
-import { getStableIdFromCookieHeader } from "../lib/ff/stable-id";
+import type { EffectiveFlags } from "../lib/ff/flags";
 
 const FlagsContext = createContext<EffectiveFlags | null>(null);
 
-type Props = {
-  serverFlags?: EffectiveFlags;
-  children: ReactNode;
-};
-
-function getClientEffectiveFlags(): EffectiveFlags {
-  const raw = getClientFlags();
-  const stableId = getStableIdFromCookieHeader(
-    typeof document !== "undefined" ? document.cookie : undefined,
-  );
-  return computeEffectiveFlags(raw, stableId);
+export default function FlagsProvider({
+  serverFlags,
+  children,
+}: {
+  serverFlags: EffectiveFlags;
+  children: React.ReactNode;
+}) {
+  return <FlagsContext.Provider value={serverFlags}>{children}</FlagsContext.Provider>;
 }
 
-export default function FlagsProvider({ serverFlags, children }: Props) {
-  const value = useMemo(() => {
-    const clientFlags = getClientEffectiveFlags();
-    return { ...serverFlags, ...clientFlags };
-  }, [serverFlags]);
-
-  return <FlagsContext.Provider value={value}>{children}</FlagsContext.Provider>;
-}
-
-export function useFlags(): EffectiveFlags {
+export function useFlags(): Readonly<EffectiveFlags> {
   const ctx = useContext(FlagsContext);
-  if (ctx) return ctx;
-  return getClientEffectiveFlags();
-}
-
-export function useFlag(name: string): boolean | number | string | undefined {
-  const flags = useFlags();
-  return flags[name];
+  if (!ctx) {
+    if (process.env.NODE_ENV !== "production") {
+      throw new Error("useFlags() must be used within <FlagsProvider>");
+    }
+    // в проде — безопасный fallback (пустые значения)
+    return {} as EffectiveFlags;
+  }
+  return ctx;
 }
