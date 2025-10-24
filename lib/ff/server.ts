@@ -4,6 +4,7 @@ import path from "node:path";
 import { getServerEnv } from "../env.server";
 import { isEdgeRuntime, assertServer } from "../runtime-guards";
 
+import { isKnownFlag, FLAG_REGISTRY } from "./flags";
 import { readOverridesFromCookieHeader, type Overrides } from "./overrides";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 
@@ -71,5 +72,12 @@ export async function getFeatureFlagsFromHeaders(
     cookieHeader = h.cookie;
   }
   const overrides: Overrides = readOverridesFromCookieHeader(cookieHeader);
-  return mergeFlags(base, overrides);
+  const filtered = Object.fromEntries(
+    Object.entries(overrides).filter(([name]) => {
+      if (!isKnownFlag(name)) return true;
+      const definition = FLAG_REGISTRY[name];
+      return !("ignoreOverrides" in definition && definition.ignoreOverrides === true);
+    }),
+  );
+  return mergeFlags(base, filtered);
 }

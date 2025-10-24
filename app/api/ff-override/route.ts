@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { isKnownFlag, knownFlags } from "../../../lib/ff/flags";
+import { parseXForwardedFor } from "../../../lib/ff/net";
 import {
   parseFFQuery,
   applyOverrideDiff,
@@ -53,6 +54,10 @@ export async function GET(req: Request) {
 
     const json = encodeOverridesCookie(candidate as Overrides);
 
+    // корректно определяем IP для логов/метрик (первый адрес из x-forwarded-for)
+    const rawIp = req.headers.get("x-forwarded-for");
+    const clientIp = parseXForwardedFor(rawIp);
+    void clientIp; // (при необходимости можно логировать clientIp)
     const res = NextResponse.redirect(removeFFParam(req.url), { status: 302 });
     res.cookies.set("sv_flags_override", json, {
       httpOnly: false,
