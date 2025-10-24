@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { astAvailable, scanTextForFlagsAST } from "./doctor/ast.js";
 import { scanTextForFlags } from "./doctor/scan.js";
 
 const ROOT = path.resolve(process.cwd());
@@ -73,6 +74,7 @@ function readFiles() {
 const flagNames = readFlagNames();
 const allow = readAllowList();
 const files = readFiles();
+const HAS_AST = await astAvailable();
 const argv = process.argv.slice(2);
 const HINT = argv.includes("--hint");
 const JSON_MODE = argv.includes("--json");
@@ -84,7 +86,21 @@ const knownSet = new Set(flagNames);
 
 for (const file of files) {
   const text = fs.readFileSync(file, "utf8");
-  const r = scanTextForFlags(text, flagNames);
+  // .js/.jsx — сначала пробуем AST (если доступен), потом regex;
+  // .ts/.tsx — сразу regex.
+  const ext = path.extname(file).toLowerCase();
+  let r = { refs: new Map(), unknown: new Map(), occurrences: [] };
+  const canAST = HAS_AST && (ext === ".js" || ext === ".jsx");
+  if (canAST) {
+    try {
+      r = await scanTextForFlagsAST(text, file, flagNames);
+    } catch {
+      // no-op, fallback ниже
+    }
+  }
+  if (!r.occurrences?.length) {
+    r = scanTextForFlags(text, flagNames);
+  }
   for (const [k, v] of r.refs) refs.set(k, (refs.get(k) || 0) + v);
   for (const [k, v] of r.unknown) unknown.set(k, (unknown.get(k) || 0) + v);
   for (const occ of r.occurrences) {
