@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { FLAG_REGISTRY, isKnownFlag } from "./flags";
+
 // ---- Limits (cookie safety across browsers) ----
 export const MAX_OVERRIDE_SIZE_BYTES = 3000; // safe under per-cookie limits
 export const MAX_OVERRIDE_KEYS = 50;
@@ -91,6 +93,9 @@ export function validateOverridesCandidate(obj: Record<string, unknown>) {
   }
   // check each value
   for (const [k, v] of Object.entries(obj)) {
+    if (v === null) {
+      continue; // null означает удаление override
+    }
     if (typeof v === "string") {
       if (v.length > MAX_STRING_LEN)
         throw new Error(`String too long for "${k}" (max ${MAX_STRING_LEN})`);
@@ -139,4 +144,54 @@ export function readOverridesFromCookieHeader(cookieHeader?: string): Overrides 
   } catch {
     return {};
   }
+}
+
+/** Запретить dotted‑path ключи (prod) — или разрешить в dev по ALLOW_DOTTED_OVERRIDE. */
+export function filterDottedPaths(overrides: OverrideDiff): OverrideDiff {
+  const allowDotted =
+    process.env.ALLOW_DOTTED_OVERRIDE === "true" && process.env.NODE_ENV !== "production";
+  if (allowDotted) return overrides;
+  const out: OverrideDiff = {};
+  for (const [k, v] of Object.entries(overrides)) {
+    if (k.includes(".") || k.includes("[")) {
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Проверка типов override согласно реестру флагов. */
+export function validateOverrideTypes(
+  overrides: OverrideDiff,
+): { ok: true } | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+  for (const [name, val] of Object.entries(overrides)) {
+    if (!isKnownFlag(name)) {
+      continue;
+    }
+    if (val === null) {
+      continue;
+    }
+    const meta = FLAG_REGISTRY[name];
+    switch (meta.type) {
+      case "boolean":
+        if (typeof val !== "boolean") errors.push(`${name} must be boolean`);
+        break;
+      case "string":
+        if (typeof val !== "string") errors.push(`${name} must be string`);
+        else if (val.length > MAX_STRING_LEN) errors.push(`${name} string too long`);
+        break;
+      case "number":
+        if (typeof val !== "number" || !Number.isFinite(val)) errors.push(`${name} must be number`);
+        else if (val < MIN_NUMBER || val > MAX_NUMBER) errors.push(`${name} number out of range`);
+        break;
+      case "rollout":
+        if (typeof val !== "boolean") errors.push(`${name} rollout override must be boolean`);
+        break;
+      default:
+        errors.push(`${name} has unsupported type`);
+    }
+  }
+  return errors.length ? { ok: false, errors } : { ok: true };
 }

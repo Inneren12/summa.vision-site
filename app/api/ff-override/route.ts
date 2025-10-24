@@ -12,7 +12,8 @@ import {
   validateOverridesCandidate,
   encodeOverridesCookie,
   readOverridesFromCookieHeader,
-  type Overrides,
+  filterDottedPaths,
+  validateOverrideTypes,
 } from "../../../lib/ff/overrides";
 
 function removeFFParam(url: string): string {
@@ -38,22 +39,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing ff parameter" }, { status: 400 });
     }
 
-    const isProd = process.env.NODE_ENV === "production";
-    const allowDotted = !isProd && process.env.ALLOW_DOTTED_OVERRIDE === "true";
-    const diff = parseFFQuery(ff, { allowDottedPaths: allowDotted });
-
-    const ck = cookies();
-    const existingRaw = ck.get("sv_flags_override")?.value;
-    const existing = readOverridesFromCookieHeader(
-      existingRaw ? `sv_flags_override=${existingRaw}` : undefined,
-    );
-
-    const candidate = applyOverrideDiff(existing, diff);
+    const candidate = parseFFQuery(ff, { allowDottedPaths: true });
     validateOverridesCandidate(candidate);
 
-    const enforceKnown = process.env.FF_ENFORCE_KNOWN_FLAGS === "true";
+    const noDotted = filterDottedPaths(candidate);
+
+    const prodStrict = process.env.NODE_ENV === "production";
+    const enforceEnv = process.env.FF_ENFORCE_KNOWN_FLAGS === "true";
+    const enforceKnown = prodStrict || enforceEnv;
     if (enforceKnown) {
-      const unknown = Object.keys(candidate).filter((name) => !isKnownFlag(name));
+      const unknown = Object.keys(noDotted).filter((name) => !isKnownFlag(name));
       if (unknown.length) {
         return NextResponse.json(
           { error: "Unknown flags", unknown, known: knownFlags() },
@@ -62,7 +57,22 @@ export async function GET(req: Request) {
       }
     }
 
-    const json = encodeOverridesCookie(candidate as Overrides);
+    const typeCheck = validateOverrideTypes(noDotted);
+    if (!typeCheck.ok) {
+      return NextResponse.json(
+        { error: "Invalid override types", details: typeCheck.errors },
+        { status: 400 },
+      );
+    }
+
+    const ck = cookies();
+    const existingRaw = ck.get("sv_flags_override")?.value;
+    const existing = readOverridesFromCookieHeader(
+      existingRaw ? `sv_flags_override=${existingRaw}` : undefined,
+    );
+
+    const next = applyOverrideDiff(existing, noDotted);
+    const json = encodeOverridesCookie(next);
 
     // корректно определяем IP для логов/метрик (первый адрес из x-forwarded-for)
     const rawIp = req.headers.get("x-forwarded-for");
@@ -74,7 +84,7 @@ export async function GET(req: Request) {
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60,
-      secure: isProd,
+      secure: prodStrict,
     });
     return res;
   } catch (err) {
