@@ -1,9 +1,10 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import type { ExposureSource } from "@/lib/ff/exposure";
+import { FLAG_REGISTRY } from "@/lib/ff/flags";
 import { FF } from "@/lib/ff/runtime";
 import { stableId as buildStableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-id";
 
@@ -12,6 +13,15 @@ export const runtime = "nodejs";
 const ALLOWED_SOURCES: ExposureSource[] = ["global", "override", "env", "default"];
 
 export async function POST(req: Request) {
+  // Do-Not-Track: если клиент запретил трекинг, не логируем
+  try {
+    if (headers().get("dnt") === "1") {
+      return NextResponse.json({ ok: true });
+    }
+  } catch {
+    /* ignore: headers() is unavailable outside a request context */
+  }
+
   const contentType = (req.headers.get("content-type") || "").toLowerCase();
   if (!contentType.includes("application/json")) {
     return NextResponse.json({ error: "Invalid content type" }, { status: 415 });
@@ -55,11 +65,13 @@ export async function POST(req: Request) {
     : undefined;
 
   try {
+    const meta = FLAG_REGISTRY[flag as keyof typeof FLAG_REGISTRY];
+    const safeValue = meta?.sensitive ? "[redacted]" : normalizedValue;
     FF().telemetrySink.emit({
       ts: Date.now(),
       type: "exposure",
       flag,
-      value: normalizedValue,
+      value: safeValue,
       source,
       stableId,
       userId,

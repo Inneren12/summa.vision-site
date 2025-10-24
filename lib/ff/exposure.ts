@@ -1,5 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import { headers } from "next/headers";
+
+import { FLAG_REGISTRY } from "./flags";
 import { FF } from "./runtime";
 
 type ExposureKey = string; // `${flag}:${value}`
@@ -19,6 +22,17 @@ export function trackExposure(params: {
   stableId: string;
   userId?: string;
 }) {
+  // Уважение DNT (Do-Not-Track)
+  try {
+    if (headers().get("dnt") === "1") return;
+  } catch {
+    /* ignore: headers() is unavailable outside a request context */
+  }
+
+  // Редактирование чувствительных значений
+  const meta = FLAG_REGISTRY[params.flag as keyof typeof FLAG_REGISTRY];
+  const safeValue = meta?.sensitive ? "[redacted]" : params.value;
+
   const set = ALS.getStore();
   if (set) {
     const key = `${params.flag}:${String(params.value)}`;
@@ -29,7 +43,7 @@ export function trackExposure(params: {
     ts: Date.now(),
     type: "exposure",
     flag: params.flag,
-    value: params.value,
+    value: safeValue,
     source: params.source,
     stableId: params.stableId,
     userId: params.userId,

@@ -13,6 +13,8 @@ interface FlagMetadataBase<TType extends FlagType, TValue> {
   owner?: string;
   /** Если true — cookie overrides для этого флага игнорируются (security/critical). */
   ignoreOverrides?: boolean;
+  /** Значение флага может содержать чувствительные данные; экспозиции редактируются. */
+  sensitive?: boolean;
 }
 
 export type FlagMetadata =

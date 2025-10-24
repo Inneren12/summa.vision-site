@@ -10,6 +10,12 @@ function isRolloutConfig(value: unknown): value is RolloutConfig {
   return typeof (value as { enabled: unknown }).enabled === "boolean";
 }
 
+function clampPercent(value: unknown): number {
+  const num = typeof value === "number" ? value : 100;
+  if (Number.isNaN(num)) return 100;
+  return Math.max(0, Math.min(100, num));
+}
+
 /** Разрешить значение флага согласно реестру, учитывая overrides и percent rollout. */
 export function resolveEffectiveFlag(
   name: FlagName,
@@ -57,7 +63,7 @@ export function resolveEffectiveFlag(
         warnFlagTypeMismatch(name, "RolloutConfig or boolean override", typeOfValue(raw));
       }
       if (!defaultConfig.enabled) return false;
-      const percent = typeof defaultConfig.percent === "number" ? defaultConfig.percent : 100;
+      const percent = clampPercent(defaultConfig.percent);
       const salt = defaultConfig.salt ?? name;
       if (unitForSalt) {
         const unit = unitForSalt(salt, "rollout");
@@ -66,7 +72,7 @@ export function resolveEffectiveFlag(
       return inRollout(stableId, percent, salt);
     }
     if (!candidate.enabled) return false;
-    const percent = typeof candidate.percent === "number" ? candidate.percent : 100;
+    const percent = clampPercent(candidate.percent);
     const salt = candidate.salt ?? name;
     if (unitForSalt) {
       const unit = unitForSalt(salt, "rollout");
