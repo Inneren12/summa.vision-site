@@ -1,0 +1,22 @@
+{
+  "summary": {
+    "total_files": 2,
+    "failures": 0
+  },
+  "results": [
+    {
+      "dataset_id": "municipal-budgets-2023",
+      "relative_path": "municipal-budgets-2023/budget_summary.csv",
+      "absolute_path": "/workspace/summa.vision-site/data/processed/municipal-budgets-2023/budget_summary.csv",
+      "rowcount": 2,
+      "status": "pass"
+    },
+    {
+      "dataset_id": "population-census-2021",
+      "relative_path": "population-census-2021/census_summary.csv",
+      "absolute_path": "/workspace/summa.vision-site/data/processed/population-census-2021/census_summary.csv",
+      "rowcount": 2,
+      "status": "pass"
+    }
+  ]
+}
