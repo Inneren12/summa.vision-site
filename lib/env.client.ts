@@ -4,6 +4,7 @@ export const ClientEnvSchema = z.object({
   NEXT_PUBLIC_APP_ENV: z.enum(["local", "development", "staging", "production"]).optional(),
   NEXT_PUBLIC_FEATURE_FLAGS_JSON: z.string().optional(),
   NEXT_PUBLIC_DEV_TOOLS: z.enum(["true", "false"]).optional(),
+  NEXT_PUBLIC_SITE_URL: z.string().optional(),
 });
 export type ClientEnv = z.infer<typeof ClientEnvSchema>;
 
@@ -13,6 +14,7 @@ export function getClientEnv(): Readonly<ClientEnv> {
     NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV as ClientEnv["NEXT_PUBLIC_APP_ENV"],
     NEXT_PUBLIC_FEATURE_FLAGS_JSON: process.env.NEXT_PUBLIC_FEATURE_FLAGS_JSON,
     NEXT_PUBLIC_DEV_TOOLS: process.env.NEXT_PUBLIC_DEV_TOOLS as ClientEnv["NEXT_PUBLIC_DEV_TOOLS"],
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   };
   const parsed = ClientEnvSchema.parse(env);
   return Object.freeze(parsed);
