@@ -27,6 +27,7 @@ const env = {
   NEXT_RUNTIME: "nodejs",
   FEATURE_FLAGS_LOCAL_PATH: "config/feature-flags.e2e.json",
   NEXT_PUBLIC_DEV_TOOLS: "true",
+  FF_TELEMETRY_SINK: "memory",
 };
 
 const primaryServer: WebServerConfig = baseWebServerConfig

@@ -5,6 +5,8 @@ import { FF } from "./runtime";
 type ExposureKey = string; // `${flag}:${value}`
 const ALS = new AsyncLocalStorage<Set<ExposureKey>>();
 
+export type ExposureSource = "global" | "override" | "env" | "default";
+
 /** Обернуть SSR-рендер запроса: гарантирует дедуп экспозиций в его пределах. */
 export function withExposureContext<T>(fn: () => T): T {
   return ALS.run(new Set<ExposureKey>(), fn);
@@ -13,7 +15,7 @@ export function withExposureContext<T>(fn: () => T): T {
 export function trackExposure(params: {
   flag: string;
   value: boolean | string | number;
-  source: "global" | "override" | "env" | "default";
+  source: ExposureSource;
   stableId: string;
   userId?: string;
 }) {
