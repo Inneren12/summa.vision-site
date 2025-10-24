@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { FLAG_REGISTRY, isKnownFlag } from "./flags";
+import type { VariantConfig } from "./shared";
 
 // ---- Limits (cookie safety across browsers) ----
 export const MAX_OVERRIDE_SIZE_BYTES = 3000; // safe under per-cookie limits
@@ -189,9 +190,32 @@ export function validateOverrideTypes(
       case "rollout":
         if (typeof val !== "boolean") errors.push(`${name} rollout override must be boolean`);
         break;
+      case "variant": {
+        if (typeof val !== "string") {
+          errors.push(`${name} variant override must be string`);
+        } else {
+          const variants = getVariantNames(meta.defaultValue);
+          if (!Object.prototype.hasOwnProperty.call(variants, val)) {
+            errors.push(`${name} unknown variant "${val}"`);
+          }
+        }
+        break;
+      }
       default:
         errors.push(`${name} has unsupported type`);
     }
   }
   return errors.length ? { ok: false, errors } : { ok: true };
+}
+function getVariantNames(config: unknown): Record<string, number> {
+  if (
+    typeof config === "object" &&
+    config !== null &&
+    "variants" in config &&
+    typeof (config as { variants?: unknown }).variants === "object" &&
+    (config as { variants?: unknown }).variants !== null
+  ) {
+    return (config as VariantConfig).variants ?? {};
+  }
+  return {};
 }

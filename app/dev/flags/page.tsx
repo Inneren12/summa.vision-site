@@ -23,6 +23,12 @@ export default async function Page() {
       description: meta.description,
       deprecated: Boolean(meta.deprecated),
       ignoreOverrides: Boolean(meta.ignoreOverrides),
+      variants:
+        meta.type === "variant"
+          ? Object.keys(
+              (meta.defaultValue as { variants?: Record<string, number> })?.variants ?? {},
+            )
+          : undefined,
     };
   });
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
