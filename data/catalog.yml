@@ -4,8 +4,12 @@ datasets:
     source: "Northbridge and Southport Open Data Portal"
     license: "CC-BY 4.0"
     freshness: annual
+    quality:
+      expectation_suite: tools/data/ge/expectations_municipal_budgets_2023.json
   - id: population-census-2021
     title: "Regional Population Census 2021"
     source: "Regional Statistics Bureau"
     license: "CC0 1.0"
     freshness: quinquennial
+    quality:
+      expectation_suite: tools/data/ge/expectations_population_census_2021.json

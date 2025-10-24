@@ -1,0 +1,97 @@
+{
+  "data_asset_type": null,
+  "expectation_suite_name": "population_census_2021_suite",
+  "meta": {
+    "great_expectations_version": "1.0.0",
+    "notes": [
+      "Validates the aggregated regional census summary extract."
+    ]
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 1
+      }
+    },
+    {
+      "expectation_type": "expect_table_columns_to_match_ordered_list",
+      "kwargs": {
+        "column_list": [
+          "district",
+          "total_households",
+          "total_population",
+          "median_age"
+        ]
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "district"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {
+        "column": "district"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "total_households"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "total_households",
+        "min_value": 0,
+        "max_value": 100000,
+        "strict_min": false,
+        "strict_max": false
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "total_population"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "total_population",
+        "min_value": 0,
+        "max_value": 500000,
+        "strict_min": false,
+        "strict_max": false
+      }
+    },
+    {
+      "expectation_type": "expect_column_pair_values_A_to_be_greater_than_B",
+      "kwargs": {
+        "column_A": "total_population",
+        "column_B": "total_households",
+        "or_equal": true
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "median_age"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "median_age",
+        "min_value": 0,
+        "max_value": 120,
+        "strict_min": false,
+        "strict_max": false
+      }
+    }
+  ]
+}
