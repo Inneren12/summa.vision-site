@@ -1,40 +1,51 @@
 import "server-only";
+import crypto from "node:crypto";
+
 import { cookies } from "next/headers";
 
-/** Читаем sv_id из cookies (если есть). */
+export const STABLEID_USER_PREFIX = "u:"; // исключает коллизии с анонимным sv_id
+
+/** Утилита: взять sv_id из header-строки cookies (для клиента / утилит). */
+export function getStableIdFromCookieHeader(header?: string): string | undefined {
+  if (!header) return undefined;
+  const parts = header.split(/;\s*/);
+  const kv = parts.find((p) => p.startsWith("sv_id="));
+  if (!kv) return undefined;
+  return kv.slice("sv_id=".length);
+}
+
+/** Утилита: взять sv_id из next/headers cookies() на сервере. */
 export function getStableIdFromCookies(): string | undefined {
   const ck = cookies();
   return ck.get("sv_id")?.value;
 }
 
-/** Префикс для user-based stableId. Можно переопределить через ENV для мягкой миграции. */
-export const STABLEID_USER_PREFIX = process.env.FF_STABLEID_USER_PREFIX ?? "u:";
-
-/** Генерация временного стабильного ID (без записи cookie). */
+/** Сгенерировать uuid v4 для sv_id (анонимный посетитель). */
 export function generateStableId(): string {
-  // crypto.randomUUID доступен в Node 20; запасной вариант — time+rand
-  const uuid = globalThis.crypto?.randomUUID?.();
-  if (uuid) return `g:${uuid}`;
-  return `g:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return crypto.randomUUID();
 }
 
-/** Санитизация userId: допускаем только a–z, A–Z, 0–9, _ и -. */
-function assertValidUserId(userId: string) {
-  if (!/^[a-zA-Z0-9_-]+$/.test(userId)) {
-    throw new Error("Invalid userId format");
-  }
+/** Санитизация userId по строгому паттерну (без пробелов/PII). */
+export function sanitizeUserId(userId: string): string | undefined {
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) return undefined;
+  return userId;
 }
 
 /**
- * Вернуть стабильный ID для процентной раскатки:
- * - если есть userId (валидный) → `${STABLEID_USER_PREFIX}${userId}`
- * - иначе sv_id из cookie
- * - иначе сгенерированный временный ID (не PII)
+ * Главная функция: построить стабильный идентификатор.
+ * - При валидном userId → "u:<userId>" (кросс-девайс стабильность).
+ * - Иначе → sv_id cookie (анонимный) или "anon" (если cookie нет в текущем вызове).
+ * Параметр strict, если true, бросит исключение при невалидном userId.
  */
-export function stableId(userId?: string): string {
-  if (userId && userId.length > 0) {
-    assertValidUserId(userId);
-    return `${STABLEID_USER_PREFIX}${userId}`;
+export function stableId(userId?: string, opts?: { strict?: boolean }): string {
+  if (userId) {
+    const ok = sanitizeUserId(userId);
+    if (!ok) {
+      if (opts?.strict) throw new Error("Invalid userId format");
+      // мягкий fallback без исключения
+    } else {
+      return `${STABLEID_USER_PREFIX}${ok}`;
+    }
   }
-  return getStableIdFromCookies() ?? generateStableId();
+  return getStableIdFromCookies() ?? "anon";
 }

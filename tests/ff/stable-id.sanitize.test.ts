@@ -1,30 +1,42 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { cookies } from "next/headers";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type CookieStore = {
-  get: (name: string) => { value: string } | undefined;
-};
-
-const cookiesMock = vi.hoisted(() => vi.fn<() => CookieStore>());
+import { sanitizeUserId, stableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-id";
 
 vi.mock("next/headers", () => ({
-  cookies: cookiesMock,
+  cookies: vi.fn(),
 }));
 
-import { stableId, STABLEID_USER_PREFIX } from "../../lib/ff/stable-id";
+const mockedCookies = vi.mocked(cookies);
 
-describe("stableId sanitization and fallback", () => {
+describe("stableId sanitize", () => {
+  beforeEach(() => {
+    mockedCookies.mockReturnValue({
+      get: () => undefined,
+      getAll: () => [],
+    } as unknown as ReturnType<typeof cookies>);
+  });
+
   afterEach(() => {
-    cookiesMock.mockReset();
+    mockedCookies.mockReset();
   });
-  it("rejects invalid userId", () => {
-    expect(() => stableId("bad!id")).toThrowError(/Invalid userId/);
+
+  it("accepts safe userId and prefixes with u:", () => {
+    const uid = "john_doe-123";
+    expect(sanitizeUserId(uid)).toBe(uid);
+    const id = stableId(uid);
+    expect(id).toBe(`${STABLEID_USER_PREFIX}${uid}`);
   });
-  it("prefixes valid userId with STABLEID_USER_PREFIX", () => {
-    expect(stableId("abc_123")).toBe(`${STABLEID_USER_PREFIX}abc_123`);
+
+  it("rejects invalid userId in non-strict mode (fallback, no throw)", () => {
+    const bad = "john doe !";
+    expect(sanitizeUserId(bad)).toBeUndefined();
+    expect(() => stableId(bad)).not.toThrow();
+    expect(stableId(bad)).toBe("anon"); // без cookie — мягкий fallback
   });
-  it("generates fallback when no cookie and no userId", () => {
-    cookiesMock.mockReturnValue({ get: () => undefined });
-    const id = stableId();
-    expect(id.startsWith("g:")).toBe(true);
+
+  it("throws in strict mode for invalid userId", () => {
+    const bad = "   ";
+    expect(() => stableId(bad, { strict: true })).toThrow();
   });
 });
