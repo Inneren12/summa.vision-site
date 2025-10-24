@@ -3,7 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 
 import { resolveEffectiveFlag } from "./effective.shared";
-import { FLAG_REGISTRY, type EffectiveFlags, type FlagName } from "./flags";
+import { FLAG_REGISTRY, type EffectiveFlags, type EffectiveValueFor, type FlagName } from "./flags";
 import { unitFromIdSalt } from "./hash";
 import { getFeatureFlagsFromHeadersWithSources, type FlagSources } from "./server";
 import { stableId as buildStableId, STABLEID_USER_PREFIX } from "./stable-id";
@@ -18,6 +18,13 @@ function buildCookieHeaderString(): string {
   return all.map((c) => `${c.name}=${c.value}`).join("; ");
 }
 
+function deriveUserId(stableId: string): string | undefined {
+  if (stableId.startsWith(STABLEID_USER_PREFIX)) {
+    return stableId.slice(STABLEID_USER_PREFIX.length);
+  }
+  return undefined;
+}
+
 export type FlagsWithMeta = {
   flags: EffectiveFlags;
   sources: FlagSources;
@@ -25,14 +32,14 @@ export type FlagsWithMeta = {
   userId?: string;
 };
 
+type GetFlagOpts = { userId?: string; cookieHeader?: string };
+
 /** Вычисляет "эффективные" флаги (булево/строка/число) для SSR/RSC, учитывая percent/overrides. */
 export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promise<FlagsWithMeta> {
   const cookieHeader = buildCookieHeaderString();
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
   const id = buildStableId(opts?.userId);
-  const userId = id.startsWith(STABLEID_USER_PREFIX)
-    ? id.slice(STABLEID_USER_PREFIX.length)
-    : undefined;
+  const userId = deriveUserId(id);
   const out: Partial<EffectiveFlags> = {};
   const rolloutUnits = new Map<string, number>();
   const variantUnits = new Map<string, number>();
@@ -78,4 +85,56 @@ export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promis
 export async function getFlagsServer(opts?: { userId?: string }): Promise<EffectiveFlags> {
   const { flags } = await getFlagsServerWithMeta(opts);
   return flags;
+}
+
+/** Ленивая серверная резолюция одного флага по имени (без вычисления всех флагов). */
+export async function getFlagServer<N extends FlagName>(
+  name: N,
+  opts?: GetFlagOpts,
+): Promise<EffectiveValueFor<N>> {
+  const cookieHeader = opts?.cookieHeader ?? buildCookieHeaderString();
+  const { merged } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
+  const id = buildStableId(opts?.userId);
+  const raw = Object.prototype.hasOwnProperty.call(merged, name)
+    ? (merged as Record<string, unknown>)[name]
+    : undefined;
+  return resolveEffectiveFlag(name, raw, id) as EffectiveValueFor<N>;
+}
+
+/** Вариант с источником и стабильным ID — когда нужна телеметрия/экспозиции. */
+export async function getFlagServerWithMeta<N extends FlagName>(
+  name: N,
+  opts?: GetFlagOpts,
+): Promise<{
+  value: EffectiveValueFor<N>;
+  source: "global" | "override" | "env" | "default";
+  stableId: string;
+}> {
+  const cookieHeader = opts?.cookieHeader ?? buildCookieHeaderString();
+  const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
+  const id = buildStableId(opts?.userId);
+  const unitForSalt = (salt: string, mode: "rollout" | "variant" = "rollout") => {
+    if (mode === "variant") return unitFromVariantSalt(id, salt);
+    return unitFromIdSalt(id, salt);
+  };
+  const start = Date.now();
+  const raw = Object.prototype.hasOwnProperty.call(merged, name)
+    ? (merged as Record<string, unknown>)[name]
+    : undefined;
+  const value = resolveEffectiveFlag(name, raw, id, unitForSalt) as EffectiveValueFor<N>;
+  const end = Date.now();
+  const source = sources[name] ?? "default";
+  const userId = deriveUserId(id);
+  trackFlagEvaluation({
+    ts: end,
+    flag: name,
+    value,
+    source,
+    stableId: id,
+    userId,
+    evaluationTime: end - start,
+    cacheHit: false,
+    type: "evaluation",
+  });
+  return { value, source, stableId: id };
 }
