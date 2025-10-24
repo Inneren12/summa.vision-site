@@ -23,6 +23,11 @@ function cloneOverride(entry: OverrideEntry): OverrideEntry {
   return JSON.parse(JSON.stringify(entry)) as OverrideEntry;
 }
 
+function isExpired(entry: OverrideEntry, now = Date.now()): boolean {
+  if (!entry.expiresAt) return false;
+  return entry.expiresAt <= now;
+}
+
 function ensurePercent(percent: number): number {
   if (!Number.isFinite(percent)) return 0;
   return Math.min(100, Math.max(0, percent));
@@ -92,11 +97,29 @@ type StoreState = {
   overrides: Map<string, OverrideMap>;
 };
 
+function pruneExpired(map: OverrideMap, now = Date.now()): void {
+  for (const [id, entry] of map.user.entries()) {
+    if (isExpired(entry, now)) {
+      map.user.delete(id);
+    }
+  }
+  for (const [id, entry] of map.namespace.entries()) {
+    if (isExpired(entry, now)) {
+      map.namespace.delete(id);
+    }
+  }
+  if (map.global && isExpired(map.global, now)) {
+    delete map.global;
+  }
+}
+
 function getOverrideMap(state: StoreState, flag: string): OverrideMap {
   if (!state.overrides.has(flag)) {
     state.overrides.set(flag, { user: new Map(), namespace: new Map() });
   }
-  return state.overrides.get(flag)!;
+  const map = state.overrides.get(flag)!;
+  pruneExpired(map);
+  return map;
 }
 
 export class MemoryFlagStore implements FlagStore {
@@ -136,6 +159,7 @@ export class MemoryFlagStore implements FlagStore {
   listOverrides(flag: string): OverrideEntry[] {
     const map = this.state.overrides.get(flag);
     if (!map) return [];
+    pruneExpired(map);
     const entries: OverrideEntry[] = [];
     for (const value of map.user.values()) entries.push(cloneOverride(value));
     for (const value of map.namespace.values()) entries.push(cloneOverride(value));
@@ -145,10 +169,19 @@ export class MemoryFlagStore implements FlagStore {
 
   putOverride(entry: OverrideEntry): OverrideEntry {
     const map = getOverrideMap(this.state, entry.flag);
+    const now = Date.now();
+    const expiresAt =
+      entry.expiresAt ?? (entry.ttlSeconds ? now + entry.ttlSeconds * 1000 : undefined);
     const stored = {
       ...entry,
-      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt! : Date.now(),
+      expiresAt,
+      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt! : now,
     } satisfies OverrideEntry;
+
+    if (expiresAt && expiresAt <= now) {
+      this.removeOverride(entry.flag, entry.scope);
+      return cloneOverride(stored);
+    }
     if (entry.scope.type === "user") {
       map.user.set(entry.scope.id, JSON.parse(JSON.stringify(stored)) as OverrideEntry);
     } else if (entry.scope.type === "namespace") {
@@ -185,6 +218,7 @@ export class MemoryFlagStore implements FlagStore {
     const overrides = this.state.overrides.get(key);
     const seedByDefault = flag.seedByDefault ?? "stableId";
     if (overrides) {
+      pruneExpired(overrides);
       const userOverride = ctx.userId ? overrides.user.get(ctx.userId) : undefined;
       if (userOverride) {
         return {
@@ -254,6 +288,7 @@ export class MemoryFlagStore implements FlagStore {
     return {
       flags: this.listFlags(),
       overrides: Array.from(this.state.overrides.entries()).flatMap(([flag, map]) => {
+        pruneExpired(map);
         const entries: OverrideEntry[] = [];
         for (const entry of map.user.values()) entries.push(cloneOverride(entry));
         for (const entry of map.namespace.values()) entries.push(cloneOverride(entry));
@@ -273,6 +308,10 @@ export class MemoryFlagStore implements FlagStore {
     for (const entry of snapshot.overrides) {
       const clone = JSON.parse(JSON.stringify(entry)) as OverrideEntry;
       const map = getOverrideMap(this.state, clone.flag);
+      const now = Date.now();
+      if (clone.expiresAt && clone.expiresAt <= now) {
+        continue;
+      }
       if (clone.scope.type === "user") {
         map.user.set(clone.scope.id, clone);
       } else if (clone.scope.type === "namespace") {
@@ -303,6 +342,7 @@ export function createOverride(
   value: OverrideValue,
   author?: string,
   reason?: string,
+  ttlSeconds?: number,
 ): OverrideEntry {
   return {
     flag,
@@ -310,6 +350,8 @@ export function createOverride(
     value,
     author,
     reason,
+    ttlSeconds,
+    expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
     updatedAt: Date.now(),
   };
 }

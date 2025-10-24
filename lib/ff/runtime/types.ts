@@ -1,9 +1,24 @@
 export type SeedBy = "stableId" | "anonId" | "user" | "userId" | "namespace" | "cookie" | "ipUa";
 
+export type RolloutStopConditions = {
+  maxErrorRate?: number;
+  maxCLS?: number;
+  maxINP?: number;
+};
+
+export type RolloutStep = {
+  pct: number;
+  note?: string;
+  at?: number;
+};
+
 export type RolloutStrategy = {
   percent: number;
   salt?: string;
   seedBy?: SeedBy;
+  seedByDefault?: SeedBy;
+  steps?: RolloutStep[];
+  stop?: RolloutStopConditions;
 };
 
 export type SegmentCondition =
@@ -17,13 +32,17 @@ export type SegmentConfig = {
   conditions?: SegmentCondition[];
   override?: boolean | string | number;
   rollout?: RolloutStrategy;
+  namespace?: string;
 };
 
 export type FlagConfig = {
   key: string;
+  namespace?: string;
+  version?: number;
   description?: string;
   enabled: boolean;
   kill?: boolean;
+  killSwitch?: boolean;
   seedByDefault?: SeedBy;
   defaultValue: boolean | string | number;
   tags?: string[];
@@ -46,6 +65,8 @@ export type OverrideEntry = {
   value: OverrideValue;
   reason?: string;
   author?: string;
+  ttlSeconds?: number;
+  expiresAt?: number;
   updatedAt: number;
 };
 

@@ -238,6 +238,10 @@ export async function GET(req: Request) {
     return true;
   });
 
+  if (rows.length === 0) {
+    return auth.apply(new NextResponse(null, { status: 204 }));
+  }
+
   if (fmtParam === "csv") {
     const csv = buildCsv(rows);
     const res = new NextResponse(csv, {
@@ -250,7 +254,7 @@ export async function GET(req: Request) {
   }
 
   const body = rows.map((row) => JSON.stringify(row)).join("\n");
-  return new NextResponse(body, {
+  const res = new NextResponse(body, {
     status: 200,
     headers: {
       "content-type": "application/x-ndjson; charset=utf-8",

@@ -4,58 +4,75 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authorizeApi } from "@/lib/admin/rbac";
+import { apiToFlag, flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
 import { FF } from "@/lib/ff/runtime";
-import type { FlagConfig, SegmentCondition } from "@/lib/ff/runtime/types";
 
 export const runtime = "nodejs";
 
-const SeedEnum = z.enum(["stableId", "user", "namespace", "cookie", "ipUa"]);
+const SeedEnum = z.enum(["userId", "cookie", "ipUa", "anonId"]);
 
-const ConditionSchema = z.object({
-  field: z.enum(["user", "namespace", "cookie", "ip", "ua", "tag"]),
-  op: z.literal("eq"),
-  value: z.string().min(1),
+const ConditionValueSchema = z.union([z.string().min(1), z.array(z.string().min(1))]);
+
+const SegmentSchema = z.object({
+  if: z.record(ConditionValueSchema).optional(),
+  rollout: z
+    .object({
+      pct: z.number().min(0).max(100),
+      seedBy: SeedEnum.optional(),
+    })
+    .optional(),
+  override: z.boolean().optional(),
 });
 
-const RolloutSchema = z
+const RolloutStepSchema = z.object({
+  pct: z.number().min(0).max(100),
+  note: z.string().max(256).optional(),
+  at: z.number().int().nonnegative().optional(),
+});
+
+const RolloutStopSchema = z
   .object({
-    percent: z.number().min(0).max(100),
-    salt: z.string().max(64).optional(),
-    seedBy: SeedEnum.optional(),
+    maxErrorRate: z.number().min(0).max(1).optional(),
+    maxCLS: z.number().min(0).optional(),
+    maxINP: z.number().min(0).optional(),
   })
   .optional();
 
-const SegmentSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().optional(),
-  priority: z.number().int().min(0).default(0),
-  conditions: z.array(ConditionSchema).optional(),
-  override: z.union([z.boolean(), z.string(), z.number()]).optional(),
-  rollout: RolloutSchema,
-});
+const RolloutSchema = z
+  .object({
+    currentPct: z.number().min(0).max(100).optional(),
+    steps: z.array(RolloutStepSchema).optional(),
+    seedByDefault: SeedEnum.optional(),
+    stop: RolloutStopSchema,
+  })
+  .optional();
 
 const FlagSchema = z.object({
   key: z.string().min(1),
-  description: z.string().max(256).optional(),
-  enabled: z.boolean().default(true),
-  kill: z.boolean().optional(),
-  seedByDefault: SeedEnum.optional(),
-  defaultValue: z.union([z.boolean(), z.number(), z.string()]),
-  tags: z.array(z.string().max(64)).optional(),
+  namespace: z.string().min(1),
+  default: z.boolean(),
+  version: z.number().int().min(0).optional(),
+  description: z.string().max(512).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  killSwitch: z.boolean().optional(),
   rollout: RolloutSchema,
   segments: z.array(SegmentSchema).optional(),
+  createdAt: z.number().int().nonnegative().optional(),
+  updatedAt: z.number().int().nonnegative().optional(),
 });
-
-function mapCondition(input: SegmentCondition): SegmentCondition {
-  return { ...input };
-}
 
 export async function GET(req: Request) {
   const auth = authorizeApi(req, "viewer");
   if (!auth.ok) return auth.response;
+  const url = new URL(req.url);
+  const namespaceParam = url.searchParams.get("ns");
+  const ns = namespaceParam ? normalizeNamespace(namespaceParam) : undefined;
   const store = FF().store;
-  const flags = store.listFlags();
-  const res = NextResponse.json({ ok: true, flags });
+  const flags = store
+    .listFlags()
+    .filter((flag) => (ns ? normalizeNamespace(flag.namespace) === ns : true))
+    .map(flagToApi);
+  const res = NextResponse.json({ ok: true, namespace: ns, flags });
   return auth.apply(res);
 }
 
@@ -76,24 +93,12 @@ export async function POST(req: Request) {
     );
   }
   const payload = parsed.data;
-  const store = FF().store;
-  const lock = FF().lock;
-  const config: FlagConfig = {
-    key: payload.key,
-    description: payload.description,
-    enabled: payload.enabled,
-    kill: payload.kill,
-    seedByDefault: payload.seedByDefault,
-    defaultValue: payload.defaultValue,
-    tags: payload.tags,
-    rollout: payload.rollout ? { ...payload.rollout } : undefined,
-    segments: payload.segments?.map((seg) => ({
-      ...seg,
-      conditions: seg.conditions?.map(mapCondition),
-    })),
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  const updated = await lock.withLock(config.key, async () => store.putFlag(config));
-  return auth.apply(NextResponse.json({ ok: true, flag: updated }));
+  const { store, lock } = FF();
+  const updated = await lock.withLock(payload.key, async () => {
+    const existing = store.getFlag(payload.key);
+    const nextFlag = apiToFlag(payload, existing ?? undefined);
+    return store.putFlag(nextFlag);
+  });
+  const res = NextResponse.json({ ok: true, flag: flagToApi(updated) });
+  return auth.apply(res);
 }

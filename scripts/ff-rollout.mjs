@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { argv, exit } from "node:process";
+import { readFile } from "node:fs/promises";
+import { exit } from "node:process";
 
-const HELP = `Usage: node scripts/ff-rollout.mjs --flag=<name> [--step=5] [--host=http://localhost:3000] [--apply]\n`;
+const HELP = `Usage: node scripts/ff-rollout.mjs --policy=<file> [--apply]\n`;
 
 function parseArgs() {
-  const out = { flag: undefined, step: 5, host: "http://localhost:3000", apply: false };
-  for (const arg of argv.slice(2)) {
+  const out = { policy: undefined, apply: false };
+  for (const arg of process.argv.slice(2)) {
     if (arg === "--help" || arg === "-h") {
       console.log(HELP);
       exit(0);
@@ -15,56 +16,105 @@ function parseArgs() {
       out.apply = true;
       continue;
     }
-    if (arg.startsWith("--flag=")) {
-      out.flag = arg.slice("--flag=".length);
-      continue;
-    }
-    if (arg.startsWith("--step=")) {
-      out.step = Number(arg.slice("--step=".length));
-      continue;
-    }
-    if (arg.startsWith("--host=")) {
-      out.host = arg.slice("--host=".length);
+    if (arg.startsWith("--policy=")) {
+      out.policy = arg.slice("--policy=".length);
       continue;
     }
     console.warn(`Unknown argument: ${arg}`);
   }
-  if (!out.flag) {
-    console.error("--flag is required");
+  if (!out.policy) {
+    console.error("--policy is required");
     console.log(HELP);
-    exit(1);
-  }
-  if (!Number.isFinite(out.step)) {
-    console.error("--step must be a number");
     exit(1);
   }
   return out;
 }
 
-async function main() {
-  const { flag, step, host, apply } = parseArgs();
-  const url = new URL(`/api/flags/${encodeURIComponent(flag)}/rollout/step`, host);
-  if (!apply) {
-    console.log(`[dry-run] Would step flag "${flag}" by ${step}`);
-    console.log(`POST ${url}`);
-    exit(0);
+function ensureString(value, name) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${name} must be a non-empty string`);
   }
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ step }),
+  return value.trim();
+}
+
+function ensurePercent(value, name) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a number`);
+  }
+  if (value < 0 || value > 100) {
+    throw new Error(`${name} must be between 0 and 100`);
+  }
+  return value;
+}
+
+async function loadPolicy(path) {
+  const raw = await readFile(path, "utf8");
+  const json = JSON.parse(raw);
+  const host = ensureString(json.host ?? "http://localhost:3000", "policy.host");
+  const steps = Array.isArray(json.steps) ? json.steps : [];
+  if (steps.length === 0) {
+    throw new Error("policy.steps must be a non-empty array");
+  }
+  const token = typeof json.token === "string" && json.token.trim() ? json.token.trim() : undefined;
+  const parsedSteps = steps.map((step, idx) => {
+    const flag = ensureString(step.flag, `policy.steps[${idx}].flag`);
+    const namespace = step.namespace
+      ? ensureString(step.namespace, `policy.steps[${idx}].namespace`)
+      : undefined;
+    const nextPct = ensurePercent(step.nextPct, `policy.steps[${idx}].nextPct`);
+    const stop =
+      typeof step.stop === "object" && step.stop
+        ? {
+            maxErrorRate:
+              typeof step.stop.maxErrorRate === "number" ? step.stop.maxErrorRate : undefined,
+            maxCLS: typeof step.stop.maxCLS === "number" ? step.stop.maxCLS : undefined,
+            maxINP: typeof step.stop.maxINP === "number" ? step.stop.maxINP : undefined,
+          }
+        : undefined;
+    return { flag, namespace, nextPct, stop };
   });
-  if (!res.ok) {
-    console.error(`Request failed: ${res.status}`);
-    try {
-      console.error(await res.text());
-    } catch {
-      /* noop */
-    }
-    exit(1);
+  return { host, steps: parsedSteps, token };
+}
+
+async function applyStep(host, token, step) {
+  const url = new URL(`/api/flags/${encodeURIComponent(step.flag)}/rollout/step`, host);
+  const headers = { "content-type": "application/json" };
+  if (token) {
+    headers.authorization = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+  } else if (process.env.FF_ADMIN_TOKEN) {
+    headers.authorization = `Bearer ${process.env.FF_ADMIN_TOKEN}`;
   }
-  const data = await res.json();
-  console.log(JSON.stringify(data, null, 2));
+  const body = JSON.stringify({
+    namespace: step.namespace,
+    nextPct: step.nextPct,
+    stop: step.stop,
+  });
+  const res = await fetch(url, { method: "POST", headers, body });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Request failed for ${step.flag}: ${res.status} ${text}`);
+  }
+  return res.json().catch(() => ({}));
+}
+
+async function main() {
+  const args = parseArgs();
+  const policy = await loadPolicy(args.policy);
+  console.log(`Loaded rollout policy with ${policy.steps.length} step(s) targeting ${policy.host}`);
+  for (const step of policy.steps) {
+    console.log(
+      `• ${step.flag} → ${step.nextPct}%${step.namespace ? ` (ns: ${step.namespace})` : ""}`,
+    );
+    if (step.stop) {
+      console.log(`  stop conditions: ${JSON.stringify(step.stop)}`);
+    }
+    if (args.apply) {
+      const result = await applyStep(policy.host, policy.token, step);
+      console.log(`  applied: ${JSON.stringify(result)}`);
+    } else {
+      console.log("  (dry-run)");
+    }
+  }
 }
 
 main().catch((error) => {
