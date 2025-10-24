@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { authorizeApi } from "@/lib/admin/rbac";
+import { flagToApi } from "@/lib/ff/admin/api";
 import { FF } from "@/lib/ff/runtime";
 
 export const runtime = "nodejs";
@@ -17,6 +18,6 @@ export async function GET(req: Request, { params }: { params: { key: string } })
     return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
   }
   const overrides = store.listOverrides(key);
-  const res = NextResponse.json({ ok: true, flag, overrides });
+  const res = NextResponse.json({ ok: true, flag: flagToApi(flag), overrides });
   return auth.apply(res);
 }

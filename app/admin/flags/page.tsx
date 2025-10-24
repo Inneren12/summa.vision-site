@@ -99,7 +99,7 @@ async function upsertOverride(formData: FormData) {
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
-    action: "override_upsert",
+    action: "override_set",
     flag,
     scope: saved.scope,
     value: saved.value,
@@ -174,8 +174,7 @@ async function adjustRollout(formData: FormData) {
     actor: role,
     action: "rollout_step",
     flag,
-    delta,
-    percent: updated.rollout?.percent ?? 0,
+    nextPercent: updated.rollout?.percent ?? 0,
   });
   revalidatePath(PAGE_PATH);
 }
@@ -188,7 +187,7 @@ async function toggleKill(formData: FormData) {
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
-    action: "kill_toggle",
+    action: "kill_switch",
     enabled,
   });
   revalidatePath(PAGE_PATH);
@@ -256,16 +255,19 @@ function AuditLog() {
           case "global_override_set":
             description = `set global override for ${rec.flag} → ${formatValue(rec.value)} (ttl ${rec.ttlSeconds}s)`;
             break;
-          case "override_upsert":
-            description = `upserted override ${scopeToLabel(rec.scope)} on ${rec.flag} → ${formatValue(rec.value)}`;
+          case "override_set":
+            description = `set override ${scopeToLabel(rec.scope)} on ${rec.flag} → ${formatValue(rec.value)}`;
             break;
           case "override_remove":
             description = `removed override ${scopeToLabel(rec.scope)} on ${rec.flag}`;
             break;
           case "rollout_step":
-            description = `adjusted rollout of ${rec.flag} by ${rec.delta}% → ${rec.percent}%`;
+            description = `set rollout of ${rec.flag} to ${rec.nextPercent}%`;
             break;
-          case "kill_toggle":
+          case "rollout_blocked":
+            description = `blocked rollout of ${rec.flag} (${rec.reason ?? "stop condition"})`;
+            break;
+          case "kill_switch":
             description = rec.enabled ? "enabled kill switch" : "disabled kill switch";
             break;
           default:

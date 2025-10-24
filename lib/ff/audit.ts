@@ -14,10 +14,11 @@ export type AuditRecord =
   | {
       timestamp: number;
       actor: string;
-      action: "override_upsert";
+      action: "override_set";
       flag: string;
       scope: OverrideScope;
       value: OverrideValue;
+      ttlSeconds?: number;
       reason?: string;
     }
   | {
@@ -32,14 +33,25 @@ export type AuditRecord =
       actor: string;
       action: "rollout_step";
       flag: string;
-      delta: number;
-      percent: number;
+      nextPercent: number;
     }
   | {
       timestamp: number;
       actor: string;
-      action: "kill_toggle";
+      action: "rollout_blocked";
+      flag: string;
+      reason?: string;
+      limit?: number;
+      actual?: number;
+    }
+  | {
+      timestamp: number;
+      actor: string;
+      action: "kill_switch";
       enabled: boolean;
+      flags?: string[];
+      namespace?: string;
+      reason?: string;
     };
 
 const MAX = 1000;
