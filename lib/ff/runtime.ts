@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 
 import { FileTelemetrySink } from "./runtime/file-telemetry";
-import { RuntimeLock } from "./runtime/lock";
-import { MemoryFlagStore } from "./runtime/memory-store";
+import type { RuntimeLock } from "./runtime/lock";
 import { SelfMetricsProvider, type SnapshotSummary } from "./runtime/self-metrics";
+import { resolveStoreAdapter } from "./runtime/store-resolver";
 import type { FlagStore, FlagSnapshot } from "./runtime/types";
 import type { TelemetryEvent } from "./telemetry";
 
@@ -59,10 +59,9 @@ function computeSnapshotId(snapshot: FlagSnapshot): string {
 }
 
 function createDefaultRuntime(): RuntimeShape {
-  const store: FlagStore = new MemoryFlagStore();
+  const { store, lock } = resolveStoreAdapter();
   const telemetrySink = resolveTelemetrySink();
   const metrics = resolveMetricsProvider();
-  const lock = new RuntimeLock();
   return {
     store,
     telemetrySink,

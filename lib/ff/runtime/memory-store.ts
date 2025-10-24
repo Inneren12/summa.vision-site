@@ -117,7 +117,7 @@ export class MemoryFlagStore implements FlagStore {
     const next: FlagConfig = {
       ...config,
       createdAt: existing?.createdAt ?? config.createdAt ?? Date.now(),
-      updatedAt: Date.now(),
+      updatedAt: Number.isFinite(config.updatedAt) ? config.updatedAt! : Date.now(),
       segments: (config.segments ?? [])
         .map((segment) => ({ ...segment, id: segment.id || stableSalt() }))
         .sort((a, b) => a.priority - b.priority),
@@ -143,7 +143,10 @@ export class MemoryFlagStore implements FlagStore {
 
   putOverride(entry: OverrideEntry): OverrideEntry {
     const map = getOverrideMap(this.state, entry.flag);
-    const stored = { ...entry, updatedAt: Date.now() } satisfies OverrideEntry;
+    const stored = {
+      ...entry,
+      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt! : Date.now(),
+    } satisfies OverrideEntry;
     if (entry.scope.type === "user") {
       map.user.set(entry.scope.id, JSON.parse(JSON.stringify(stored)) as OverrideEntry);
     } else if (entry.scope.type === "namespace") {
@@ -256,6 +259,26 @@ export class MemoryFlagStore implements FlagStore {
         return entries.map((entry) => ({ ...entry, flag }));
       }),
     };
+  }
+
+  replaceSnapshot(snapshot: FlagSnapshot): void {
+    this.state.flags.clear();
+    this.state.overrides.clear();
+    for (const flag of snapshot.flags) {
+      const clone = JSON.parse(JSON.stringify(flag)) as FlagConfig;
+      this.state.flags.set(clone.key, clone);
+    }
+    for (const entry of snapshot.overrides) {
+      const clone = JSON.parse(JSON.stringify(entry)) as OverrideEntry;
+      const map = getOverrideMap(this.state, clone.flag);
+      if (clone.scope.type === "user") {
+        map.user.set(clone.scope.id, clone);
+      } else if (clone.scope.type === "namespace") {
+        map.namespace.set(clone.scope.id, clone);
+      } else {
+        map.global = clone;
+      }
+    }
   }
 }
 
