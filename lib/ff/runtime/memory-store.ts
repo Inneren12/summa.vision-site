@@ -41,6 +41,7 @@ function hashToUnit(seed: string): number {
 function buildSeed(ctx: FlagEvaluationContext, seedBy: SeedBy | undefined): string {
   switch (seedBy) {
     case "user":
+    case "userId":
       return ctx.userId || ctx.stableId;
     case "namespace":
       return ctx.namespace || ctx.stableId;
@@ -51,6 +52,7 @@ function buildSeed(ctx: FlagEvaluationContext, seedBy: SeedBy | undefined): stri
       const ua = ctx.userAgent || "unknown";
       return `${ip}::${ua}`;
     }
+    case "anonId":
     case "stableId":
     default:
       return ctx.stableId;

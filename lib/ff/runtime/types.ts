@@ -1,4 +1,4 @@
-export type SeedBy = "stableId" | "user" | "namespace" | "cookie" | "ipUa";
+export type SeedBy = "stableId" | "anonId" | "user" | "userId" | "namespace" | "cookie" | "ipUa";
 
 export type RolloutStrategy = {
   percent: number;
