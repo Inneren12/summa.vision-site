@@ -13,7 +13,7 @@ describe("stableId()", () => {
   });
 
   it("uses userId when provided", () => {
-    expect(stable.stableId("123")).toBe("user_123");
+    expect(stable.stableId("123")).toBe("u:123");
   });
 
   it("falls back to cookie sv_id or anon", () => {
@@ -28,6 +28,6 @@ describe("stableId()", () => {
       get: vi.fn().mockReturnValue(undefined),
     } as unknown as CookiesReturn;
     vi.mocked(cookies).mockReturnValueOnce(withoutValue);
-    expect(stable.stableId()).toBe("g:anon");
+    expect(stable.stableId()).toBe("anon");
   });
 });
