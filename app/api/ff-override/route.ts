@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 
 import { isKnownFlag, knownFlags } from "../../../lib/ff/flags";
 import { parseXForwardedFor } from "../../../lib/ff/net";
+import { guardOverrideRequest } from "../../../lib/ff/override-guard";
 import {
   parseFFQuery,
   applyOverrideDiff,
@@ -20,8 +21,17 @@ function removeFFParam(url: string): string {
   return u.toString();
 }
 
+// S3-A: Node runtime for in-memory rate limiting
+export const runtime = "nodejs";
+
 export async function GET(req: Request) {
   try {
+    // --- S3-A preflight guard (RL + optional prod token) ---
+    const gate = guardOverrideRequest(req);
+    if (!gate.allow) {
+      return NextResponse.json(gate.body, { status: gate.code, headers: gate.headers });
+    }
+
     const u = new URL(req.url);
     const ff = u.searchParams.get("ff");
     if (ff === null) {
