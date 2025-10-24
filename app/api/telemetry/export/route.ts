@@ -4,6 +4,8 @@ import fs from "node:fs/promises";
 
 import { NextResponse } from "next/server";
 
+import { authorizeApi } from "@/lib/admin/rbac";
+
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 
 function buildCsv(rows: Record<string, unknown>[]): string {
@@ -38,6 +40,8 @@ function parseTelemetry(ndjson: string): Record<string, unknown>[] {
 }
 
 export async function GET(req: Request) {
+  const auth = authorizeApi(req, "viewer");
+  if (!auth.ok) return auth.response;
   const url = new URL(req.url);
   const fmt = (url.searchParams.get("fmt") || "ndjson").toLowerCase();
   const file = process.env.TELEMETRY_FILE || DEFAULT_TELEMETRY_FILE;
@@ -50,17 +54,19 @@ export async function GET(req: Request) {
   if (fmt === "csv") {
     const rows = parseTelemetry(content);
     const csv = buildCsv(rows);
-    return new NextResponse(csv, {
+    const res = new NextResponse(csv, {
       status: 200,
       headers: {
         "content-type": "text/csv; charset=utf-8",
       },
     });
+    return auth.apply(res);
   }
-  return new NextResponse(content, {
+  const res = new NextResponse(content, {
     status: 200,
     headers: {
       "content-type": "application/x-ndjson; charset=utf-8",
     },
   });
+  return auth.apply(res);
 }
