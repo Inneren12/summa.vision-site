@@ -17,6 +17,8 @@ import {
   validateOverrideTypes,
 } from "../../../lib/ff/overrides";
 
+import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+
 function removeFFParam(url: string): string {
   const u = new URL(url);
   u.searchParams.delete("ff");
@@ -85,9 +87,10 @@ export async function GET(req: Request) {
     res.cookies.set("sv_flags_override", json, {
       httpOnly: false,
       sameSite: "lax",
-      path: "/",
       maxAge: 60 * 60,
-      secure: prodStrict,
+      secure: FF_COOKIE_SECURE,
+      path: FF_COOKIE_PATH,
+      domain: FF_COOKIE_DOMAIN,
     });
     return res;
   } catch (err) {

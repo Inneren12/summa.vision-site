@@ -73,15 +73,24 @@ function readFiles() {
 const flagNames = readFlagNames();
 const allow = readAllowList();
 const files = readFiles();
+const argv = process.argv.slice(2);
+const HINT = argv.includes("--hint");
 
 const refs = new Map(flagNames.map((n) => [n, 0]));
 const unknown = new Map();
+const unknownDetails = [];
+const knownSet = new Set(flagNames);
 
 for (const file of files) {
   const text = fs.readFileSync(file, "utf8");
   const r = scanTextForFlags(text, flagNames);
   for (const [k, v] of r.refs) refs.set(k, (refs.get(k) || 0) + v);
   for (const [k, v] of r.unknown) unknown.set(k, (unknown.get(k) || 0) + v);
+  for (const occ of r.occurrences) {
+    if (!knownSet.has(occ.name)) {
+      unknownDetails.push({ name: occ.name, file, line: occ.line, col: occ.col });
+    }
+  }
 }
 
 // Применяем allow-лист
@@ -99,7 +108,12 @@ for (const name of flagNames) {
   if ((refs.get(name) || 0) === 0) warnings.push(`${name}: unused`);
 }
 for (const [name, count] of unknown.entries()) {
-  errors.push(`unknown flag usage "${name}" (${count} refs)`);
+  const coords = unknownDetails
+    .filter((x) => x.name === name)
+    .slice(0, 5)
+    .map((x) => `${x.file}:${x.line}:${x.col}`)
+    .join(", ");
+  errors.push(`unknown flag usage "${name}" (${count} refs) at ${coords}`);
 }
 
 console.log("[ff-doctor] files:", files.length);
@@ -107,5 +121,12 @@ console.log("[ff-doctor] errors:", errors.length);
 errors.forEach((e) => console.log("  -", e));
 console.log("[ff-doctor] warnings:", warnings.length);
 warnings.forEach((w) => console.log("  -", w));
+
+if (HINT && errors.length) {
+  console.log("\n[ff-doctor] hints for allow-list:");
+  for (const [name] of unknown.entries()) {
+    console.log(`  allow-unknown: ${name}`);
+  }
+}
 
 process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
