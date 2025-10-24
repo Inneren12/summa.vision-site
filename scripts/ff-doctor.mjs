@@ -1,87 +1,111 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { stripComments } from "./utils/strip-comments.js";
+import { scanTextForFlags } from "./doctor/scan.js";
 
 const ROOT = path.resolve(process.cwd());
-const SRC = ["app", "components", "lib"];
-const NAMES_FILE = path.join(ROOT, "generated", "flags.names.json");
-let flagNames = [];
-try {
-  const json = JSON.parse(fs.readFileSync(NAMES_FILE, "utf8"));
-  if (Array.isArray(json?.names)) flagNames = json.names;
-} catch {
-  // ignore missing names file; handled by warning below
-}
-if (!flagNames.length) {
-  console.error("[ff-doctor] No flag names. Run: npm run ff:codegen");
+const SRC_DIRS = ["app", "components", "lib"];
+const NAMES_JSON = path.join(ROOT, "generated", "flags.names.json");
+const TS_FLAGS = path.join(ROOT, "lib", "ff", "flags.ts");
+const ALLOW_FILE = path.join(ROOT, "scripts", "ff-doctor.allow"); // optional
+
+function readFlagNames() {
+  // 1) JSON из codegen (предпочтительно)
+  try {
+    const j = JSON.parse(fs.readFileSync(NAMES_JSON, "utf8"));
+    if (Array.isArray(j?.names) && j.names.length) return j.names;
+  } catch {
+    // ignore and fallback to TypeScript source
+  }
+  // 2) Fallback: парсим union из lib/ff/flags.ts
+  try {
+    const src = fs.readFileSync(TS_FLAGS, "utf8");
+    const m = src.match(/export\s+type\s+FlagName\s*=\s*([^;]+);/m);
+    if (m) {
+      const body = m[1];
+      const names = Array.from(body.matchAll(/['"]([a-zA-Z0-9_-]+)['"]/g)).map((x) => x[1]);
+      if (names.length) {
+        console.warn(
+          "[ff-doctor] fallback: parsed names from lib/ff/flags.ts (run ff:codegen to speed up)",
+        );
+        return names;
+      }
+    }
+  } catch {
+    // ignore and report below
+  }
+  console.error("[ff-doctor] No flag names available. Run: npm run ff:codegen");
   process.exit(2);
 }
 
-const refs = new Map(flagNames.map((n) => [n, 0]));
-const unknown = new Map();
-const known = new Set(flagNames);
+function readAllowList() {
+  const allow = { use: new Set(), allowUnknown: new Set() };
+  if (!fs.existsSync(ALLOW_FILE)) return allow;
+  const lines = fs.readFileSync(ALLOW_FILE, "utf8").split(/\r?\n/);
+  for (const ln of lines) {
+    const s = ln.trim();
+    if (!s || s.startsWith("#")) continue;
+    const m = s.match(/^(use|allow-unknown)\s*:\s*([a-zA-Z0-9_-]+)$/);
+    if (!m) continue;
+    const [, kind, name] = m;
+    if (kind === "use") allow.use.add(name);
+    else allow.allowUnknown.add(name);
+  }
+  return allow;
+}
 
-function readFiles(dir) {
+function readFiles() {
   const acc = [];
-  const walk = (d) =>
-    fs.readdirSync(d, { withFileTypes: true }).forEach((ent) => {
-      const p = path.join(d, ent.name);
-      if (ent.isDirectory()) return walk(p);
-      if (/\.(tsx?|jsx?|mjs|cjs)$/.test(ent.name)) acc.push(p);
-    });
-  walk(dir);
+  for (const dir of SRC_DIRS) {
+    const root = path.join(ROOT, dir);
+    if (!fs.existsSync(root)) continue;
+    const walk = (d) =>
+      fs.readdirSync(d, { withFileTypes: true }).forEach((ent) => {
+        const p = path.join(d, ent.name);
+        if (ent.isDirectory()) return walk(p);
+        if (/\.(tsx?|jsx?|mjs|cjs)$/.test(ent.name)) acc.push(p);
+      });
+    walk(root);
+  }
   return acc;
 }
 
-const files = SRC.flatMap((p) => readFiles(path.join(ROOT, p)));
+const flagNames = readFlagNames();
+const allow = readAllowList();
+const files = readFiles();
 
-// Паттерны реального использования флагов
-const usagePatterns = [
-  /useFlag\(\s*(['"])([a-zA-Z0-9_-]+)\1\s*\)/g,
-  /<FlagGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<PercentGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<VariantGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<FlagGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /<PercentGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /<VariantGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /\?ff=([a-zA-Z0-9_-]+)\s*:/g,
-];
+const refs = new Map(flagNames.map((n) => [n, 0]));
+const unknown = new Map();
 
-for (const f of files) {
-  const raw = fs.readFileSync(f, "utf8");
-  const text = stripComments(raw);
-  for (const patt of usagePatterns) {
-    const re = new RegExp(patt.source, patt.flags);
-    for (const m of text.matchAll(re)) {
-      const name = m[2] || m[1];
-      if (!name) continue;
-      if (known.has(name)) {
-        refs.set(name, (refs.get(name) || 0) + 1);
-      } else {
-        unknown.set(name, (unknown.get(name) || 0) + 1);
-      }
-    }
-  }
+for (const file of files) {
+  const text = fs.readFileSync(file, "utf8");
+  const r = scanTextForFlags(text, flagNames);
+  for (const [k, v] of r.refs) refs.set(k, (refs.get(k) || 0) + v);
+  for (const [k, v] of r.unknown) unknown.set(k, (unknown.get(k) || 0) + v);
+}
+
+// Применяем allow-лист
+for (const name of allow.use) {
+  if (refs.has(name)) refs.set(name, Math.max(1, refs.get(name) || 0));
+}
+for (const name of allow.allowUnknown) {
+  if (unknown.has(name)) unknown.delete(name);
 }
 
 const errors = [];
 const warnings = [];
-// Здесь проверяем только presence/unknown — метаданные валидируются рантаймом/юнитами.
-for (const n of flagNames) {
-  if ((refs.get(n) || 0) === 0) warnings.push(`${n}: unused`);
+
+for (const name of flagNames) {
+  if ((refs.get(name) || 0) === 0) warnings.push(`${name}: unused`);
 }
-for (const [n, count] of unknown.entries()) {
-  errors.push(`unknown flag usage "${n}" (${count} refs)`);
+for (const [name, count] of unknown.entries()) {
+  errors.push(`unknown flag usage "${name}" (${count} refs)`);
 }
 
-if (errors.length) {
-  console.error("[ff-doctor] Errors:");
-  for (const e of errors) console.error("  -", e);
-}
-if (warnings.length) {
-  console.warn("[ff-doctor] Warnings:");
-  for (const w of warnings) console.warn("  -", w);
-}
-if (errors.length) process.exit(1);
-process.exit(0);
+console.log("[ff-doctor] files:", files.length);
+console.log("[ff-doctor] errors:", errors.length);
+errors.forEach((e) => console.log("  -", e));
+console.log("[ff-doctor] warnings:", warnings.length);
+warnings.forEach((w) => console.log("  -", w));
+
+process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
