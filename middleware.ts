@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+import { FF } from "@/lib/ff/runtime";
 
 export function middleware(req: NextRequest) {
+  const snapshot = FF().snapshot();
   const has = req.cookies.get("sv_id")?.value;
   if (!has) {
     const res = NextResponse.next();
@@ -14,7 +16,10 @@ export function middleware(req: NextRequest) {
       path: FF_COOKIE_PATH,
       domain: FF_COOKIE_DOMAIN,
     });
+    res.headers.set("x-ff-snapshot", snapshot.id);
     return res;
   }
-  return NextResponse.next();
+  const res = NextResponse.next();
+  res.headers.set("x-ff-snapshot", snapshot.id);
+  return res;
 }
