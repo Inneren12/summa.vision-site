@@ -1,4 +1,5 @@
 import { parseXForwardedFor } from "./net";
+import { parseCookieHeader } from "./overrides";
 import { allow } from "./ratelimit";
 
 export type GuardDecision =
@@ -12,14 +13,21 @@ export type GuardDecision =
 
 /** Preflight for /api/ff-override: rate limit + prod tester token. */
 export function guardOverrideRequest(req: Request): GuardDecision {
-  const rpm = Number(process.env.FF_OVERRIDE_RPM ?? 10);
+  const rawRpm = process.env.FF_OVERRIDE_RPM;
+  let rpm = Number(rawRpm);
+  if (!Number.isFinite(rpm)) rpm = 10;
+  rpm = Math.min(Math.max(1, rpm), 120);
   const requireToken = process.env.NODE_ENV === "production";
   const testerToken = process.env.FF_TESTER_TOKEN;
 
   // IP for rate-limiting
   const rawXff = req.headers.get("x-forwarded-for");
   const clientIp = parseXForwardedFor(rawXff) || (req.headers.get("x-real-ip") ?? "unknown");
-  const { ok, resetIn } = allow(`ff-override:${clientIp}`, rpm);
+  const cookieJar = req.headers.get("cookie") || "";
+  const jar = parseCookieHeader(cookieJar);
+  const sv = jar["sv_id"] || "nosvid";
+  const rlKey = `ff-override:${clientIp}:${sv}`;
+  const { ok, resetIn } = allow(rlKey, rpm);
   if (!ok) {
     const retry = Math.ceil(resetIn / 1000);
     return {

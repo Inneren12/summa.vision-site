@@ -46,8 +46,8 @@ describe("S3-B StableId integration", () => {
   });
 
   it("uses userId across devices (sv_id changes do not change outcome for same userId)", async () => {
-    // Предсказуемый результат для user_123
-    const expected = inRollout("user_123", 50, "newCheckout");
+    // Предсказуемый результат для u:123
+    const expected = inRollout("u:123", 50, "newCheckout");
     // sv_id #1
     mockCookies("sv_aaa");
     const f1 = await getFlagsServer({ userId: "123" });
