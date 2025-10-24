@@ -106,4 +106,29 @@ describe("SelfHostedMetricsProvider", () => {
     expect(result).toBeNull();
     expect(rate).toBeNull();
   });
+
+  it("ignores vitals entries with missing fields", async () => {
+    const snapshotId = "snapshot-mixed";
+    const now = Date.now();
+    const vitals = [
+      {},
+      { snapshotId, metric: "INP", value: 320, ts: now - 4_000 },
+      { snapshotId, metric: "INP", value: "invalid", ts: now - 3_000 },
+      { snapshotId, metric: "INP", value: 410 },
+      { snapshotId, metric: "CLS", value: 0.05, ts: now - 2_000 },
+    ];
+    await writeFile(
+      vitalsFile,
+      vitals.map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+      "utf8",
+    );
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 10 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+    });
+
+    await expect(provider.getWebVital("INP", "flag-D", snapshotId)).resolves.toBe(320);
+  });
 });
