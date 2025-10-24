@@ -4,9 +4,11 @@ import { cookies } from "next/headers";
 
 import { resolveEffectiveFlag } from "./effective.shared";
 import { FLAG_REGISTRY, type EffectiveFlags, type FlagName } from "./flags";
+import { unitFromIdSalt } from "./hash";
 import { getFeatureFlagsFromHeadersWithSources } from "./server";
 import { stableId as buildStableId, STABLEID_USER_PREFIX } from "./stable-id";
 import { trackFlagEvaluation } from "./telemetry";
+import { unitFromVariantSalt } from "./variant";
 
 function buildCookieHeaderString(): string {
   // next/headers cookies() в Next14 синхронен; формируем header-подобную строку для реюза
@@ -25,10 +27,24 @@ export async function getFlagsServer(opts?: { userId?: string }): Promise<Effect
     ? id.slice(STABLEID_USER_PREFIX.length)
     : undefined;
   const out: Partial<EffectiveFlags> = {};
+  const rolloutUnits = new Map<string, number>();
+  const variantUnits = new Map<string, number>();
+  const unitForSalt = (salt: string, mode: "rollout" | "variant" = "rollout") => {
+    if (mode === "variant") {
+      if (!variantUnits.has(salt)) {
+        variantUnits.set(salt, unitFromVariantSalt(id, salt));
+      }
+      return variantUnits.get(salt)!;
+    }
+    if (!rolloutUnits.has(salt)) {
+      rolloutUnits.set(salt, unitFromIdSalt(id, salt));
+    }
+    return rolloutUnits.get(salt)!;
+  };
   for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
     const start = Date.now();
     const raw = Object.prototype.hasOwnProperty.call(merged, name) ? merged[name] : undefined;
-    const value = resolveEffectiveFlag(name, raw, id);
+    const value = resolveEffectiveFlag(name, raw, id, unitForSalt);
     const end = Date.now();
     const evaluationTime = end - start;
     out[name] = value as EffectiveFlags[typeof name];

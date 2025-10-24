@@ -1,7 +1,7 @@
 import { FLAG_REGISTRY, type FlagName, type EffectiveFlags } from "./flags";
-import { inRollout } from "./hash";
+import { inRollout, inRolloutByUnit } from "./hash";
 import { type FeatureFlags, type RolloutConfig, type VariantConfig } from "./shared";
-import { chooseVariant, validateOrNormalizeWeights } from "./variant";
+import { chooseVariant, chooseVariantByUnit, validateOrNormalizeWeights } from "./variant";
 import { warnFlagTypeMismatch, typeOfValue } from "./warn";
 
 function isRolloutConfig(value: unknown): value is RolloutConfig {
@@ -15,6 +15,7 @@ export function resolveEffectiveFlag(
   name: FlagName,
   raw: unknown,
   stableId: string,
+  unitForSalt?: (salt: string, mode?: "rollout" | "variant") => number,
 ): boolean | string | number {
   const meta = FLAG_REGISTRY[name];
 
@@ -40,6 +41,10 @@ export function resolveEffectiveFlag(
     if (!norm.ok) {
       return fallback;
     }
+    if (unitForSalt) {
+      const unit = unitForSalt(salt, "variant");
+      return chooseVariantByUnit(unit, norm.weights as Record<string, number>);
+    }
     return chooseVariant(stableId, salt, norm.weights as Record<string, number>);
   }
 
@@ -54,11 +59,19 @@ export function resolveEffectiveFlag(
       if (!defaultConfig.enabled) return false;
       const percent = typeof defaultConfig.percent === "number" ? defaultConfig.percent : 100;
       const salt = defaultConfig.salt ?? name;
+      if (unitForSalt) {
+        const unit = unitForSalt(salt, "rollout");
+        return inRolloutByUnit(unit, percent);
+      }
       return inRollout(stableId, percent, salt);
     }
     if (!candidate.enabled) return false;
     const percent = typeof candidate.percent === "number" ? candidate.percent : 100;
     const salt = candidate.salt ?? name;
+    if (unitForSalt) {
+      const unit = unitForSalt(salt, "rollout");
+      return inRolloutByUnit(unit, percent);
+    }
     return inRollout(stableId, percent, salt);
   }
 

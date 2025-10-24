@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { snapshot } from "@/lib/ff/metrics";
 import { readRecent } from "@/lib/ff/telemetry";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +15,28 @@ export default async function Page({
   }
   const filterFlag = typeof searchParams?.flag === "string" ? searchParams.flag : undefined;
   const events = readRecent(200, filterFlag ? { flag: filterFlag } : undefined);
+  const counters = snapshot();
   return (
     <main style={{ padding: 16 }}>
       <h1>Flag Evaluations (recent)</h1>
+      <section
+        style={{
+          margin: "8px 0",
+          padding: 8,
+          background: "var(--color-bg-subtle)",
+          color: "var(--color-fg-default)",
+        }}
+      >
+        <strong>Stats:</strong> <code>429={counters["override.429"]}</code>
+        {" | "}
+        <code>403.test={counters["override.403"]}</code>
+        {" | "}
+        <code>403.xsite={counters["override.403.crossSite"]}</code>
+        {" | "}
+        <code>400.unknown={counters["override.400.unknown"]}</code>
+        {" | "}
+        <code>400.type={counters["override.400.type"]}</code>
+      </section>
       <form method="get" style={{ marginBottom: 12 }}>
         <label>
           Filter by flag:{" "}
