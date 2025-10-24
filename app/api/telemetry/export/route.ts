@@ -5,6 +5,8 @@ import fs from "node:fs/promises";
 
 import { NextResponse } from "next/server";
 
+import { authorizeApi } from "@/lib/admin/rbac";
+
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 
 type TelemetryExportEventType =
@@ -199,6 +201,8 @@ function parseTimeParam(value: string | null): TimeParamResult {
 }
 
 export async function GET(req: Request) {
+  const auth = authorizeApi(req, "viewer");
+  if (!auth.ok) return auth.response;
   const url = new URL(req.url);
   const fmtParam = (url.searchParams.get("fmt") || "ndjson").toLowerCase();
   if (fmtParam !== "ndjson" && fmtParam !== "csv") {
@@ -236,12 +240,13 @@ export async function GET(req: Request) {
 
   if (fmtParam === "csv") {
     const csv = buildCsv(rows);
-    return new NextResponse(csv, {
+    const res = new NextResponse(csv, {
       status: 200,
       headers: {
         "content-type": "text/csv; charset=utf-8",
       },
     });
+    return auth.apply(res);
   }
 
   const body = rows.map((row) => JSON.stringify(row)).join("\n");
@@ -251,4 +256,5 @@ export async function GET(req: Request) {
       "content-type": "application/x-ndjson; charset=utf-8",
     },
   });
+  return auth.apply(res);
 }

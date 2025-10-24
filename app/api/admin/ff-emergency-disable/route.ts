@@ -1,11 +1,11 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
+import { authorizeApi } from "@/lib/admin/rbac";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FLAG_REGISTRY, isKnownFlag } from "@/lib/ff/flags";
 import { setGlobal, type GlobalValue } from "@/lib/ff/global";
 import { getInstanceId } from "@/lib/ff/instance";
-import { tscmp } from "@/lib/ff/tscmp";
 
 export const runtime = "nodejs";
 
@@ -85,39 +85,32 @@ function validateByRegistry(name: string, value: unknown): ValidationResult {
 }
 
 export async function POST(req: Request) {
-  const token = req.headers.get("x-ff-admin-token");
-  const expected = process.env.FF_ADMIN_TOKEN;
-  if (!expected) {
-    return NextResponse.json({ error: "Admin API disabled" }, { status: 503 });
-  }
-  if (!token) {
-    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
-  }
-  if (!tscmp(token, expected)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = authorizeApi(req, "admin");
+  if (!auth.ok) return auth.response;
 
   const body = await readJsonWithLimit(req, 1024);
-  if (!body.ok) return body.res;
+  if (!body.ok) return auth.apply(body.res);
   const { flag, value, ttlSeconds, reason } = body.data || ({} as Payload);
 
   if (typeof flag !== "string" || flag.length === 0) {
-    return NextResponse.json({ error: "flag is required" }, { status: 400 });
+    return auth.apply(NextResponse.json({ error: "flag is required" }, { status: 400 }));
   }
   if (typeof reason !== "undefined" && (typeof reason !== "string" || reason.length > 256)) {
-    return NextResponse.json({ error: "reason must be string ≤ 256" }, { status: 400 });
+    return auth.apply(NextResponse.json({ error: "reason must be string ≤ 256" }, { status: 400 }));
   }
   const ttl = clamp(Number(ttlSeconds ?? 3600), 1, 86400);
   const validation = validateByRegistry(flag, value);
   if (!validation.ok) {
-    return NextResponse.json({ error: "Invalid value", details: validation.msg }, { status: 400 });
+    return auth.apply(
+      NextResponse.json({ error: "Invalid value", details: validation.msg }, { status: 400 }),
+    );
   }
 
   try {
     const { expiresAt } = setGlobal(flag, validation.value, ttl, reason);
     logAdminAction({
       timestamp: Date.now(),
-      actor: "admin",
+      actor: auth.role,
       action: "global_override_set",
       flag,
       value: validation.value,
@@ -125,18 +118,20 @@ export async function POST(req: Request) {
       reason,
       instanceId: getInstanceId(),
     });
-    return NextResponse.json(
-      {
-        ok: true,
-        flag,
-        value,
-        ttlSeconds: ttl,
-        expiresAt,
-      },
-      { status: 200 },
+    return auth.apply(
+      NextResponse.json(
+        {
+          ok: true,
+          flag,
+          value,
+          ttlSeconds: ttl,
+          expiresAt,
+        },
+        { status: 200 },
+      ),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return auth.apply(NextResponse.json({ error: message }, { status: 400 }));
   }
 }

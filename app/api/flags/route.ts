@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { authorizeApi } from "@/lib/admin/rbac";
 import { FF } from "@/lib/ff/runtime";
 import type { FlagConfig, SegmentCondition } from "@/lib/ff/runtime/types";
 
@@ -49,16 +50,29 @@ function mapCondition(input: SegmentCondition): SegmentCondition {
   return { ...input };
 }
 
+export async function GET(req: Request) {
+  const auth = authorizeApi(req, "viewer");
+  if (!auth.ok) return auth.response;
+  const store = FF().store;
+  const flags = store.listFlags();
+  const res = NextResponse.json({ ok: true, flags });
+  return auth.apply(res);
+}
+
 export async function POST(req: Request) {
+  const auth = authorizeApi(req, "admin");
+  if (!auth.ok) return auth.response;
   const json = await req.json().catch(() => null);
   if (!json) {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return auth.apply(NextResponse.json({ error: "Invalid JSON" }, { status: 400 }));
   }
   const parsed = FlagSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 },
+    return auth.apply(
+      NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 },
+      ),
     );
   }
   const payload = parsed.data;
@@ -81,5 +95,5 @@ export async function POST(req: Request) {
     updatedAt: Date.now(),
   };
   const updated = await lock.withLock(config.key, async () => store.putFlag(config));
-  return NextResponse.json({ ok: true, flag: updated });
+  return auth.apply(NextResponse.json({ ok: true, flag: updated }));
 }
