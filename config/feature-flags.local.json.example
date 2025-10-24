@@ -1,0 +1,7 @@
+{
+  "newHeader": true,
+  "betaCheckout": false,
+  "searchV2": "A/B",
+  "rolloutPercent": 25,
+  "newCheckout": { "enabled": true, "percent": 10, "salt": "cohort1" }
+}
