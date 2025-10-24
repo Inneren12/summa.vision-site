@@ -1,0 +1,23 @@
+name: population-census-2021
+primaryKey:
+  - district
+fields:
+  - name: district
+    type: string
+    constraints:
+      required: true
+  - name: total_households
+    type: integer
+    constraints:
+      required: true
+      minimum: 0
+  - name: total_population
+    type: integer
+    constraints:
+      required: true
+      minimum: 0
+  - name: median_age
+    type: number
+    constraints:
+      required: true
+      minimum: 0
