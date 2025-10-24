@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { mkdtempSync, writeFileSync, utimesSync, mkdirSync } from "fs";
+import { mkdtempSync, writeFileSync, utimesSync, mkdirSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -17,10 +17,24 @@ const createDatasetFile = (base: string, id: string, ageInDays: number, now: num
   utimesSync(filePath, mtime, mtime);
 };
 
-const runValidator = (catalogPath: string, rawDir: string, now: number) => {
+const runValidator = (
+  catalogPath: string,
+  rawDir: string,
+  now: number,
+  extraArgs: string[] = [],
+) => {
   return spawnSync(
     "bash",
-    ["data_validate.sh", "--catalog", catalogPath, "--raw-dir", rawDir, "--now", String(now)],
+    [
+      "data_validate.sh",
+      "--catalog",
+      catalogPath,
+      "--raw-dir",
+      rawDir,
+      "--now",
+      String(now),
+      ...extraArgs,
+    ],
     {
       encoding: "utf8",
     },
@@ -71,5 +85,29 @@ describe("data freshness validator", () => {
     const combinedOutput = `${result.stdout}${result.stderr}`;
     expect(combinedOutput).toContain("Datasets exceeding freshness SLA");
     expect(combinedOutput).toContain("stale-dataset");
+  });
+
+  it("writes a JSON report when requested", () => {
+    const workdir = mkdtempSync(join(tmpdir(), "freshness-json-"));
+    const rawDir = join(workdir, "raw");
+    const catalogPath = join(workdir, "catalog.yml");
+    const reportPath = join(workdir, "report.json");
+    const now = 5 * DAY_IN_SECONDS;
+
+    mkdirSync(rawDir, { recursive: true });
+    createDatasetFile(rawDir, "json-dataset", 2, now);
+
+    const catalog = ["datasets:", "  - id: json-dataset", "    sla_days: 5"].join("\n");
+    writeFileSync(catalogPath, catalog);
+
+    const result = runValidator(catalogPath, rawDir, now, ["--json-report", reportPath]);
+
+    expect(result.status).toBe(0);
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    expect(report.success).toBe(true);
+    expect(report.summary.total).toBe(1);
+    expect(report.datasets[0].id).toBe("json-dataset");
+    expect(report.datasets[0].status).toBe("ok");
   });
 });

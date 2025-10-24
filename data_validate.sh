@@ -5,6 +5,7 @@ set -euo pipefail
 CATALOG_PATH="data/catalog.yml"
 RAW_ROOT="data/raw"
 NOW_OVERRIDE=""
+JSON_REPORT=""
 
 usage() {
   cat <<'USAGE'
@@ -31,6 +32,11 @@ while [[ $# -gt 0 ]]; do
     --now)
       [[ $# -ge 2 ]] || { echo "--now requires an epoch timestamp" >&2; exit 1; }
       NOW_OVERRIDE="$2"
+      shift 2
+      ;;
+    --json-report)
+      [[ $# -ge 2 ]] || { echo "--json-report requires a path" >&2; exit 1; }
+      JSON_REPORT="$2"
       shift 2
       ;;
     --help|-h)
@@ -128,13 +134,16 @@ fi
 
 expired=()
 report_lines=()
+dataset_json_entries=()
 
 for line in "${DATASET_LINES[@]}"; do
   IFS=$'\t' read -r dataset_id sla_days <<<"$line"
   dataset_dir="$RAW_ROOT/$dataset_id"
   if [[ ! -d "$dataset_dir" ]]; then
     expired+=("$dataset_id (no data files found)")
-    report_lines+=("$dataset_id: missing dataset directory at $dataset_dir")
+    message="$dataset_id: missing dataset directory at $dataset_dir"
+    report_lines+=("$message")
+    dataset_json_entries+=("$(printf '%s\t%s\t\tmissing\t\t%s' "$dataset_id" "$sla_days" "$message")")
     continue
   fi
 
@@ -153,7 +162,9 @@ for line in "${DATASET_LINES[@]}"; do
 
   if [[ -z "$newest_file" ]]; then
     expired+=("$dataset_id (no files in directory)")
-    report_lines+=("$dataset_id: dataset directory contains no files")
+    message="$dataset_id: dataset directory contains no files"
+    report_lines+=("$message")
+    dataset_json_entries+=("$(printf '%s\t%s\t\tempty\t\t%s' "$dataset_id" "$sla_days" "$message")")
     continue
   fi
 
@@ -164,11 +175,16 @@ for line in "${DATASET_LINES[@]}"; do
     age_days=$(( age_seconds / 86400 ))
   fi
 
-  report_lines+=("$dataset_id: age=${age_days}d sla=${sla_days}d newest=$(basename "$newest_file")")
+  message="$dataset_id: age=${age_days}d sla=${sla_days}d newest=$(basename "$newest_file")"
+  report_lines+=("$message")
 
+  status="ok"
   if (( age_days > sla_days )); then
     expired+=("$dataset_id (age ${age_days}d > SLA ${sla_days}d)")
+    status="expired"
   fi
+
+  dataset_json_entries+=("$(printf '%s\t%s\t%d\t%s\t%s\t%s' "$dataset_id" "$sla_days" "$age_days" "$status" "$newest_file" "$message")")
 done
 
 printf '%s\n' "Dataset freshness report:" "--------------------------"
@@ -176,13 +192,88 @@ for entry in "${report_lines[@]}"; do
   printf ' - %s\n' "$entry"
 done
 
+exit_code=0
+
 if (( ${#expired[@]} > 0 )); then
   printf '\nDatasets exceeding freshness SLA:\n'
   for entry in "${expired[@]}"; do
     printf ' - %s\n' "$entry"
   done
-  exit 1
+  exit_code=1
 else
   printf '\nAll datasets are within the freshness SLA.\n'
 fi
 
+if [[ -n "$JSON_REPORT" ]]; then
+  report_dir="$(dirname "$JSON_REPORT")"
+  mkdir -p "$report_dir"
+
+  DATASET_JSON_STREAM="$(printf '%s\n' "${dataset_json_entries[@]}")"
+
+  CATALOG_PATH="$CATALOG_PATH" \
+    RAW_ROOT="$RAW_ROOT" \
+    NOW_SECONDS="$NOW_SECONDS" \
+    JSON_REPORT_PATH="$JSON_REPORT" \
+    DATASET_JSON_STREAM="$DATASET_JSON_STREAM" \
+    node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const catalogPath = process.env.CATALOG_PATH;
+const rawRoot = process.env.RAW_ROOT;
+const nowSeconds = Number(process.env.NOW_SECONDS || Date.now() / 1000);
+const reportPath = process.env.JSON_REPORT_PATH;
+const datasetStream = process.env.DATASET_JSON_STREAM || '';
+
+const lines = datasetStream.length === 0 ? [] : datasetStream.split('\n').filter((line) => line.length > 0);
+
+const datasets = lines.map((line) => {
+  if (!line) {
+    return null;
+  }
+
+  const [id, slaDays, ageDays, status, newestFile, message] = line.split('\t');
+  const parsedSla = Number.isNaN(Number(slaDays)) ? null : Number(slaDays);
+  const parsedAge = ageDays === undefined || ageDays === '' ? null : Number(ageDays);
+  const newest = newestFile ? path.relative(process.cwd(), newestFile) : null;
+
+  return {
+    id: id || null,
+    sla_days: parsedSla,
+    age_days: parsedAge,
+    status: status || null,
+    newest_file: newest,
+    message: message || null,
+  };
+}).filter(Boolean);
+
+const byStatus = datasets.reduce((acc, dataset) => {
+  const key = dataset.status || 'unknown';
+  acc[key] = (acc[key] || 0) + 1;
+  return acc;
+}, {});
+
+const failingStatuses = new Set(['expired', 'missing', 'empty']);
+const failures = datasets.filter((dataset) => failingStatuses.has(dataset.status));
+
+const report = {
+  generated_at: new Date(nowSeconds * 1000).toISOString(),
+  success: failures.length === 0,
+  catalog_path: catalogPath,
+  raw_data_root: rawRoot,
+  summary: {
+    total: datasets.length,
+    passed: datasets.length - failures.length,
+    failed: failures.length,
+    by_status: byStatus,
+  },
+  datasets,
+};
+
+fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+NODE
+
+  echo "Wrote JSON report to $JSON_REPORT"
+fi
+
+exit "$exit_code"
