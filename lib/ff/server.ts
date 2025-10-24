@@ -25,7 +25,7 @@ async function readLocalFlagsFile(filePath: string): Promise<FeatureFlags> {
 }
 
 let __envCacheSig = "";
-let __envCacheParsed: FeatureFlags = {};
+let __envCacheParsed: FeatureFlags = {} as FeatureFlags;
 
 function envSignature(str: string | undefined | null): string {
   if (!str) return "0:";
@@ -132,7 +132,12 @@ export function __devSetFeatureFlagsJson(next: string) {
   __resetServerEnvCacheForTests();
 }
 
-export function __resetFeatureFlagsCacheForTests() {
+/** Для dev-роута и тестов: сбросить кэш ENV-парсинга. */
+export function __resetEnvCache() {
   __envCacheSig = "";
-  __envCacheParsed = {};
+  __envCacheParsed = {} as FeatureFlags;
+}
+
+export function __resetFeatureFlagsCacheForTests() {
+  __resetEnvCache();
 }
