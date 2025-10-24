@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 
-import { getServerEnv } from "../env.server";
+import { getServerEnv, __resetServerEnvCacheForTests } from "../env.server";
 import { isEdgeRuntime, assertServer } from "../runtime-guards";
 
 import { isKnownFlag, FLAG_REGISTRY, type FlagName } from "./flags";
@@ -105,4 +105,10 @@ export async function getFeatureFlagsFromHeaders(
 ): Promise<FeatureFlags> {
   const { merged } = await getFeatureFlagsFromHeadersWithSources(h);
   return merged;
+}
+
+export function __devSetFeatureFlagsJson(next: string) {
+  if (process.env.NODE_ENV === "production") return;
+  process.env.FEATURE_FLAGS_JSON = next;
+  __resetServerEnvCacheForTests();
 }

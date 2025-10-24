@@ -1,3 +1,4 @@
+import { inc } from "./metrics";
 import { parseXForwardedFor } from "./net";
 import { isSameSiteRequest } from "./origin";
 import { parseCookieHeader } from "./overrides";
@@ -31,6 +32,7 @@ export function guardOverrideRequest(req: Request): GuardDecision {
   const rlKey = `ff-override:${clientIp}:${sv}`;
   const { ok, resetIn } = allow(rlKey, rpm);
   if (!ok) {
+    inc("override.429");
     const retry = Math.ceil(resetIn / 1000);
     return {
       allow: false,
@@ -42,6 +44,7 @@ export function guardOverrideRequest(req: Request): GuardDecision {
 
   if (process.env.NODE_ENV === "production") {
     if (!isSameSiteRequest(req)) {
+      inc("override.403.crossSite");
       return { allow: false, code: 403, body: { error: "Cross-site not allowed" } };
     }
   }
@@ -49,6 +52,7 @@ export function guardOverrideRequest(req: Request): GuardDecision {
   if (requireToken) {
     const token = req.headers.get("x-ff-tester");
     if (!token || !tscmp(token, testerToken)) {
+      inc("override.403");
       return { allow: false, code: 403, body: { error: "Tester token required" } };
     }
   }

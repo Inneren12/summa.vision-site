@@ -16,6 +16,10 @@ function unitInterval(s: string): number {
   return (h >>> 0) / 4294967296;
 }
 
+export function unitFromVariantSalt(stableId: string, salt: string): number {
+  return unitInterval(`${salt}:${stableId}`);
+}
+
 /** Validate weights: all non-negative, finite, sum == 100 (prod) or normalize (dev). */
 export function validateOrNormalizeWeights(
   weights: Record<string, number>,
@@ -57,5 +61,19 @@ export function chooseVariant<T extends string>(
   const r = unitInterval(`${salt}:${stableId}`) * 100;
   for (const b of buckets) if (r >= b.from && r < b.to) return b.name;
   // fallback (edge case due to float error)
+  return buckets[buckets.length - 1]!.name;
+}
+
+/** Deterministic chooser using precomputed unit in [0,1). */
+export function chooseVariantByUnit<T extends string>(unit: number, weights: Record<T, number>): T {
+  const list = Object.entries(weights) as [T, number][];
+  let acc = 0;
+  const buckets = list.map(([name, w]) => {
+    const from = acc;
+    acc += w;
+    return { name, from, to: acc };
+  });
+  const r = unit * 100;
+  for (const b of buckets) if (r >= b.from && r < b.to) return b.name;
   return buckets[buckets.length - 1]!.name;
 }

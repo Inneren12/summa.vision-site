@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { isKnownFlag, knownFlags } from "../../../lib/ff/flags";
+import { inc } from "../../../lib/ff/metrics";
 import { parseXForwardedFor } from "../../../lib/ff/net";
 import { guardOverrideRequest } from "../../../lib/ff/override-guard";
 import {
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
     if (enforceKnown) {
       const unknown = Object.keys(noDotted).filter((name) => !isKnownFlag(name));
       if (unknown.length) {
+        inc("override.400.unknown");
         return NextResponse.json(
           { error: "Unknown flags", unknown, known: knownFlags() },
           { status: 400 },
@@ -59,6 +61,7 @@ export async function GET(req: Request) {
 
     const typeCheck = validateOverrideTypes(noDotted);
     if (!typeCheck.ok) {
+      inc("override.400.type");
       return NextResponse.json(
         { error: "Invalid override types", details: typeCheck.errors },
         { status: 400 },
