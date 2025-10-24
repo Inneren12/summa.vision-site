@@ -3,6 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { authorizeApi } from "@/lib/admin/rbac";
+import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 
 export const runtime = "nodejs";
@@ -12,12 +14,16 @@ const StepSchema = z.object({
 });
 
 export async function POST(req: Request, { params }: { params: { key: string } }) {
+  const auth = authorizeApi(req, "ops");
+  if (!auth.ok) return auth.response;
   const json = await req.json().catch(() => ({}));
   const parsed = StepSchema.safeParse(json ?? {});
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 },
+    return auth.apply(
+      NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 },
+      ),
     );
   }
   const { step } = parsed.data;
@@ -25,12 +31,12 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const { store, lock, metrics } = FF();
   const existing = store.getFlag(key);
   if (!existing) {
-    return NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 });
+    return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
   }
   const snapshot = FF().snapshot();
   const requiresMetrics = (process.env.METRICS_PROVIDER || "self").toLowerCase() === "self";
   if (requiresMetrics && !metrics.hasData(snapshot.id)) {
-    return NextResponse.json({ error: "Insufficient metrics" }, { status: 412 });
+    return auth.apply(NextResponse.json({ error: "Insufficient metrics" }, { status: 412 }));
   }
   const updated = await lock.withLock(key, async () => {
     const current = store.getFlag(key);
@@ -43,5 +49,13 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     };
     return store.putFlag(nextConfig);
   });
-  return NextResponse.json({ ok: true, rollout: updated.rollout });
+  logAdminAction({
+    timestamp: Date.now(),
+    actor: auth.role,
+    action: "rollout_step",
+    flag: key,
+    delta: step,
+    percent: updated.rollout?.percent ?? 0,
+  });
+  return auth.apply(NextResponse.json({ ok: true, rollout: updated.rollout }));
 }
