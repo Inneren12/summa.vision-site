@@ -1,0 +1,3 @@
+-- sanity_joins.sql
+-- Optional join-based validations can be added here when cross-dataset checks
+-- are required. Currently no reference joins are defined.
