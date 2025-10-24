@@ -6,6 +6,7 @@ export type AuditRecord = {
   value: boolean | string | number;
   ttlSeconds: number;
   reason?: string;
+  instanceId?: string;
 };
 
 const MAX = 1000;

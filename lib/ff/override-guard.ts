@@ -1,6 +1,8 @@
 import { parseXForwardedFor } from "./net";
+import { isSameSiteRequest } from "./origin";
 import { parseCookieHeader } from "./overrides";
 import { allow } from "./ratelimit";
+import { tscmp } from "./tscmp";
 
 export type GuardDecision =
   | { allow: true }
@@ -38,9 +40,15 @@ export function guardOverrideRequest(req: Request): GuardDecision {
     };
   }
 
+  if (process.env.NODE_ENV === "production") {
+    if (!isSameSiteRequest(req)) {
+      return { allow: false, code: 403, body: { error: "Cross-site not allowed" } };
+    }
+  }
+
   if (requireToken) {
     const token = req.headers.get("x-ff-tester");
-    if (!token || token !== testerToken) {
+    if (!token || !tscmp(token, testerToken)) {
       return { allow: false, code: 403, body: { error: "Tester token required" } };
     }
   }
