@@ -6,6 +6,12 @@ export type RolloutStopConditions = {
   maxINP?: number;
 };
 
+export type RolloutHysteresis = {
+  errorRate?: number;
+  CLS?: number;
+  INP?: number;
+};
+
 export type RolloutStep = {
   pct: number;
   note?: string;
@@ -19,6 +25,7 @@ export type RolloutStrategy = {
   seedByDefault?: SeedBy;
   steps?: RolloutStep[];
   stop?: RolloutStopConditions;
+  hysteresis?: RolloutHysteresis;
 };
 
 export type SegmentCondition =

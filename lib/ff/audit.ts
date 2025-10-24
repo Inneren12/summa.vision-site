@@ -43,6 +43,10 @@ export type AuditRecord =
       reason?: string;
       limit?: number;
       actual?: number;
+      errorRate?: number;
+      cls?: number;
+      inp?: number;
+      denom?: number;
     }
   | {
       timestamp: number;
