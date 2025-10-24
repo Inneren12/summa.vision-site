@@ -1,6 +1,7 @@
 import { FLAG_REGISTRY, type FlagName, type EffectiveFlags } from "./flags";
 import { inRollout } from "./hash";
-import { type FeatureFlags, type RolloutConfig } from "./shared";
+import { type FeatureFlags, type RolloutConfig, type VariantConfig } from "./shared";
+import { chooseVariant, validateOrNormalizeWeights } from "./variant";
 import { warnFlagTypeMismatch, typeOfValue } from "./warn";
 
 function isRolloutConfig(value: unknown): value is RolloutConfig {
@@ -16,6 +17,31 @@ export function resolveEffectiveFlag(
   stableId: string,
 ): boolean | string | number {
   const meta = FLAG_REGISTRY[name];
+
+  if (meta.type === "variant") {
+    if (typeof raw === "string") return raw;
+    const def = meta.defaultValue as VariantConfig;
+    const cfg = (
+      raw && typeof raw === "object" && raw !== null ? (raw as VariantConfig) : def
+    ) as VariantConfig;
+    const enabled = cfg.enabled !== false;
+    const variants = cfg.variants || def.variants || {};
+    const salt = cfg.salt ?? name;
+    const keys = Object.keys(variants);
+    const preferredFallback = cfg.defaultVariant ?? def.defaultVariant;
+    const fallback =
+      preferredFallback && Object.prototype.hasOwnProperty.call(variants, preferredFallback)
+        ? preferredFallback
+        : (keys[0] ?? "");
+    if (!keys.length) return fallback;
+    if (!enabled) return fallback;
+    const strict = process.env.NODE_ENV === "production";
+    const norm = validateOrNormalizeWeights(variants, strict);
+    if (!norm.ok) {
+      return fallback;
+    }
+    return chooseVariant(stableId, salt, norm.weights as Record<string, number>);
+  }
 
   if (meta.type === "rollout") {
     if (typeof raw === "boolean") return raw;

@@ -8,8 +8,24 @@ export const RolloutConfigSchema = z.object({
 });
 export type RolloutConfig = z.infer<typeof RolloutConfigSchema>;
 
-export const FlagValueSchema = z.union([z.boolean(), z.number(), z.string(), RolloutConfigSchema]);
-export type FlagValue = boolean | number | string | RolloutConfig;
+export const VariantConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  variants: z.record(z.number()).refine((obj) => Object.keys(obj).length > 0, {
+    message: "At least one variant",
+  }),
+  salt: z.string().max(128).optional(),
+  defaultVariant: z.string().max(128).optional(),
+});
+export type VariantConfig = z.infer<typeof VariantConfigSchema>;
+
+export const FlagValueSchema = z.union([
+  z.boolean(),
+  z.number(),
+  z.string(),
+  RolloutConfigSchema,
+  VariantConfigSchema,
+]);
+export type FlagValue = boolean | number | string | RolloutConfig | VariantConfig;
 
 export const FeatureFlagsSchema = z.record(FlagValueSchema);
 export type FeatureFlags = Record<string, FlagValue>;

@@ -1,5 +1,9 @@
-import * as hdr from "next/headers";
+import { cookies } from "next/headers";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
+}));
 
 import { POST } from "@/app/api/admin/ff-emergency-disable/route";
 import { __clearAudit, readAuditRecent } from "@/lib/ff/audit";
@@ -83,10 +87,10 @@ describe("S3-E Admin Emergency Disable API", () => {
   });
 
   it('успешный set глобального override и источник "global"', async () => {
-    vi.spyOn(hdr, "cookies").mockReturnValue({
+    vi.mocked(cookies).mockReturnValue({
       getAll: () => [],
       get: () => undefined,
-    } as unknown as ReturnType<typeof hdr.cookies>);
+    } as unknown as ReturnType<typeof cookies>);
     const res = await POST(
       req(
         { flag: "newCheckout", value: true, ttlSeconds: 60, reason: "incident" },

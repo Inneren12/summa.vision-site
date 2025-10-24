@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
+import * as stable from "../../lib/ff/stable-id";
+
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
 }));
-
-import { stableId } from "../../lib/ff/stable-id";
 
 describe("stableId()", () => {
   afterEach(() => {
@@ -13,7 +13,7 @@ describe("stableId()", () => {
   });
 
   it("uses userId when provided", () => {
-    expect(stableId("123")).toBe("user_123");
+    expect(stable.stableId("123")).toBe("user_123");
   });
 
   it("falls back to cookie sv_id or anon", () => {
@@ -22,12 +22,12 @@ describe("stableId()", () => {
       get: vi.fn().mockReturnValue({ value: "abc" }),
     } as unknown as CookiesReturn;
     vi.mocked(cookies).mockReturnValueOnce(withValue);
-    expect(stableId()).toBe("abc");
+    expect(stable.stableId()).toBe("abc");
 
     const withoutValue = {
       get: vi.fn().mockReturnValue(undefined),
     } as unknown as CookiesReturn;
     vi.mocked(cookies).mockReturnValueOnce(withoutValue);
-    expect(stableId()).toBe("anon");
+    expect(stable.stableId()).toBe("g:anon");
   });
 });

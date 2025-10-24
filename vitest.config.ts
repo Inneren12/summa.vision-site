@@ -2,6 +2,10 @@ import path from "node:path";
 
 import { defineConfig } from "vitest/config";
 
+if (!process.env.COLUMNS) {
+  process.env.COLUMNS = "80";
+}
+
 export default defineConfig({
   resolve: {
     alias: {

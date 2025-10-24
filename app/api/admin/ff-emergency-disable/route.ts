@@ -35,9 +35,6 @@ async function readJsonWithLimit(
     return { ok: false, res: NextResponse.json({ error: "Payload too large" }, { status: 413 }) };
   }
   const text = await req.text();
-  if (text.length > maxBytes) {
-    return { ok: false, res: NextResponse.json({ error: "Payload too large" }, { status: 413 }) };
-  }
   try {
     const data = JSON.parse(text);
     return { ok: true, data };
@@ -50,7 +47,7 @@ type ValidationResult = { ok: true; value: GlobalValue } | { ok: false; msg: str
 
 function validateByRegistry(name: string, value: unknown): ValidationResult {
   if (!isKnownFlag(name)) return { ok: false, msg: `Unknown flag "${name}"` };
-  const meta = (FLAG_REGISTRY as Record<string, { type: string }>)[name];
+  const meta = (FLAG_REGISTRY as Record<string, { type: string; defaultValue?: unknown }>)[name];
   switch (meta.type) {
     case "boolean":
       return typeof value === "boolean"
@@ -69,6 +66,17 @@ function validateByRegistry(name: string, value: unknown): ValidationResult {
       return typeof value === "boolean"
         ? { ok: true, value }
         : { ok: false, msg: `${name} (rollout) requires boolean value` };
+    case "variant": {
+      if (typeof value !== "string") {
+        return { ok: false, msg: `${name} (variant) requires string value` };
+      }
+      const variants = ((meta.defaultValue as { variants?: Record<string, number> })?.variants ??
+        {}) as Record<string, number>;
+      if (!Object.prototype.hasOwnProperty.call(variants, value)) {
+        return { ok: false, msg: `${name} unknown variant "${value}"` };
+      }
+      return { ok: true, value };
+    }
     default:
       return { ok: false, msg: `Unsupported type for ${name}` };
   }

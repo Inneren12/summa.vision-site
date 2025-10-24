@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 
 type FlagMeta = {
   name: string;
-  type: "boolean" | "string" | "number" | "rollout";
+  type: "boolean" | "string" | "number" | "rollout" | "variant";
   description?: string;
   deprecated?: boolean;
   ignoreOverrides?: boolean;
+  variants?: string[];
 };
 
 type Props = {
@@ -124,8 +125,21 @@ export default function DevFlagsClient({
           <tbody>
             {registry.map((m) => {
               const v = serverFlags[m.name];
-              const curlOn = buildOverrideCurl(baseUrl, m.name, m.type === "string" ? "on" : true);
-              const curlOff = buildOverrideCurl(baseUrl, m.name, m.type === "string" ? "" : false);
+              const variantOptions = m.type === "variant" ? (m.variants ?? []) : [];
+              const curlOn = buildOverrideCurl(
+                baseUrl,
+                m.name,
+                m.type === "string"
+                  ? "on"
+                  : m.type === "variant"
+                    ? (variantOptions[0] ?? "control")
+                    : true,
+              );
+              const curlOff = buildOverrideCurl(
+                baseUrl,
+                m.name,
+                m.type === "string" ? "" : m.type === "variant" ? (variantOptions[1] ?? "") : false,
+              );
               const curlReset = buildOverrideCurl(baseUrl, m.name, null);
               return (
                 <tr key={m.name}>
@@ -148,31 +162,76 @@ export default function DevFlagsClient({
                     <code>{String(v)}</code>
                   </td>
                   <td style={{ padding: 6 }}>
-                    <a
-                      href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:${JSON.stringify(m.type === "string" ? "on" : true)}`)}`}
-                    >
-                      ON
-                    </a>
-                    {" | "}
-                    <a
-                      href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:${JSON.stringify(m.type === "string" ? "" : false)}`)}`}
-                    >
-                      OFF
-                    </a>
-                    {" | "}
-                    <a
-                      href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:null`)}`}
-                    >
-                      Reset
-                    </a>
+                    {m.type === "variant" ? (
+                      <>
+                        {variantOptions.map((opt) => (
+                          <a
+                            key={opt}
+                            style={{ marginRight: 8 }}
+                            href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:${JSON.stringify(opt)}`)}`}
+                          >
+                            {opt}
+                          </a>
+                        ))}
+                        <a
+                          href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:null`)}`}
+                        >
+                          Reset
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <a
+                          href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:${JSON.stringify(m.type === "string" ? "on" : true)}`)}`}
+                        >
+                          ON
+                        </a>
+                        {" | "}
+                        <a
+                          href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:${JSON.stringify(m.type === "string" ? "" : false)}`)}`}
+                        >
+                          OFF
+                        </a>
+                        {" | "}
+                        <a
+                          href={`${baseUrl}/api/ff-override?ff=${encodeURIComponent(`${m.name}:null`)}`}
+                        >
+                          Reset
+                        </a>
+                      </>
+                    )}
                   </td>
                   <td style={{ padding: 6, fontFamily: "monospace" }}>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <button onClick={() => navigator.clipboard?.writeText(curlOn)}>ON</button>
-                      <button onClick={() => navigator.clipboard?.writeText(curlOff)}>OFF</button>
-                      <button onClick={() => navigator.clipboard?.writeText(curlReset)}>
-                        Reset
-                      </button>
+                      {m.type === "variant" ? (
+                        <>
+                          {variantOptions.map((opt) => (
+                            <button
+                              key={opt}
+                              onClick={() =>
+                                navigator.clipboard?.writeText(
+                                  buildOverrideCurl(baseUrl, m.name, opt),
+                                )
+                              }
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                          <button onClick={() => navigator.clipboard?.writeText(curlReset)}>
+                            Reset
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => navigator.clipboard?.writeText(curlOn)}>ON</button>
+                          <button onClick={() => navigator.clipboard?.writeText(curlOff)}>
+                            OFF
+                          </button>
+                          <button onClick={() => navigator.clipboard?.writeText(curlReset)}>
+                            Reset
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

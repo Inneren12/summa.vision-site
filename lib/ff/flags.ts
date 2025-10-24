@@ -1,5 +1,5 @@
 // Реестр флагов: source-of-truth для типов, дефолтов и описаний
-import { type RolloutConfig } from "./shared";
+import { type RolloutConfig, type VariantConfig } from "./shared";
 
 export const FLAG_REGISTRY = {
   newCheckout: {
@@ -26,6 +26,17 @@ export const FLAG_REGISTRY = {
     description: "Max items per page",
     owner: "team-web",
   },
+  uiExperiment: {
+    type: "variant",
+    defaultValue: {
+      enabled: true,
+      variants: { control: 50, treatment: 50 },
+      salt: "uiExperiment",
+      defaultVariant: "control",
+    } as VariantConfig,
+    description: "UI experiment (control vs treatment)",
+    owner: "team-design",
+  },
   // Защищённый rollout-флаг (для тестов и политики ignoreOverrides)
   protectedRollout: {
     type: "rollout",
@@ -44,6 +55,7 @@ type KindMap = {
   string: string;
   number: number;
   rollout: RolloutConfig;
+  variant: VariantConfig;
 };
 
 export type RawValueFor<N extends FlagName> = KindMap[FlagKind<N>];
@@ -54,7 +66,9 @@ export type EffectiveValueFor<N extends FlagName> =
       ? boolean
       : FlagKind<N> extends "string"
         ? string
-        : number;
+        : FlagKind<N> extends "variant"
+          ? string
+          : number;
 
 export type EffectiveFlags = { [K in FlagName]: EffectiveValueFor<K> };
 
