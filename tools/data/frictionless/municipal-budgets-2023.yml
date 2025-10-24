@@ -1,0 +1,18 @@
+name: municipal-budgets-2023
+primaryKey:
+  - city
+fields:
+  - name: city
+    type: string
+    constraints:
+      required: true
+  - name: total_allocated
+    type: integer
+    constraints:
+      required: true
+      minimum: 0
+  - name: total_spent
+    type: integer
+    constraints:
+      required: true
+      minimum: 0
