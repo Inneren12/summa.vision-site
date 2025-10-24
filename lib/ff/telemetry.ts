@@ -3,6 +3,8 @@
 
 export type TelemetrySource = "env" | "override" | "default" | "global";
 
+export type TelemetryEventType = "evaluation" | "exposure";
+
 export type TelemetryEvent = {
   ts: number; // timestamp (ms since epoch)
   flag: string; // flag name
@@ -12,6 +14,7 @@ export type TelemetryEvent = {
   userId?: string; // extracted from stableId if available
   evaluationTime?: number; // ms spent evaluating this flag
   cacheHit?: boolean; // reserved; currently always false
+  type: TelemetryEventType; // kind of event
 };
 
 const RING: TelemetryEvent[] = [];

@@ -24,6 +24,7 @@ describe("telemetry ring buffer", () => {
         source: "env",
         stableId: "sv_x",
         evaluationTime: 1,
+        type: "evaluation",
       });
     }
     const recent = readRecent(3);
@@ -34,13 +35,21 @@ describe("telemetry ring buffer", () => {
 
   it("filters by flag", () => {
     const now = Date.now();
-    trackFlagEvaluation({ ts: now, flag: "a", value: true, source: "env", stableId: "sv" });
+    trackFlagEvaluation({
+      ts: now,
+      flag: "a",
+      value: true,
+      source: "env",
+      stableId: "sv",
+      type: "evaluation",
+    });
     trackFlagEvaluation({
       ts: now + 1,
       flag: "b",
       value: false,
       source: "override",
       stableId: "sv",
+      type: "evaluation",
     });
     const onlyA = readRecent(10, { flag: "a" });
     expect(onlyA.length).toBe(1);

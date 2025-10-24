@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 
-import { getFlagsServer } from "../../lib/ff/effective.server";
+import { getFlagsServerWithMeta } from "../../lib/ff/effective.server";
+import { trackExposure } from "../../lib/ff/exposure";
 import { FLAG_REGISTRY, type FlagName, type EffectiveValueFor } from "../../lib/ff/flags";
+import { stableId as buildStableId } from "../../lib/ff/stable-id";
 
 type Props<N extends FlagName = FlagName> = {
   name: N;
@@ -19,9 +21,15 @@ export default async function FlagGateServer<N extends FlagName>({
   children,
   userId,
 }: Props<N>) {
-  const flags = await getFlagsServer({ userId });
+  const {
+    flags,
+    sources,
+    stableId,
+    userId: resolvedUserId,
+  } = await getFlagsServerWithMeta({ userId });
   const meta = FLAG_REGISTRY[name];
   const value = flags[name];
+  const source = sources[name] ?? "default";
 
   let shouldRender = false;
   if (meta.type === "boolean" || meta.type === "rollout") {
@@ -39,6 +47,17 @@ export default async function FlagGateServer<N extends FlagName>({
     } else {
       shouldRender = value === equals;
     }
+  }
+  if (shouldRender) {
+    const effectiveUserId = userId ?? resolvedUserId;
+    const sid = stableId ?? buildStableId(effectiveUserId);
+    trackExposure({
+      flag: name,
+      value: value as EffectiveValueFor<N>,
+      source,
+      stableId: sid,
+      userId: effectiveUserId,
+    });
   }
   return <>{shouldRender ? children : fallback}</>;
 }
