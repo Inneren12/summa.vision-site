@@ -5,6 +5,7 @@ import { getServerEnv } from "../env.server";
 import { isEdgeRuntime, assertServer } from "../runtime-guards";
 
 import { isKnownFlag, FLAG_REGISTRY, type FlagName } from "./flags";
+import { readGlobals } from "./global";
 import { readOverridesFromCookieHeader, type Overrides } from "./overrides";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 import type { TelemetrySource } from "./telemetry";
@@ -82,10 +83,13 @@ export async function getFeatureFlagsFromHeadersWithSources(
       return !("ignoreOverrides" in definition && definition.ignoreOverrides === true);
     }),
   );
-  const merged = mergeFlags(base, filtered);
+  const globals = readGlobals();
+  const merged = mergeFlags(mergeFlags(base, filtered), globals);
   const sources = {} as FlagSources;
   for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
-    if (Object.prototype.hasOwnProperty.call(filtered, name)) {
+    if (Object.prototype.hasOwnProperty.call(globals, name)) {
+      sources[name] = "global";
+    } else if (Object.prototype.hasOwnProperty.call(filtered, name)) {
       sources[name] = "override";
     } else if (Object.prototype.hasOwnProperty.call(base, name)) {
       sources[name] = "env";
