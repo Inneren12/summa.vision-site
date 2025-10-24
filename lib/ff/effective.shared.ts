@@ -1,6 +1,7 @@
 import { FLAG_REGISTRY, type FlagName, type EffectiveFlags } from "./flags";
 import { inRollout } from "./hash";
 import { type FeatureFlags, type RolloutConfig } from "./shared";
+import { warnFlagTypeMismatch, typeOfValue } from "./warn";
 
 function isRolloutConfig(value: unknown): value is RolloutConfig {
   if (typeof value !== "object" || value === null) return false;
@@ -21,6 +22,9 @@ export function resolveEffectiveFlag(
     const defaultConfig = meta.defaultValue;
     const candidate = raw ?? defaultConfig;
     if (!isRolloutConfig(candidate)) {
+      if (typeof raw !== "undefined") {
+        warnFlagTypeMismatch(name, "RolloutConfig or boolean override", typeOfValue(raw));
+      }
       if (!defaultConfig.enabled) return false;
       const percent = typeof defaultConfig.percent === "number" ? defaultConfig.percent : 100;
       const salt = defaultConfig.salt ?? name;
