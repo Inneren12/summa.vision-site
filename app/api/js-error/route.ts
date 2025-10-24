@@ -21,16 +21,20 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 export async function POST(req: Request) {
+  const snapshotId = (req.headers.get("x-ff-snapshot") || "").trim();
+  if (!snapshotId) {
+    return badRequest("Missing snapshot header");
+  }
+
   const payload = await readJson(req);
   if (!payload) {
     return badRequest("Expected JSON payload");
   }
-  const snapshotId = typeof payload.snapshotId === "string" ? payload.snapshotId : undefined;
-  if (!snapshotId) {
-    return badRequest("snapshotId is required");
-  }
+
   const message = typeof payload.message === "string" ? payload.message : "Unknown error";
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
+
   FF().metrics.recordError(snapshotId, message, stack);
+
   return new NextResponse(null, { status: 204 });
 }

@@ -5,17 +5,22 @@ function snapshotId(): string | undefined {
   return document.body?.dataset.ffSnapshot || undefined;
 }
 
-function postMetric(url: string, payload: Record<string, unknown>) {
+function postMetric(url: string, payload: Record<string, unknown>, snapshot: string) {
   try {
     const body = JSON.stringify(payload);
     if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      navigator.sendBeacon(url, body);
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon(url, blob);
       return;
     }
     if (typeof fetch === "undefined") return;
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "x-ff-snapshot": snapshot,
+    };
     fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body,
       keepalive: true,
     }).catch(() => {
@@ -39,16 +44,19 @@ export function reportWebVitals(metric: NextWebVitalsMetric) {
     attribution?: Record<string, unknown>;
   };
 
-  postMetric("/api/metrics/vitals", {
-    snapshotId: id,
-    metric: metric.name,
-    value: metric.value,
-    id: metric.id,
-    startTime: metric.startTime,
-    label: metric.label,
-    rating: metricWithOptionals.rating,
-    delta: metricWithOptionals.delta,
-    navigationType: metricWithOptionals.navigationType,
-    attribution: metricWithOptionals.attribution,
-  });
+  postMetric(
+    "/api/vitals",
+    {
+      name: metric.name,
+      value: metric.value,
+      id: metric.id,
+      startTime: metric.startTime,
+      label: metric.label,
+      rating: metricWithOptionals.rating,
+      delta: metricWithOptionals.delta,
+      navigationType: metricWithOptionals.navigationType,
+      attribution: metricWithOptionals.attribution,
+    },
+    id,
+  );
 }

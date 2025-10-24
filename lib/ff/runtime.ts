@@ -9,8 +9,18 @@ import type { TelemetryEvent } from "./telemetry";
 
 type TelemetrySink = { emit: (event: TelemetryEvent) => void };
 
+type VitalDetails = {
+  rating?: string;
+  id?: string;
+  startTime?: number;
+  label?: string;
+  delta?: number;
+  navigationType?: string;
+  attribution?: Record<string, unknown>;
+};
+
 type MetricsProvider = {
-  recordVital(snapshotId: string, metric: string, value: number, rating?: string): void;
+  recordVital(snapshotId: string, metric: string, value: number, details?: VitalDetails): void;
   recordError(snapshotId: string, message: string, stack?: string): void;
   summarize(snapshotId?: string): SnapshotSummary[];
   hasData(snapshotId: string): boolean;

@@ -5,9 +5,12 @@ import { FF } from "@/lib/ff/runtime";
 
 export function middleware(req: NextRequest) {
   const snapshot = FF().snapshot();
-  const has = req.cookies.get("sv_id")?.value;
-  if (!has) {
-    const res = NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-ff-snapshot", snapshot.id);
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (!req.cookies.get("sv_id")?.value) {
     res.cookies.set("sv_id", crypto.randomUUID(), {
       maxAge: 365 * 24 * 60 * 60,
       httpOnly: false,
@@ -16,10 +19,8 @@ export function middleware(req: NextRequest) {
       path: FF_COOKIE_PATH,
       domain: FF_COOKIE_DOMAIN,
     });
-    res.headers.set("x-ff-snapshot", snapshot.id);
-    return res;
   }
-  const res = NextResponse.next();
+
   res.headers.set("x-ff-snapshot", snapshot.id);
   return res;
 }

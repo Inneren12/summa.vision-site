@@ -10,6 +10,12 @@ type VitalEvent = {
   metric: string;
   value: number;
   rating?: string;
+  id?: string;
+  startTime?: number;
+  label?: string;
+  delta?: number;
+  navigationType?: string;
+  attribution?: Record<string, unknown>;
   ts: number;
 };
 
@@ -58,8 +64,33 @@ export class SelfMetricsProvider {
     private readonly errorsFile?: string,
   ) {}
 
-  recordVital(snapshotId: string, metric: string, value: number, rating?: string) {
-    const event: VitalEvent = { snapshotId, metric, value, rating, ts: now() };
+  recordVital(
+    snapshotId: string,
+    metric: string,
+    value: number,
+    details?: {
+      rating?: string;
+      id?: string;
+      startTime?: number;
+      label?: string;
+      delta?: number;
+      navigationType?: string;
+      attribution?: Record<string, unknown>;
+    },
+  ) {
+    const event: VitalEvent = {
+      snapshotId,
+      metric,
+      value,
+      rating: details?.rating,
+      id: details?.id,
+      startTime: details?.startTime,
+      label: details?.label,
+      delta: details?.delta,
+      navigationType: details?.navigationType,
+      attribution: details?.attribution,
+      ts: now(),
+    };
     this.vitals.push(event);
     if (this.vitalsFile) {
       this.enqueue(async () => {
