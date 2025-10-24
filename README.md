@@ -117,6 +117,17 @@ npm run test:visual
 - `brand/NARRATIVE.md` — narrative and tone guidance.
 - `brand/og-guidelines.md` — OG layout and export tips.
 
+### Feature Flags
+
+Документация и гайды по фиче‑флагам:
+
+- `docs/FLAGS_PLAYBOOK.md` — основной плейбук раскатки
+- `docs/FLAGS_SECURITY_PRIVACY.md` — безопасность и приватность
+- `docs/FLAGS_TROUBLESHOOTING.md` — отладка и FAQ
+- `docs/FLAGS_GOVERNANCE.md` — правила владения и жизненный цикл
+- `docs/FLAGS_API_REFERENCE.md` — справочник API
+- `docs/flags.generated.md` — инвентарь флагов (генерируется)
+
 ## OG Rendering
 
 Generate social images via Playwright:
