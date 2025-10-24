@@ -75,6 +75,7 @@ const allow = readAllowList();
 const files = readFiles();
 const argv = process.argv.slice(2);
 const HINT = argv.includes("--hint");
+const JSON_MODE = argv.includes("--json");
 
 const refs = new Map(flagNames.map((n) => [n, 0]));
 const unknown = new Map();
@@ -116,17 +117,27 @@ for (const [name, count] of unknown.entries()) {
   errors.push(`unknown flag usage "${name}" (${count} refs) at ${coords}`);
 }
 
-console.log("[ff-doctor] files:", files.length);
-console.log("[ff-doctor] errors:", errors.length);
-errors.forEach((e) => console.log("  -", e));
-console.log("[ff-doctor] warnings:", warnings.length);
-warnings.forEach((w) => console.log("  -", w));
+if (JSON_MODE) {
+  const payload = {
+    files: files.length,
+    refs: Object.fromEntries(refs),
+    unused: warnings.map((w) => w.split(":")[0]),
+    unknown: unknownDetails,
+  };
+  console.log(JSON.stringify(payload, null, 2));
+  process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
+} else {
+  console.log("[ff-doctor] files:", files.length);
+  console.log("[ff-doctor] errors:", errors.length);
+  errors.forEach((e) => console.log("  -", e));
+  console.log("[ff-doctor] warnings:", warnings.length);
+  warnings.forEach((w) => console.log("  -", w));
 
-if (HINT && errors.length) {
-  console.log("\n[ff-doctor] hints for allow-list:");
-  for (const [name] of unknown.entries()) {
-    console.log(`  allow-unknown: ${name}`);
+  if (HINT && errors.length) {
+    console.log("\n[ff-doctor] hints for allow-list:");
+    for (const [name] of unknown.entries()) {
+      console.log(`  allow-unknown: ${name}`);
+    }
   }
+  process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
 }
-
-process.exit(errors.length ? 1 : warnings.length ? 2 : 0);

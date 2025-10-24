@@ -47,7 +47,8 @@
     "test:unit": "vitest run --reporter=basic",
     "test:unit:watch": "vitest",
     "test:e2e:flags": "playwright test --config=playwright.flags.config.ts",
-    "prebuild": "npm run ff:codegen"
+    "prebuild": "npm run ff:codegen",
+    "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json"
   },
   "dependencies": {
     "zod": "^3.23.8"
