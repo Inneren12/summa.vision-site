@@ -4,8 +4,10 @@ datasets:
     source: "Northbridge and Southport Open Data Portal"
     license: "CC-BY 4.0"
     freshness: annual
+    sla_days: 400
   - id: population-census-2021
     title: "Regional Population Census 2021"
     source: "Regional Statistics Bureau"
     license: "CC0 1.0"
     freshness: quinquennial
+    sla_days: 2000
