@@ -3,6 +3,12 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
+import {
+  hasDoNotTrackEnabled,
+  readConsent,
+  redactMessage,
+  sanitizeStack,
+} from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
 
@@ -26,15 +32,21 @@ export async function POST(req: Request) {
     return badRequest("Missing snapshot header");
   }
 
+  if (hasDoNotTrackEnabled(req.headers)) {
+    return new NextResponse(null, { status: 204 });
+  }
+
   const payload = await readJson(req);
   if (!payload) {
     return badRequest("Expected JSON payload");
   }
 
-  const message = typeof payload.message === "string" ? payload.message : "Unknown error";
+  const consent = readConsent(req.headers);
+  const rawMessage = typeof payload.message === "string" ? payload.message : undefined;
+  const message = redactMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
 
-  FF().metrics.recordError(snapshotId, message, stack);
+  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack));
 
   return new NextResponse(null, { status: 204 });
 }

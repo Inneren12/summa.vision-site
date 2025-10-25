@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
+import { hasDoNotTrackEnabled, readConsent, sanitizeAttribution } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,10 @@ export async function POST(req: Request) {
     return badRequest("Missing snapshot header");
   }
 
+  if (hasDoNotTrackEnabled(req.headers)) {
+    return new NextResponse(null, { status: 204 });
+  }
+
   const json = await readJson(req);
   if (!json) {
     return badRequest("Expected JSON payload");
@@ -70,6 +75,7 @@ export async function POST(req: Request) {
     return badRequest("name and value are required");
   }
 
+  const consent = readConsent(req.headers);
   const rating = typeof payload.rating === "string" ? payload.rating : undefined;
   const id = typeof payload.id === "string" ? payload.id : undefined;
   const startTime = toFiniteNumber(payload.startTime);
@@ -89,7 +95,7 @@ export async function POST(req: Request) {
     label,
     delta,
     navigationType,
-    attribution,
+    attribution: sanitizeAttribution(consent, attribution),
   });
 
   return new NextResponse(null, { status: 204 });
