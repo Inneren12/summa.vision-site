@@ -20,6 +20,11 @@ export type RolloutStep = {
   at?: number;
 };
 
+export type RolloutShadow = {
+  pct: number;
+  seedBy?: SeedBy;
+};
+
 export type RolloutStrategy = {
   percent: number;
   salt?: string;
@@ -28,7 +33,7 @@ export type RolloutStrategy = {
   steps?: RolloutStep[];
   stop?: RolloutStopConditions;
   hysteresis?: RolloutHysteresis;
-  shadow?: boolean;
+  shadow?: RolloutShadow;
 };
 
 export type SegmentWhere =
@@ -120,6 +125,7 @@ export type FlagEvaluationResult = {
     | "default";
   segmentId?: string;
   override?: OverrideEntry;
+  shadowValue?: boolean;
 };
 
 export type FlagSnapshot = {

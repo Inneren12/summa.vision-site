@@ -186,7 +186,6 @@ async function adjustRollout(formData: FormData) {
   if (!Number.isFinite(delta)) throw new Error("Invalid step");
   const shadowRaw = typeof shadowParam === "string" ? shadowParam.trim() : undefined;
   const hasShadowParam = typeof shadowRaw === "string" && shadowRaw.length > 0;
-  const nextShadowValue = hasShadowParam ? shadowRaw.toLowerCase() === "true" : undefined;
   const { store, lock, metrics } = FF();
   const existing = await store.getFlag(flag);
   if (!existing) throw new Error("Flag not found");
@@ -200,10 +199,26 @@ async function adjustRollout(formData: FormData) {
     if (!current) throw new Error("Flag disappeared");
     const base = current.rollout?.percent ?? 0;
     const nextPercent = Math.max(0, Math.min(100, base + delta));
-    const currentShadow = Boolean(current.rollout?.shadow);
-    const nextShadow = hasShadowParam ? nextShadowValue === true : currentShadow;
+    const currentShadow = current.rollout?.shadow;
     const percentChanged = Math.abs(base - nextPercent) >= 1e-6;
-    if (!percentChanged && nextShadow === currentShadow) {
+    const nextShadowConfig = (() => {
+      if (!hasShadowParam) return currentShadow;
+      if (shadowRaw!.toLowerCase() === "true") {
+        const pct = percentChanged ? nextPercent : base;
+        const seedBy = currentShadow?.seedBy ?? current.rollout?.seedBy ?? current.seedByDefault;
+        return { pct, seedBy };
+      }
+      return undefined;
+    })();
+    const shadowChanged = (() => {
+      if (!currentShadow && !nextShadowConfig) return false;
+      if (!!currentShadow !== !!nextShadowConfig) return true;
+      if (!currentShadow || !nextShadowConfig) return false;
+      if (Math.abs((currentShadow.pct ?? 0) - (nextShadowConfig.pct ?? 0)) >= 1e-6) return true;
+      if (currentShadow.seedBy !== nextShadowConfig.seedBy) return true;
+      return false;
+    })();
+    if (!percentChanged && !shadowChanged) {
       return current;
     }
     const nextConfig: FlagConfig = {
@@ -211,7 +226,7 @@ async function adjustRollout(formData: FormData) {
       rollout: {
         ...(current.rollout ?? { percent: nextPercent }),
         percent: percentChanged ? nextPercent : base,
-        shadow: nextShadow,
+        shadow: nextShadowConfig,
       },
       updatedAt: Date.now(),
     };
@@ -225,7 +240,7 @@ async function adjustRollout(formData: FormData) {
     action: "rollout_step",
     flag,
     nextPercent: updated.rollout?.percent ?? 0,
-    shadow: hasShadowParam ? nextShadowValue === true : updated.rollout?.shadow,
+    shadow: hasShadowParam ? shadowRaw?.toLowerCase() === "true" : Boolean(updated.rollout?.shadow),
     requestId: correlation.requestId,
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,

@@ -1,7 +1,7 @@
 import { percentFor, seedFor } from "../bucketing";
 
 import { matchesSegment } from "./segment-match";
-import type { FlagConfig, FlagValue, OverrideValue } from "./types";
+import type { FlagConfig, FlagValue, OverrideValue, RolloutStrategy, SeedBy } from "./types";
 
 export type EvaluateFlagSeeds = {
   stableId?: string;
@@ -45,6 +45,7 @@ export type EvaluateFlagResult = {
   value: FlagValue | undefined;
   reason: EvaluateFlagReason;
   segmentId?: string;
+  shadowValue?: boolean;
 };
 
 export type RolloutComputationInput = {
@@ -118,25 +119,58 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
   const percentFn = rolloutPct ?? defaultRolloutPercent;
   const effectiveCtx = buildEffectiveContext(ctx, seeds);
   const seedByDefault = cfg.seedByDefault ?? "stableId";
+  let shadowValue: boolean | undefined;
+
+  const recordShadow = (
+    shadow: RolloutStrategy["shadow"],
+    salt: string,
+    fallbackSeedBy: SeedBy,
+    segmentId?: string,
+  ) => {
+    if (!shadow) return;
+    shadowValue = shadowValue ?? false;
+    const pct = ensurePercent(shadow.pct);
+    if (pct <= 0) return;
+    const seed = seedFor(cfg.key, effectiveCtx, seeds, shadow.seedBy ?? fallbackSeedBy);
+    const bucket = percentFn({
+      seed,
+      salt,
+      percent: pct,
+      flagKey: cfg.key,
+      segmentId,
+    });
+    if (bucket < pct) {
+      shadowValue = true;
+    }
+  };
+
+  const withShadow = <T extends Record<string, unknown>>(
+    result: T,
+  ): T & { shadowValue?: boolean } => {
+    if (typeof shadowValue === "boolean") {
+      return { ...result, shadowValue };
+    }
+    return result;
+  };
 
   const killSwitchActive = (cfg as { killSwitch?: boolean }).killSwitch ?? cfg.kill ?? false;
   const globalKillActive = process.env.FF_KILL_ALL === "true";
   if (killSwitchActive || globalKillActive) {
     if (typeof cfg.defaultValue === "boolean") {
-      return { value: false, reason: "killSwitch" };
+      return withShadow({ value: false, reason: "killSwitch" });
     }
     const killValue = cfg.killValue !== undefined ? cfg.killValue : undefined;
-    return { value: killValue, reason: "killSwitch" };
+    return withShadow({ value: killValue, reason: "killSwitch" });
   }
 
   if (hasOverrideValue(overrides?.user, effectiveCtx.userId)) {
     const value = overrides!.user![effectiveCtx.userId!];
-    return { value, reason: "userOverride" };
+    return withShadow({ value, reason: "userOverride" });
   }
 
   if (hasOverrideValue(overrides?.namespace, effectiveCtx.namespace)) {
     const value = overrides!.namespace![effectiveCtx.namespace!];
-    return { value, reason: "nsOverride" };
+    return withShadow({ value, reason: "nsOverride" });
   }
 
   const segments = [...(cfg.segments ?? [])].sort((a, b) => a.priority - b.priority);
@@ -144,24 +178,31 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
     if (!matchesSegment(segment, effectiveCtx)) continue;
 
     if (typeof segment.override !== "undefined") {
-      return {
+      return withShadow({
         value: segment.override,
         reason: "segmentOverride",
         segmentId: segment.id,
-      } satisfies EvaluateFlagResult;
+      } satisfies EvaluateFlagResult);
     }
 
     if (segment.rollout) {
       const percent = ensurePercent(segment.rollout.percent);
+      const fallbackSeed = segment.rollout.seedBy ?? seedByDefault;
+      recordShadow(
+        segment.rollout.shadow,
+        `${segment.rollout.salt || `${cfg.key}:segment:${segment.id}`}:shadow`,
+        fallbackSeed,
+        segment.id,
+      );
       if (percent <= 0) continue;
       if (percent >= 100) {
-        return {
+        return withShadow({
           value: cfg.defaultValue,
           reason: "segmentRollout",
           segmentId: segment.id,
-        } satisfies EvaluateFlagResult;
+        } satisfies EvaluateFlagResult);
       }
-      const seed = seedFor(cfg.key, effectiveCtx, seeds, segment.rollout.seedBy ?? seedByDefault);
+      const seed = seedFor(cfg.key, effectiveCtx, seeds, fallbackSeed);
       const salt = segment.rollout.salt || `${cfg.key}:segment:${segment.id}`;
       const bucket = percentFn({
         seed,
@@ -171,22 +212,28 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
         segmentId: segment.id,
       });
       if (bucket < percent) {
-        return {
+        return withShadow({
           value: cfg.defaultValue,
           reason: "segmentRollout",
           segmentId: segment.id,
-        } satisfies EvaluateFlagResult;
+        } satisfies EvaluateFlagResult);
       }
     }
   }
 
   if (cfg.rollout) {
     const percent = ensurePercent(cfg.rollout.percent);
+    const fallbackSeed = cfg.rollout.seedBy ?? seedByDefault;
+    recordShadow(
+      cfg.rollout.shadow,
+      `${cfg.rollout.salt || `${cfg.key}:global`}:shadow`,
+      fallbackSeed,
+    );
     if (percent >= 100) {
-      return { value: cfg.defaultValue, reason: "globalRollout" };
+      return withShadow({ value: cfg.defaultValue, reason: "globalRollout" });
     }
     if (percent > 0) {
-      const seed = seedFor(cfg.key, effectiveCtx, seeds, cfg.rollout.seedBy ?? seedByDefault);
+      const seed = seedFor(cfg.key, effectiveCtx, seeds, fallbackSeed);
       const salt = cfg.rollout.salt || `${cfg.key}:global`;
       const bucket = percentFn({
         seed,
@@ -195,10 +242,10 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
         flagKey: cfg.key,
       });
       if (bucket < percent) {
-        return { value: cfg.defaultValue, reason: "globalRollout" };
+        return withShadow({ value: cfg.defaultValue, reason: "globalRollout" });
       }
     }
   }
 
-  return { value: cfg.defaultValue, reason: "default" };
+  return withShadow({ value: cfg.defaultValue, reason: "default" });
 }

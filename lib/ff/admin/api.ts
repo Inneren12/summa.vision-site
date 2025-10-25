@@ -185,7 +185,7 @@ export function flagToApi(flag: FlagConfig): ApiFlagConfig {
         seedByDefault: toApiSeed(flag.rollout.seedByDefault ?? flag.seedByDefault),
         stop: flag.rollout.stop,
         hysteresis: flag.rollout.hysteresis,
-        shadow: flag.rollout.shadow,
+        shadow: Boolean(flag.rollout.shadow),
       }
     : undefined;
   const segments = flag.segments?.length ? flag.segments.map(toApiSegment) : undefined;
@@ -275,6 +275,14 @@ export function apiToFlag(payload: ApiFlagConfig, existing?: FlagConfig): FlagCo
         hysteresis: payload.rollout.hysteresis ?? existing?.rollout?.hysteresis,
         shadow: Object.prototype.hasOwnProperty.call(payload.rollout, "shadow")
           ? payload.rollout.shadow
+            ? {
+                pct: rolloutPercent,
+                seedBy:
+                  existing?.rollout?.shadow?.seedBy ??
+                  existing?.rollout?.seedBy ??
+                  existing?.seedByDefault,
+              }
+            : undefined
           : existing?.rollout?.shadow,
       }
     : existing?.rollout;

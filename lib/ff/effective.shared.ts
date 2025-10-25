@@ -74,20 +74,23 @@ export function resolveEffectiveFlag(
     }
     if (!candidate.enabled) {
       if (candidate.shadow) {
-        options?.onShadow?.({ value: false, percent: clampPercent(candidate.percent) });
+        const shadowPercent = clampPercent(candidate.shadow.pct);
+        options?.onShadow?.({ value: false, percent: shadowPercent });
       }
       return false;
     }
     const percent = clampPercent(candidate.percent);
     const salt = candidate.salt ?? name;
     if (candidate.shadow) {
+      const shadowPercent = clampPercent(candidate.shadow.pct);
+      const shadowSalt = `${salt}:shadow`;
       const inBucket = unitForSalt
         ? (() => {
-            const unit = unitForSalt(salt, "rollout");
-            return inRolloutByUnit(unit, percent);
+            const unit = unitForSalt(shadowSalt, "rollout");
+            return inRolloutByUnit(unit, shadowPercent);
           })()
-        : inRollout(stableId, percent, salt);
-      options?.onShadow?.({ value: inBucket, percent });
+        : inRollout(stableId, shadowPercent, shadowSalt);
+      options?.onShadow?.({ value: inBucket, percent: shadowPercent });
       return false;
     }
     if (unitForSalt) {

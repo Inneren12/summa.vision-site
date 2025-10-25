@@ -28,6 +28,17 @@ export const RolloutStepSchema = z
 
 export type RolloutStepInput = z.infer<typeof RolloutStepSchema>;
 
+const RolloutShadowPlanSchema = z
+  .object({
+    pct: z
+      .number({ invalid_type_error: "pct must be a number" })
+      .finite()
+      .min(0, { message: "pct must be within [0..100]" })
+      .max(100, { message: "pct must be within [0..100]" }),
+    seedBy: SeedBySchema.optional(),
+  })
+  .strict();
+
 export const RolloutPlanSchema = z
   .object({
     percent: z
@@ -39,7 +50,7 @@ export const RolloutPlanSchema = z
     salt: z.string().optional(),
     seedBy: SeedBySchema.optional(),
     seedByDefault: SeedBySchema.optional(),
-    shadow: z.boolean().optional(),
+    shadow: RolloutShadowPlanSchema.optional(),
     steps: z
       .array(RolloutStepSchema, {
         invalid_type_error: "steps must be an array of rollout steps",
@@ -284,8 +295,34 @@ function validateRollout(name: string, v: unknown, errors: string[], warnings: s
   if ("salt" in rollout && typeof rollout.salt !== "string") {
     errors.push(`${name}: "salt" must be string`);
   }
-  if ("shadow" in rollout && typeof rollout.shadow !== "boolean") {
-    errors.push(`${name}: "shadow" must be boolean`);
+  if ("shadow" in rollout) {
+    const allowedShadowSeeds = new Set([
+      "stableId",
+      "anonId",
+      "user",
+      "userId",
+      "namespace",
+      "cookie",
+      "ipUa",
+    ]);
+    const shadow = rollout.shadow as Record<string, unknown> | undefined;
+    if (!isPlainObject(shadow)) {
+      errors.push(`${name}: "shadow" must be object`);
+    } else {
+      if (typeof shadow.pct !== "number" || !Number.isFinite(shadow.pct)) {
+        errors.push(`${name}: shadow.pct must be number`);
+      } else if (shadow.pct < 0 || shadow.pct > 100) {
+        errors.push(`${name}: shadow.pct out of range [0..100]`);
+      }
+      if ("seedBy" in shadow) {
+        const seed = shadow.seedBy;
+        if (typeof seed !== "string" || !allowedShadowSeeds.has(seed)) {
+          errors.push(
+            `${name}: shadow.seedBy must be one of ${[...allowedShadowSeeds].join(", ")}`,
+          );
+        }
+      }
+    }
   }
 }
 

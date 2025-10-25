@@ -323,20 +323,28 @@ export class RedisFlagStore implements FlagStore {
         ]);
         if (!flag || !flag.enabled) return undefined;
 
+        const shadowRef: { value?: boolean } = {};
+        const withShadow = <T extends FlagEvaluationResult>(result: T): T => {
+          if (typeof shadowRef.value === "boolean") {
+            return { ...result, shadowValue: shadowRef.value } as T;
+          }
+          return result;
+        };
+
         const killActive = (flag.killSwitch ?? flag.kill ?? false) === true;
         const globalKill = process.env.FF_KILL_ALL === "true";
         if (killActive || globalKill) {
           if (typeof flag.defaultValue === "boolean") {
-            return {
+            return withShadow({
               value: false,
               reason: "killSwitch",
-            } satisfies FlagEvaluationResult;
+            } satisfies FlagEvaluationResult);
           }
           const killValue = flag.killValue !== undefined ? flag.killValue : undefined;
-          return {
+          return withShadow({
             value: killValue,
             reason: "killSwitch",
-          } satisfies FlagEvaluationResult;
+          } satisfies FlagEvaluationResult);
         }
 
         const map = new Map<string, StoredOverride>();
@@ -348,48 +356,53 @@ export class RedisFlagStore implements FlagStore {
         if (ctx.userId) {
           const userOverride = map.get(scopeField({ type: "user", id: ctx.userId }));
           if (userOverride) {
-            return {
+            return withShadow({
               value: userOverride.value,
               reason: "user-override",
               override: cloneOverride(userOverride),
-            } satisfies FlagEvaluationResult;
+            } satisfies FlagEvaluationResult);
           }
         }
         if (ctx.namespace) {
           const nsOverride = map.get(scopeField({ type: "namespace", id: ctx.namespace }));
           if (nsOverride) {
-            return {
+            return withShadow({
               value: nsOverride.value,
               reason: "namespace-override",
               override: cloneOverride(nsOverride),
-            } satisfies FlagEvaluationResult;
+            } satisfies FlagEvaluationResult);
           }
         }
 
-        const segmentResult = this.evaluateSegments(flag, ctx, seedByDefault);
+        const segmentResult = this.evaluateSegments(flag, ctx, seedByDefault, shadowRef);
         if (segmentResult) {
-          return segmentResult;
+          return withShadow(segmentResult);
         }
 
         const globalOverride = map.get("global");
         if (globalOverride) {
-          return {
+          return withShadow({
             value: globalOverride.value,
             reason: "global-override",
             override: cloneOverride(globalOverride),
-          } satisfies FlagEvaluationResult;
+          } satisfies FlagEvaluationResult);
         }
 
         const rolloutResult = this.evaluateRollout(
+          flag.key,
           flag.rollout,
           ctx,
           key,
           seedByDefault,
           flag.defaultValue,
+          shadowRef,
         );
-        if (rolloutResult) return rolloutResult;
+        if (rolloutResult) return withShadow(rolloutResult);
 
-        return { value: flag.defaultValue, reason: "default" } satisfies FlagEvaluationResult;
+        return withShadow({
+          value: flag.defaultValue,
+          reason: "default",
+        } satisfies FlagEvaluationResult);
       },
       () => this.memoryFallback.evaluate(key, ctx),
     );
@@ -399,6 +412,7 @@ export class RedisFlagStore implements FlagStore {
     flag: FlagConfig,
     ctx: FlagEvaluationContext,
     seedByDefault: SeedBy,
+    shadowRef: { value?: boolean },
   ): FlagEvaluationResult | undefined {
     const segments = flag.segments ?? [];
     for (const segment of segments) {
@@ -407,15 +421,25 @@ export class RedisFlagStore implements FlagStore {
         return { value: segment.override, reason: "segment-override", segmentId: segment.id };
       }
       if (segment.rollout) {
+        this.recordShadowValue(
+          segment.rollout.shadow,
+          flag.key,
+          ctx,
+          segment.rollout.salt || `${flag.key}:seg:${segment.id}`,
+          segment.rollout.seedBy ?? seedByDefault,
+          shadowRef,
+        );
         if (segment.rollout.shadow) {
           continue;
         }
         const result = this.evaluateRollout(
+          flag.key,
           segment.rollout,
           ctx,
           `${flag.key}:seg:${segment.id}`,
           seedByDefault,
           flag.defaultValue,
+          shadowRef,
         );
         if (result) {
           return {
@@ -429,21 +453,50 @@ export class RedisFlagStore implements FlagStore {
     return undefined;
   }
 
+  private recordShadowValue(
+    shadow: RolloutStrategy["shadow"] | undefined,
+    flagKey: string,
+    ctx: FlagEvaluationContext,
+    saltBase: string,
+    seedBy: SeedBy,
+    shadowRef: { value?: boolean },
+  ) {
+    if (!shadow) return;
+    shadowRef.value = shadowRef.value ?? false;
+    const pct = ensurePercent(shadow.pct);
+    if (pct <= 0) return;
+    const seedKey = seedFor(flagKey, ctx, undefined, shadow.seedBy ?? seedBy);
+    const salt = `${saltBase}:shadow`;
+    if (pctHit(`${seedKey}:${salt}`, pct)) {
+      shadowRef.value = true;
+    }
+  }
+
   private evaluateRollout(
+    flagKey: string,
     rollout: RolloutStrategy | undefined,
     ctx: FlagEvaluationContext,
     saltKey: string,
     seedByDefault: SeedBy,
     defaultValue: OverrideValue,
+    shadowRef: { value?: boolean },
   ): FlagEvaluationResult | undefined {
     if (!rollout) return undefined;
+    this.recordShadowValue(
+      rollout.shadow,
+      flagKey,
+      ctx,
+      rollout.salt || saltKey,
+      rollout.seedBy ?? seedByDefault,
+      shadowRef,
+    );
     if (rollout.shadow) return undefined;
     const percent = ensurePercent(rollout.percent);
     if (percent >= 100) {
       return { value: defaultValue, reason: "global-rollout" } satisfies FlagEvaluationResult;
     }
     if (percent <= 0) return undefined;
-    const seedKey = seedFor(flag.key, ctx, undefined, rollout.seedBy ?? seedByDefault);
+    const seedKey = seedFor(flagKey, ctx, undefined, rollout.seedBy ?? seedByDefault);
     const salt = rollout.salt || saltKey;
     if (pctHit(`${seedKey}:${salt}`, percent)) {
       return { value: defaultValue, reason: "global-rollout" } satisfies FlagEvaluationResult;
