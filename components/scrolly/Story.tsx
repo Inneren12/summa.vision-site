@@ -33,8 +33,10 @@ type StoryContextValue = {
   setActiveStep: (stepId: string) => void;
   registerStep: (id: string, element: HTMLElement) => void;
   unregisterStep: (id: string) => void;
+
   registerVisualization: (controller: StoryVisualizationController | null) => void;
   prefersReducedMotion: boolean;
+
   focusStep: (stepId: string) => boolean;
   focusStepByOffset: (currentStepId: string, offset: number) => boolean;
   focusFirstStep: () => boolean;
@@ -279,16 +281,10 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
       setActiveStep,
       registerStep,
       unregisterStep,
+
       registerVisualization,
       prefersReducedMotion,
-    }),
-    [
-      activeStepId,
-      setActiveStep,
-      registerStep,
-      unregisterStep,
-      registerVisualization,
-      prefersReducedMotion,
+
       focusStep,
       focusStepByOffset,
       focusFirstStep,
@@ -296,13 +292,17 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
     }),
     [
       activeStepId,
-      focusFirstStep,
-      focusLastStep,
+      setActiveStep,
+      registerStep,
+      unregisterStep,
+
+      registerVisualization,
+      prefersReducedMotion,
+
       focusStep,
       focusStepByOffset,
-      registerStep,
-      setActiveStep,
-      unregisterStep,
+      focusFirstStep,
+      focusLastStep,
     ],
   );
 
