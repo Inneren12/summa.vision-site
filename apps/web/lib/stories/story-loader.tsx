@@ -96,7 +96,8 @@ export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
     const filePath = path.join(STORIES_DIR, entry);
     const fileContents = await fs.readFile(filePath, "utf8");
     const { data } = matter(fileContents);
-    stories.push(normalizeStoryFrontMatter(data, path.relative(process.cwd(), filePath)));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stories.push(normalizeStoryFrontMatter({ ...(data as any), steps: ((data as any).steps ?? []).map((s: any) => ({ ...s, hash: s.hash ?? s.id })) } as any, path.relative(process.cwd(), filePath)));
   }
   return stories.sort((a, b) => a.title.localeCompare(b.title));
 }
