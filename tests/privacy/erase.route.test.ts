@@ -76,13 +76,21 @@ describe("POST /api/privacy/erase", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
+    const clearedCookies = response.cookies
+      .getAll()
+      .filter((cookie) => ["ff_aid", "sv_aid", "aid"].includes(cookie.name));
+    expect(clearedCookies).toHaveLength(3);
+    for (const cookie of clearedCookies) {
+      expect(cookie.value).toBe("");
+      expect(cookie.maxAge).toBe(0);
+    }
     const registry = await fs.readFile(erasureFile, "utf8");
     const records = registry
       .trim()
       .split(/\r?\n/)
       .map((line) => JSON.parse(line) as Record<string, unknown>);
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ sid: "sid-self", aid: "aid-self", source: "self" });
+    expect(records[0]).toMatchObject({ sid: "aid-self", aid: "aid-self", source: "self" });
     expect(deleteOverridesByUser).not.toHaveBeenCalled();
   });
 
@@ -119,6 +127,14 @@ describe("POST /api/privacy/erase", () => {
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.ok).toBe(true);
+    const clearedCookies = response.cookies
+      .getAll()
+      .filter((cookie) => ["ff_aid", "sv_aid", "aid"].includes(cookie.name));
+    expect(clearedCookies).toHaveLength(3);
+    for (const cookie of clearedCookies) {
+      expect(cookie.value).toBe("");
+      expect(cookie.maxAge).toBe(0);
+    }
     expect(payload.removedOverrides).toBe(2);
     expect(Array.isArray(payload.purge)).toBe(true);
     expect(payload.purge).toHaveLength(3);

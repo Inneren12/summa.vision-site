@@ -13,17 +13,13 @@ export function getStableIdFromCookieHeader(header?: string): string | undefined
   if (ffAid) {
     return ffAid.slice(`${STABLE_ID_COOKIE}=`.length);
   }
-  const svId = parts.find((p) => p.startsWith("sv_id="));
-  if (svId) {
-    return svId.slice("sv_id=".length);
-  }
   return undefined;
 }
 
 /** Утилита: взять ff_aid из next/headers cookies() на сервере. */
 export function getStableIdFromCookies(): string | undefined {
   const ck = cookies();
-  return ck.get(STABLE_ID_COOKIE)?.value ?? ck.get("sv_id")?.value;
+  return ck.get(STABLE_ID_COOKIE)?.value;
 }
 
 /** Сгенерировать uuid v4 для ff_aid (анонимный посетитель). */

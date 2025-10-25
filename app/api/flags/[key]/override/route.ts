@@ -3,6 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { enforceAdminCsrf } from "@/lib/admin/csrf";
+import { beginIdempotentRequest } from "@/lib/admin/idempotency";
 import { enforceAdminRateLimit, resolveOverrideRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
 import { normalizeNamespace } from "@/lib/ff/admin/api";
@@ -47,6 +49,22 @@ export async function GET(req: Request, { params }: { params: { key: string } })
 export async function POST(req: Request, { params }: { params: { key: string } }) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
+  const csrf = enforceAdminCsrf(req, auth.source);
+  if (!csrf.ok) {
+    return auth.apply(csrf.response);
+  }
+  const idempotency = beginIdempotentRequest(req);
+  if (idempotency.kind === "error") {
+    return auth.apply(idempotency.response);
+  }
+  if (idempotency.kind === "hit") {
+    return auth.apply(idempotency.response);
+  }
+  const finalize = async (res: NextResponse) => {
+    const applied = auth.apply(res);
+    await idempotency.store(applied);
+    return applied;
+  };
   const correlation = correlationFromRequest(req);
   const limit = resolveOverrideRpm();
   const gate = await enforceAdminRateLimit({
@@ -56,18 +74,18 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     actor: { role: auth.role, session: auth.session },
   });
   if (!gate.ok) {
-    return auth.apply(gate.response);
+    return finalize(gate.response);
   }
   if (process.env.FF_FREEZE_OVERRIDES === "true") {
-    return auth.apply(NextResponse.json({ error: "Overrides are frozen" }, { status: 423 }));
+    return finalize(NextResponse.json({ error: "Overrides are frozen" }, { status: 423 }));
   }
   const json = await req.json().catch(() => null);
   if (!json) {
-    return auth.apply(NextResponse.json({ error: "Invalid JSON" }, { status: 400 }));
+    return finalize(NextResponse.json({ error: "Invalid JSON" }, { status: 400 }));
   }
   const parsed = OverrideSchema.safeParse(json);
   if (!parsed.success) {
-    return auth.apply(
+    return finalize(
       NextResponse.json(
         { error: "Validation failed", details: parsed.error.flatten() },
         { status: 400 },
@@ -79,7 +97,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const { store, lock } = FF();
   const config = await store.getFlag(flagKey);
   if (!config) {
-    return auth.apply(NextResponse.json({ error: `Flag ${flagKey} not found` }, { status: 404 }));
+    return finalize(NextResponse.json({ error: `Flag ${flagKey} not found` }, { status: 404 }));
   }
   const normalizedNamespace = nsInput ? normalizeNamespace(nsInput) : undefined;
   let scope: OverrideScope;
@@ -118,7 +136,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
         requestNamespace: correlation.namespace,
       });
     }
-    return auth.apply(new NextResponse(null, { status: 204 }));
+    return finalize(new NextResponse(null, { status: 204 }));
   }
 
   logAdminAction({
@@ -134,5 +152,5 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,
   });
-  return auth.apply(NextResponse.json({ ok: true, override: result.saved }));
+  return finalize(NextResponse.json({ ok: true, override: result.saved }));
 }

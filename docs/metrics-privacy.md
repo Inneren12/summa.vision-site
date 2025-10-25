@@ -9,34 +9,50 @@ We recognize two consent levels:
 - `necessary` (default): minimal, privacy-preserving telemetry for service health only.
 - `all`: full diagnostics where stack traces and request URLs remain available for debugging.
 
-The level can be supplied via the `x-consent` header or the `sv_consent` cookie. Missing or malformed values fall back to `necessary`.
+Consent is resolved in the following order: an explicit `x-consent` header wins, the `sv_consent` cookie is used as a fallback, and a missing or malformed value defaults to `necessary`.
 
 ## Respecting the "Do Not Track" signal
 
-If the incoming request carries any of the standard DNT headers (`DNT`, `X-Do-Not-Track`, or `Sec-GPC`) with an enabled value (`1`, `yes`), the API responds with `{"skipped": true}` and **does not** persist any event.
+If the incoming request carries any of the standard DNT headers (`DNT`, `X-Do-Not-Track`, or `Sec-GPC`) with an enabled value (`1`, `yes`), the API short-circuits immediately with a `204` response and **does not** persist any event. The response emits the header `sv-telemetry-status: ok:true, skipped:true` so clients can log the skip without parsing a body.
 
-## Sensitive fields
+## Sensitive fields and modes
 
-When consent is limited to `necessary` we strip the following Personally Identifiable Information (PII) fields from the payload before persisting it:
+When consent is limited to `necessary` we **only** persist the enumerated allow-list below. Every other field—including URLs, selectors, stack traces, filenames, and arbitrary nested metadata—is removed prior to storage.
 
-| Field      | Notes                                                    |
-| ---------- | -------------------------------------------------------- |
-| `url`      | Removed from vital payloads, error reports, and metadata |
-| `message`  | JavaScript error message bodies                          |
-| `stack`    | JavaScript stack traces                                  |
-| `filename` | Source filenames reported with JS errors                 |
+| Allow-listed key | Notes |
+| ---------------- | ----- |
+| `eventType` | Event classification for interaction metrics. |
+| `navigationType` | Navigation type reported by the Web Vitals attribution helpers. |
+| `loadState` | Load state tag emitted by the attribution helper. |
+| `timeToFirstByte` | Timing data needed for LCP/FCP trend analysis. |
+| `firstByteToFCP` | Complementary timing to `timeToFirstByte`. |
+| `resourceLoadDelay` | Breakdown of resource loading delays for LCP. |
+| `resourceLoadTime` | Breakdown of resource loading durations for LCP. |
+| `elementRenderDelay` | Rendering delay component for LCP. |
+| `interactionType` | Interaction category for INP diagnostics. |
+| `interactionTime` | Timestamp used to plot INP spikes. |
+| `inputDelay` | Input delay value for INP. |
+| `processingDuration` | Processing duration component for INP. |
+| `presentationDelay` | Presentation delay component for INP. |
+| `totalBlockingTime` | Blocking time metric for INP/LCP analysis. |
+| `largestShiftValue` | Aggregate layout shift magnitude (no DOM references). |
+| `largestShiftTime` | Timestamp of the largest shift. |
+| `totalShiftValue` | Cumulative layout shift value. |
+| `largestInteractionType` | Interaction classification for INP outliers. |
+| `largestInteractionTime` | Timestamp for the largest interaction. |
+| `rating` | Web Vital qualitative rating. |
 
-Nested metadata (for example, attribution details) is scrubbed recursively to ensure no sensitive keys survive inside objects or arrays.
+The list intentionally excludes targets, selectors, URLs, stack traces, filenames, and any nested objects. This may remove helpful debugging context; during local investigations you can temporarily opt-in to `x-consent: all` to retain full payloads.
 
-When consent is `all`, the fields above are retained to aid incident debugging.
+When consent is `all`, the guard bypasses the allow-list and persists the payload verbatim for diagnostic parity.
 
 ## Identifiers for DSR clean-up
 
-Every stored event is annotated with the stable visitor identifier (`sid`, sourced from the `sv_id` cookie or `x-sid` header) and the account identifier (`aid`, taken from the `sv_aid` cookie or `x-aid` header when present). These markers let us locate and delete telemetry quickly during Data Subject Requests.
+Every stored event is annotated with the stable visitor identifier (`sid`, sourced from the `ff_aid` cookie or `x-sid` header; legacy `sv_id` cookies are still accepted) and the account identifier (`aid`, taken from the `ff_aid` cookie or `x-aid` header when present, with `sv_aid`/`aid` supported for backward compatibility). These markers let us locate and delete telemetry quickly during Data Subject Requests.
 
 ## Erasure workflow
 
-- `POST /api/privacy/erase` — self-service, deletes the current `sv_id` / `ff_aid` cookies from future telemetry. Admins (`x-ff-console-role: admin|ops`) may pass a JSON payload with `userId`, `sid`, or `aid` to trigger a Data Subject Request; feature-flag overrides for that user are deleted as part of the operation.
+- `POST /api/privacy/erase` — self-service, deletes the current `ff_aid`/`sv_aid`/`aid` cookies from future telemetry. Admins (`x-ff-console-role: admin|ops`) may pass a JSON payload with `userId`, `sid`, or `aid` to trigger a Data Subject Request; feature-flag overrides for that user are deleted as part of the operation.
 - `GET /api/privacy/status` — returns `{ erased: true }` when the resolved identifiers (from cookies or explicit query params) already reside in the erasure registry.
 
 Erased identifiers are appended to `.runtime/privacy.erasure.ndjson`. The metrics providers (`SelfMetricsProvider` and `SelfHostedMetricsProvider`) filter vitals/error events using that registry, so p75/error-rate reports exclude deleted visitors immediately. For small (<50 MB) NDJSON logs (`telemetry.ndjson`, `vitals.ndjson`, `errors.ndjson`) we rewrite the files in place to remove matching lines; larger files fall back to lazy filtering until the next rotation.

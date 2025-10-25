@@ -3,6 +3,12 @@
 import { readFile } from "node:fs/promises";
 import { exit } from "node:process";
 
+import {
+  parseRolloutPolicy,
+  RolloutPolicyValidationError,
+  formatRolloutPolicyIssues,
+} from "../lib/ff/policy/schema.mjs";
+
 const HELP = `Usage: node scripts/ff-rollout.mjs --policy=<file> (--dry-run|--apply)\n`;
 
 function parseArgs() {
@@ -49,119 +55,23 @@ function parseArgs() {
   return out;
 }
 
-function ensureString(value, name) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${name} must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function ensurePercent(value, name) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${name} must be a number`);
-  }
-  if (value < 0 || value > 100) {
-    throw new Error(`${name} must be between 0 and 100`);
-  }
-  return value;
-}
-
-function optionalNumber(value, name, { min, max, integer } = {}) {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${name} must be a number`);
-  }
-  if (integer && !Number.isInteger(value)) {
-    throw new Error(`${name} must be an integer`);
-  }
-  if (min !== undefined && value < min) {
-    throw new Error(`${name} must be >= ${min}`);
-  }
-  if (max !== undefined && value > max) {
-    throw new Error(`${name} must be <= ${max}`);
-  }
-  return value;
-}
-
-function sanitizeStop(stop) {
-  if (!stop || typeof stop !== "object") return undefined;
-  const out = {};
-  if (typeof stop.maxErrorRate === "number") {
-    out.maxErrorRate = optionalNumber(stop.maxErrorRate, "policy.stop.maxErrorRate", {
-      min: 0,
-      max: 1,
-    });
-  }
-  if (typeof stop.maxCLS === "number") {
-    out.maxCLS = optionalNumber(stop.maxCLS, "policy.stop.maxCLS", { min: 0 });
-  }
-  if (typeof stop.maxINP === "number") {
-    out.maxINP = optionalNumber(stop.maxINP, "policy.stop.maxINP", { min: 0 });
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
-function sanitizeHysteresis(hysteresis) {
-  if (!hysteresis || typeof hysteresis !== "object") return undefined;
-  const out = {};
-  if (typeof hysteresis.errorRate === "number") {
-    out.errorRate = optionalNumber(hysteresis.errorRate, "policy.hysteresis.errorRate", {
-      min: 0,
-      max: 1,
-    });
-  }
-  const cls =
-    typeof hysteresis.CLS === "number"
-      ? hysteresis.CLS
-      : typeof hysteresis.cls === "number"
-        ? hysteresis.cls
-        : undefined;
-  if (cls !== undefined) {
-    out.CLS = optionalNumber(cls, "policy.hysteresis.CLS", { min: 0 });
-  }
-  const inp =
-    typeof hysteresis.INP === "number"
-      ? hysteresis.INP
-      : typeof hysteresis.inp === "number"
-        ? hysteresis.inp
-        : undefined;
-  if (inp !== undefined) {
-    out.INP = optionalNumber(inp, "policy.hysteresis.INP", { min: 0 });
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
 async function loadPolicy(path) {
   const raw = await readFile(path, "utf8");
-  const json = JSON.parse(raw);
-  const host = ensureString(json.host ?? "http://localhost:3000", "policy.host");
-  const flag = ensureString(json.flag, "policy.flag");
-  const namespace = json.ns ? ensureString(json.ns, "policy.ns") : undefined;
-  const stepsInput = Array.isArray(json.steps) ? json.steps : [];
-  if (stepsInput.length === 0) {
-    throw new Error("policy.steps must be a non-empty array");
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Failed to parse policy JSON: ${(error && error.message) || error}`);
   }
-  const steps = [
-    ...new Set(stepsInput.map((value, idx) => ensurePercent(value, `policy.steps[${idx}]`))),
-  ].sort((a, b) => a - b);
-  const stop = sanitizeStop(json.stop);
-  const minSamples = optionalNumber(json.minSamples, "policy.minSamples", {
-    min: 0,
-    integer: true,
-  });
-  const coolDownMs = optionalNumber(json.coolDownMs, "policy.coolDownMs", {
-    min: 0,
-    integer: true,
-  });
-  const hysteresis = sanitizeHysteresis(json.hysteresis);
-  const shadow =
-    typeof json.shadow === "boolean"
-      ? json.shadow
-      : typeof json.shadow === "string"
-        ? json.shadow.toLowerCase() === "true"
-        : undefined;
-  const token = typeof json.token === "string" && json.token.trim() ? json.token.trim() : undefined;
-  return { host, flag, namespace, steps, stop, minSamples, coolDownMs, hysteresis, token, shadow };
+  try {
+    const policy = parseRolloutPolicy(json);
+    return { ...policy, namespace: policy.ns };
+  } catch (error) {
+    if (error instanceof RolloutPolicyValidationError) {
+      throw new Error(`Policy validation failed:\n${formatRolloutPolicyIssues(error.issues)}`);
+    }
+    throw error;
+  }
 }
 
 function resolveToken(policyToken) {

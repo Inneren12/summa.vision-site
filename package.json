@@ -59,10 +59,13 @@
     "postbuild": "npm run ff:types",
     "pretest": "npm run ff:types",
     "pretest:ci": "npm run ff:types",
-    "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json"
+    "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json",
+    "policy:validate": "tsx scripts/policy-validate.ts",
+    "policy:schema:export": "tsx scripts/policy-schema-export.ts"
   },
   "dependencies": {
     "ioredis": "^4.28.5",
+    "ulid": "^3.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -79,6 +82,7 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "axe-core": "^4.8.2",
+    "glob": "^10.4.5",
     "chalk": "^4.1.2",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.8",
@@ -101,6 +105,7 @@
     "tsx": "^4.8.1",
     "typescript": "5.5.4",
     "vitest": "^2.0.5",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "zod-to-json-schema": "^3.23.5"
   }
 }
