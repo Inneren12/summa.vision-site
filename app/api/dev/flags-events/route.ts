@@ -2,12 +2,13 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
+import { getEnv } from "@/lib/env/load";
 import { readRecent } from "@/lib/ff/telemetry";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     return NextResponse.json({ error: "Dev tools disabled" }, { status: 404 });
   }
   const events = readRecent(500);

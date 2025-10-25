@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 
+import { getEnv } from "@/lib/env/load";
 import { validateFeatureFlagsEnvString } from "@/lib/ff/schema";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     notFound();
   }
   const r = validateFeatureFlagsEnvString(process.env.FEATURE_FLAGS_JSON);

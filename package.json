@@ -9,6 +9,7 @@
     "dev": "npm run web:dev",
     "build": "npm run web:build",
     "start": "npm run web:start",
+    "env:check": "node scripts/env-check.mjs",
     "build:tokens": "tsx scripts/build-tokens.ts",
     "copy:tokens": "node ./scripts/copy-tokens.cjs",
     "web:dev": "npm run build:tokens && npm run copy:tokens && npm --workspace apps/web run dev",

@@ -1,12 +1,8 @@
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
+import { getEnv } from "@/lib/env/load";
+
 /** Общие параметры cookie для фиче-флагов. */
-export const FF_COOKIE_DOMAIN = process.env.FF_COOKIE_DOMAIN || undefined; // пример: ".example.com"
-export const FF_COOKIE_PATH = process.env.FF_COOKIE_PATH || "/";
-export const FF_COOKIE_SECURE =
-  process.env.FF_COOKIE_SECURE != null
-    ? process.env.FF_COOKIE_SECURE.toLowerCase() === "true"
-    : process.env.NODE_ENV === "production";
 export const FF_COOKIE_SAMESITE = "lax" as const;
 
 type StableCookieInit = Partial<Omit<ResponseCookie, "name" | "value">> & {
@@ -16,16 +12,42 @@ type StableCookieInit = Partial<Omit<ResponseCookie, "name" | "value">> & {
   domain?: ResponseCookie["domain"];
 };
 
-const BASE_COOKIE_OPTIONS: StableCookieInit = {
-  sameSite: FF_COOKIE_SAMESITE,
-  secure: FF_COOKIE_SECURE,
-  path: FF_COOKIE_PATH,
-  domain: FF_COOKIE_DOMAIN,
-};
+function baseCookieOptions(): StableCookieInit {
+  const env = getEnv();
+  return {
+    sameSite: FF_COOKIE_SAMESITE,
+    secure: env.FF_COOKIE_SECURE,
+    path: env.FF_COOKIE_PATH,
+    domain: env.FF_COOKIE_DOMAIN,
+  } satisfies StableCookieInit;
+}
+
+export function getFFCookieDomain(): string | undefined {
+  return getEnv().FF_COOKIE_DOMAIN;
+}
+
+export function getFFCookiePath(): string {
+  return getEnv().FF_COOKIE_PATH;
+}
+
+export function isFFCookieSecure(): boolean {
+  return getEnv().FF_COOKIE_SECURE;
+}
 
 export function stableCookieOptions(overrides: StableCookieInit = {}): StableCookieInit {
   return {
     ...overrides,
-    ...BASE_COOKIE_OPTIONS,
-  };
+    ...baseCookieOptions(),
+  } satisfies StableCookieInit;
 }
+
+export function getPublicCookieOptions(overrides: StableCookieInit = {}): StableCookieInit {
+  return stableCookieOptions({ ...overrides, httpOnly: false });
+}
+
+export function getPrivateCookieOptions(overrides: StableCookieInit = {}): StableCookieInit {
+  return stableCookieOptions({ ...overrides, httpOnly: true });
+}
+
+export const FF_PUBLIC_COOKIE_OPTIONS = getPublicCookieOptions();
+export const FF_PRIVATE_COOKIE_OPTIONS = getPrivateCookieOptions();

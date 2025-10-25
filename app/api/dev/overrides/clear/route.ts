@@ -1,10 +1,13 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
+import { getEnv } from "@/lib/env/load";
+
 export const runtime = "nodejs";
 
 export async function POST() {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  const env = getEnv();
+  if (!env.NEXT_PUBLIC_DEV_TOOLS) {
     return NextResponse.json({ error: "Dev tools disabled" }, { status: 404 });
   }
   const res = NextResponse.json({ ok: true });
@@ -13,7 +16,7 @@ export async function POST() {
     path: "/",
     sameSite: "lax",
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
   });
   return res;
 }

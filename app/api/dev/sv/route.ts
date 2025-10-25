@@ -1,12 +1,13 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
+import { getEnv } from "@/lib/env/load";
 import { stableCookieOptions } from "@/lib/ff/cookies";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     return NextResponse.json({ error: "Dev tools disabled" }, { status: 404 });
   }
   const url = new URL(req.url);

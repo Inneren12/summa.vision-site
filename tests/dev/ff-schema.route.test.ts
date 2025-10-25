@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { GET } from "@/app/api/dev/ff-schema/route";
+import { __resetEnvCache } from "@/lib/env/load";
 
 describe("Dev API /api/dev/ff-schema", () => {
   const saved = { ...process.env };
@@ -8,6 +9,7 @@ describe("Dev API /api/dev/ff-schema", () => {
     Object.assign(process.env, saved);
     process.env.NODE_ENV = "test";
     process.env.NEXT_PUBLIC_DEV_TOOLS = "true";
+    __resetEnvCache();
   });
   afterEach(() => {
     const env = process.env as Record<string, string | undefined>;
@@ -15,6 +17,7 @@ describe("Dev API /api/dev/ff-schema", () => {
       delete env[key];
     }
     Object.assign(process.env, saved);
+    __resetEnvCache();
   });
 
   it("returns report", async () => {
@@ -29,6 +32,7 @@ describe("Dev API /api/dev/ff-schema", () => {
 
   it("404 when dev tools disabled", async () => {
     delete process.env.NEXT_PUBLIC_DEV_TOOLS;
+    __resetEnvCache();
     const res = await GET();
     expect(res.status).toBe(404);
   });

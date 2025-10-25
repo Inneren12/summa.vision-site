@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { GET } from "@/app/api/dev/rollout-preview/route";
+import { __resetEnvCache } from "@/lib/env/load";
 
 describe("Dev API /api/dev/rollout-preview", () => {
   const saved = { ...process.env };
@@ -10,12 +11,14 @@ describe("Dev API /api/dev/rollout-preview", () => {
     process.env.FEATURE_FLAGS_JSON = JSON.stringify({
       newCheckout: { enabled: true, percent: 50 },
     });
+    __resetEnvCache();
   });
   afterEach(() => {
     for (const key of Object.keys(process.env)) {
       delete process.env[key];
     }
     Object.assign(process.env, saved);
+    __resetEnvCache();
   });
 
   it("rejects when not rollout", async () => {

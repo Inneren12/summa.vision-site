@@ -1,6 +1,7 @@
 import "server-only";
 import path from "node:path";
 
+
 import { getServerEnv, __resetServerEnvCacheForTests } from "../env.server";
 import { isEdgeRuntime, assertServer } from "../runtime-guards";
 
@@ -11,6 +12,8 @@ import { perfInc } from "./perf";
 import { devWarnFeatureFlagsSchemaOnce } from "./schema";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 import type { TelemetrySource } from "./telemetry";
+
+import { __resetEnvCache as __resetTypedEnvCache } from "@/lib/env/load";
 
 const DEFAULT_LOCAL_PATH = path.join(process.cwd(), "config", "feature-flags.local.json");
 
@@ -134,6 +137,7 @@ export function __devSetFeatureFlagsJson(next: string) {
 
 /** Для dev-роута и тестов: сбросить кэш ENV-парсинга. */
 export function __resetEnvCache() {
+  __resetTypedEnvCache();
   __envCacheSig = "";
   __envCacheParsed = {} as FeatureFlags;
 }
