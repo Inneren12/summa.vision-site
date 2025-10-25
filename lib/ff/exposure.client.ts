@@ -1,11 +1,12 @@
 "use client";
 
 import type { ExposureSource } from "./exposure";
+import type { FlagValue } from "./runtime/types";
 
 const STORAGE_PREFIX = "ff:exp:";
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 часа
 
-function makeKey(flag: string, value: boolean | string | number): string {
+function makeKey(flag: string, value: FlagValue): string {
   return `${STORAGE_PREFIX}${flag}:${String(value)}`;
 }
 
@@ -57,11 +58,7 @@ function markWithTTL(key: string): void {
   }
 }
 
-async function postExposure(data: {
-  flag: string;
-  value: boolean | string | number;
-  source: ExposureSource;
-}) {
+async function postExposure(data: { flag: string; value: FlagValue; source: ExposureSource }) {
   await fetch("/api/ff-exposure", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -72,7 +69,7 @@ async function postExposure(data: {
 
 export async function trackExposureClient(params: {
   flag: string;
-  value: boolean | string | number;
+  value: FlagValue;
   source: ExposureSource;
 }) {
   try {

@@ -1,6 +1,6 @@
 import murmur from "imurmurhash";
 
-import type { FlagConfig, OverrideValue, SeedBy, SegmentConfig } from "./types";
+import type { FlagConfig, FlagValue, OverrideValue, SeedBy, SegmentConfig } from "./types";
 
 export type EvaluateFlagSeeds = {
   anonId?: string;
@@ -185,8 +185,13 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
 
   const killSwitchActive = (cfg as { killSwitch?: boolean }).killSwitch ?? cfg.kill ?? false;
   if (killSwitchActive) {
-    const value = typeof cfg.defaultValue === "boolean" ? false : cfg.defaultValue;
-    return { value, reason: "killSwitch" };
+    const killValue: FlagValue =
+      cfg.killValue !== undefined
+        ? cfg.killValue
+        : typeof cfg.defaultValue === "boolean"
+          ? false
+          : cfg.defaultValue;
+    return { value: killValue, reason: "killSwitch" };
   }
 
   if (hasOverrideValue(overrides?.user, effectiveCtx.userId)) {

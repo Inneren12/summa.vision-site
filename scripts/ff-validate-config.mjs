@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-import { FlagConfigListSchema } from "../lib/ff/runtime/flag.schema.ts";
+import { FlagConfigListSchema } from "../lib/ff/schema.ts";
 
 const HELP = `Usage: npm run ff:validate [-- --file=flags.json]
 

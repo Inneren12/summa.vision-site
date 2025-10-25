@@ -12,6 +12,7 @@ import { logAdminAction, readAuditRecent } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import { createOverride } from "@/lib/ff/runtime/memory-store";
 import type { FlagConfig, OverrideEntry, OverrideScope } from "@/lib/ff/runtime/types";
+import { FlagConfigSchema } from "@/lib/ff/schema";
 import { correlationFromNextContext } from "@/lib/metrics/correlation";
 
 const PAGE_PATH = "/admin/flags";
@@ -39,8 +40,8 @@ function formatTimestamp(ts: number | undefined): string {
   return new Date(ts).toLocaleString();
 }
 
-function formatValue(value: boolean | number | string | undefined): string {
-  if (typeof value === "undefined") return "—";
+function formatValue(value: boolean | number | string | null | undefined): string {
+  if (value === null || typeof value === "undefined") return value === null ? "null" : "—";
   if (typeof value === "string") return value;
   return JSON.stringify(value);
 }
@@ -190,6 +191,7 @@ async function adjustRollout(formData: FormData) {
       },
       updatedAt: Date.now(),
     };
+    FlagConfigSchema.parse(nextConfig);
     return store.putFlag(nextConfig);
   });
   const correlation = correlationFromNextContext();

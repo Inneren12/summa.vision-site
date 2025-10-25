@@ -1,5 +1,7 @@
 export type SeedBy = "stableId" | "anonId" | "user" | "userId" | "namespace" | "cookie" | "ipUa";
 
+export type FlagValue = boolean | string | number | null;
+
 export type RolloutStopConditions = {
   maxErrorRate?: number;
   maxCLS?: number;
@@ -51,6 +53,7 @@ export type FlagConfig = {
   enabled: boolean;
   kill?: boolean;
   killSwitch?: boolean;
+  killValue?: FlagValue;
   seedByDefault?: SeedBy;
   defaultValue: boolean | string | number;
   tags?: string[];
@@ -89,7 +92,7 @@ export type FlagEvaluationContext = {
 };
 
 export type FlagEvaluationResult = {
-  value: boolean | string | number;
+  value: FlagValue;
   reason:
     | "kill"
     | "user-override"
