@@ -48,6 +48,8 @@ export const EnvSchema = z.object({
   REDIS_URL: optionalString,
   ROLLOUT_LOCK_TTL_MS: numberish,
   METRICS_WINDOW_MS: numberish,
+  METRICS_ROTATE_MAX_MB: numberish,
+  METRICS_ROTATE_DAYS: numberish,
   NEXT_PUBLIC_DEV_TOOLS: booleanish,
   FF_BUCKET_STRATEGY: optionalString,
 });

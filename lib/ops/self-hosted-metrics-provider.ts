@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
+import { listNdjsonFiles } from "@/lib/metrics/ndjson";
 import { loadErasureMatcher } from "@/lib/privacy/erasure";
 
 const DEFAULT_RUNTIME_DIR = path.resolve(".runtime");
@@ -31,37 +32,35 @@ function logWindowIoError(error: unknown, vitalsFile?: string, errorsFile?: stri
   console.warn(`[self-metrics] Failed to read ${target}`, error);
 }
 
-async function* readLines(filePath: string | undefined): AsyncIterable<string> {
-  if (!filePath) {
-    return;
-  }
-
-  let stream: ReturnType<typeof createReadStream> | undefined;
-  try {
-    stream = createReadStream(filePath, { encoding: "utf8" });
-  } catch (error) {
-    if (isErrnoException(error) && error.code === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
-
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  try {
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0) {
-        yield trimmed;
+async function* readLines(filePaths: readonly string[]): AsyncIterable<string> {
+  for (const filePath of filePaths) {
+    let stream: ReturnType<typeof createReadStream> | undefined;
+    try {
+      stream = createReadStream(filePath, { encoding: "utf8" });
+    } catch (error) {
+      if (isErrnoException(error) && error.code === "ENOENT") {
+        continue;
       }
+      throw error;
     }
-  } catch (error) {
-    if (isErrnoException(error) && error.code === "ENOENT") {
-      return;
+
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    try {
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0) {
+          yield trimmed;
+        }
+      }
+    } catch (error) {
+      if (isErrnoException(error) && error.code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    } finally {
+      rl.close();
+      stream?.destroy();
     }
-    throw error;
-  } finally {
-    rl.close();
-    stream?.destroy();
   }
 }
 
@@ -84,6 +83,8 @@ type Options = {
   vitalsFile?: string;
   errorsFile?: string;
   resolveSnapshotIds?: SnapshotResolver;
+  maxChunkDays?: number;
+  maxChunkCount?: number;
 };
 
 type ErasureMatcher = {
@@ -96,12 +97,12 @@ type ErasureMatcher = {
 };
 
 async function parseVitals(
-  filePath: string | undefined,
+  filePaths: readonly string[],
   cutoff: number,
   matcher: ErasureMatcher,
 ): Promise<SnapshotMetrics> {
   const map: SnapshotMetrics = new Map();
-  for await (const line of readLines(filePath)) {
+  for await (const line of readLines(filePaths)) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -133,12 +134,12 @@ async function parseVitals(
 }
 
 async function parseErrors(
-  filePath: string | undefined,
+  filePaths: readonly string[],
   cutoff: number,
   matcher: ErasureMatcher,
 ): Promise<SnapshotErrors> {
   const map: SnapshotErrors = new Map();
-  for await (const line of readLines(filePath)) {
+  for await (const line of readLines(filePaths)) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -180,6 +181,8 @@ export class SelfHostedMetricsProvider {
   private readonly vitalsFile?: string;
   private readonly errorsFile?: string;
   private readonly resolver?: SnapshotResolver;
+  private readonly maxChunkDays: number;
+  private readonly maxChunkCount: number;
   private readonly windowCache = new Map<string, WindowCacheEntry>();
 
   constructor(options?: Options) {
@@ -189,12 +192,18 @@ export class SelfHostedMetricsProvider {
     this.vitalsFile = options?.vitalsFile ?? DEFAULT_VITALS_FILE;
     this.errorsFile = options?.errorsFile ?? DEFAULT_ERRORS_FILE;
     this.resolver = options?.resolveSnapshotIds;
+    this.maxChunkDays = Number.isFinite(options?.maxChunkDays)
+      ? Math.max(0, Number(options?.maxChunkDays))
+      : 14;
+    this.maxChunkCount = Number.isFinite(options?.maxChunkCount)
+      ? Math.max(0, Number(options?.maxChunkCount))
+      : 12;
   }
 
   private getWindowCacheKey(span: number): string {
     const vitals = this.vitalsFile ?? DEFAULT_VITALS_FILE;
     const errors = this.errorsFile ?? DEFAULT_ERRORS_FILE;
-    return `${span}:${vitals}:${errors}`;
+    return `${span}:${vitals}:${errors}:${this.maxChunkDays}:${this.maxChunkCount}`;
   }
 
   private async loadWindow(windowMs?: number): Promise<WindowData> {
@@ -221,9 +230,19 @@ export class SelfHostedMetricsProvider {
       try {
         const cutoff = Date.now() - span;
         const matcher = await loadErasureMatcher();
+        const [vitalsFiles, errorFiles] = await Promise.all([
+          listNdjsonFiles(this.vitalsFile, {
+            maxChunkCount: this.maxChunkCount,
+            maxChunkDays: this.maxChunkDays,
+          }),
+          listNdjsonFiles(this.errorsFile, {
+            maxChunkCount: this.maxChunkCount,
+            maxChunkDays: this.maxChunkDays,
+          }),
+        ]);
         const [metrics, errors] = await Promise.all([
-          parseVitals(this.vitalsFile, cutoff, matcher),
-          parseErrors(this.errorsFile, cutoff, matcher),
+          parseVitals(vitalsFiles, cutoff, matcher),
+          parseErrors(errorFiles, cutoff, matcher),
         ]);
         const result: WindowData = { metrics, errors };
         this.windowCache.set(key, {

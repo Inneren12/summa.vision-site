@@ -4,19 +4,35 @@ import path from "node:path";
 
 let tsMorphModulePromise;
 let projectPromise;
+let fallbackToRegex = false;
 let virtualId = 0;
 
 async function loadTsMorph() {
-  if (!tsMorphModulePromise) {
-    tsMorphModulePromise = import("ts-morph");
+  if (fallbackToRegex) {
+    return null;
   }
-  return tsMorphModulePromise;
+  if (!tsMorphModulePromise) {
+    tsMorphModulePromise = import("ts-morph").catch(() => {
+      fallbackToRegex = true;
+      return null;
+    });
+  }
+  const tsMorphModule = await tsMorphModulePromise;
+  if (!tsMorphModule) {
+    fallbackToRegex = true;
+    return null;
+  }
+  return tsMorphModule;
 }
 
 async function getProject() {
+  if (fallbackToRegex) {
+    return null;
+  }
   if (!projectPromise) {
     projectPromise = (async () => {
       const tsMorph = await loadTsMorph();
+      if (!tsMorph) return null;
       const { Project, ts } = tsMorph;
       return new Project({
         useInMemoryFileSystem: true,
@@ -55,12 +71,8 @@ function getScriptKind(tsMorph, filename) {
 }
 
 export async function astAvailable() {
-  try {
-    await loadTsMorph();
-    return true;
-  } catch {
-    return false;
-  }
+  const tsMorphModule = await loadTsMorph();
+  return Boolean(tsMorphModule) || fallbackToRegex;
 }
 
 export async function scanTextForFlagsAST(text, filename, flagNames) {
@@ -68,11 +80,17 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
   if (!ok) return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
 
   const tsMorph = await loadTsMorph();
+  if (!tsMorph) {
+    return scanWithFallback(text, flagNames);
+  }
   let project;
   try {
     project = await getProject();
   } catch {
-    return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
+    return scanWithFallback(text, flagNames);
+  }
+  if (!project) {
+    return scanWithFallback(text, flagNames);
   }
 
   const refs = new Map(flagNames.map((n) => [n, 0]));
@@ -91,7 +109,7 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
       scriptKind: getScriptKind(tsMorph, filename),
     });
   } catch {
-    return { refs, fuzzyRefs, unknown, occurrences };
+    return scanWithFallback(text, flagNames);
   }
 
   const gateNames = new Set([
@@ -174,6 +192,63 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
     // ignore parsing issues, fallback произойдет через regex
   } finally {
     sourceFile?.forget();
+  }
+
+  return { refs, fuzzyRefs, unknown, occurrences };
+}
+
+function positionFromIndex(text, index) {
+  let line = 1;
+  let col = 0;
+  for (let i = 0; i < index; i += 1) {
+    if (text[i] === "\n") {
+      line += 1;
+      col = 0;
+    } else {
+      col += 1;
+    }
+  }
+  return { line, col };
+}
+
+function scanWithFallback(text, flagNames) {
+  const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
+  const unknown = new Map();
+  const occurrences = [];
+  const known = new Set(flagNames);
+
+  const record = (name, index, kind) => {
+    if (!name) return;
+    const { line, col } = positionFromIndex(text, index);
+    occurrences.push({ name, index, line, col, kind, fuzzy: false });
+    if (known.has(name)) {
+      refs.set(name, (refs.get(name) || 0) + 1);
+    } else {
+      unknown.set(name, (unknown.get(name) || 0) + 1);
+    }
+  };
+
+  const hookPattern = /useFlag\s*\(\s*(["'`])([^"'`\s)]+)\1/g;
+  let hookMatch;
+  while ((hookMatch = hookPattern.exec(text))) {
+    const [, , value] = hookMatch;
+    if (!value) continue;
+    const offset = hookMatch.index + hookMatch[0].indexOf(value);
+    record(value, offset, "hook");
+  }
+
+  const gatePattern =
+    /<(FlagGate|FlagGateServer|FlagGateClient|PercentGate|PercentGateServer|PercentGateClient|VariantGate|VariantGateServer|VariantGateClient)\b([^>]*)>/g;
+  let gateMatch;
+  while ((gateMatch = gatePattern.exec(text))) {
+    const [, , attrs] = gateMatch;
+    const nameMatch = attrs.match(/name\s*=\s*(?:"([^"]+)"|'([^']+)'|\{\s*['"]([^'"}]+)['"]\s*\})/);
+    if (!nameMatch) continue;
+    const value = nameMatch[1] ?? nameMatch[2] ?? nameMatch[3];
+    if (!value) continue;
+    const nameIndex = gateMatch.index + gateMatch[0].indexOf(nameMatch[0]);
+    record(value, nameIndex, "jsx");
   }
 
   return { refs, fuzzyRefs, unknown, occurrences };
