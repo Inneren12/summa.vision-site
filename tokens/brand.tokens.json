@@ -189,6 +189,48 @@
       "textOnSurface": {
         "minRatio": { "value": 4.5 }
       }
+    },
+    "motion": {
+      "reduce": {
+        "duration": {
+          "instant": { "value": "1ms" },
+          "fast": { "value": "60ms" },
+          "base": { "value": "90ms" },
+          "gentle": { "value": "120ms" }
+        },
+        "easing": {
+          "standard": { "value": "linear" },
+          "emphasized": { "value": "linear" }
+        }
+      }
+    },
+    "forcedColors": {
+      "fg": {
+        "default": { "value": "CanvasText" },
+        "muted": { "value": "GrayText" },
+        "inverse": { "value": "Canvas" },
+        "accent": { "value": "LinkText" }
+      },
+      "bg": {
+        "canvas": { "value": "Canvas" },
+        "surface": { "value": "Canvas" },
+        "elevated": { "value": "Canvas" },
+        "subtle": { "value": "Canvas" },
+        "inverse": { "value": "CanvasText" }
+      },
+      "border": {
+        "default": { "value": "CanvasText" },
+        "emphasis": { "value": "CanvasText" },
+        "focus": { "value": "Highlight" }
+      },
+      "focus": {
+        "ringColor": { "value": "Highlight" },
+        "ringText": { "value": "HighlightText" }
+      },
+      "selection": {
+        "bg": { "value": "Highlight" },
+        "text": { "value": "HighlightText" }
+      }
     }
   },
   "component": {
