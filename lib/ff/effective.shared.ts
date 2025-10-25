@@ -22,6 +22,7 @@ export function resolveEffectiveFlag(
   raw: unknown,
   stableId: string,
   unitForSalt?: (salt: string, mode?: "rollout" | "variant") => number,
+  options?: { onShadow?: (info: { value: boolean; percent: number }) => void },
 ): boolean | string | number {
   const meta = FLAG_REGISTRY[name];
 
@@ -71,9 +72,24 @@ export function resolveEffectiveFlag(
       }
       return inRollout(stableId, percent, salt);
     }
-    if (!candidate.enabled) return false;
+    if (!candidate.enabled) {
+      if (candidate.shadow) {
+        options?.onShadow?.({ value: false, percent: clampPercent(candidate.percent) });
+      }
+      return false;
+    }
     const percent = clampPercent(candidate.percent);
     const salt = candidate.salt ?? name;
+    if (candidate.shadow) {
+      const inBucket = unitForSalt
+        ? (() => {
+            const unit = unitForSalt(salt, "rollout");
+            return inRolloutByUnit(unit, percent);
+          })()
+        : inRollout(stableId, percent, salt);
+      options?.onShadow?.({ value: inBucket, percent });
+      return false;
+    }
     if (unitForSalt) {
       const unit = unitForSalt(salt, "rollout");
       return inRolloutByUnit(unit, percent);

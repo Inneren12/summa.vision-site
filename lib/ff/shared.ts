@@ -5,6 +5,7 @@ export const RolloutConfigSchema = z.object({
   enabled: z.boolean(),
   percent: z.number().min(0).max(100).optional(),
   salt: z.string().max(64).optional(),
+  shadow: z.boolean().optional(),
 });
 export type RolloutConfig = z.infer<typeof RolloutConfigSchema>;
 

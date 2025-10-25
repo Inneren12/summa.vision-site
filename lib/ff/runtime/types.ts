@@ -26,6 +26,7 @@ export type RolloutStrategy = {
   steps?: RolloutStep[];
   stop?: RolloutStopConditions;
   hysteresis?: RolloutHysteresis;
+  shadow?: boolean;
 };
 
 export type SegmentCondition =

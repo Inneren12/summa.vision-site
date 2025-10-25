@@ -44,6 +44,7 @@ const RolloutSchema = z
     steps: z.array(RolloutStepSchema).optional(),
     seedByDefault: SeedEnum.optional(),
     stop: RolloutStopSchema,
+    shadow: z.boolean().optional(),
   })
   .optional();
 

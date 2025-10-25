@@ -37,6 +37,7 @@ export const RolloutPlanSchema = z
     salt: z.string().optional(),
     seedBy: SeedBySchema.optional(),
     seedByDefault: SeedBySchema.optional(),
+    shadow: z.boolean().optional(),
     steps: z
       .array(RolloutStepSchema, {
         invalid_type_error: "steps must be an array of rollout steps",

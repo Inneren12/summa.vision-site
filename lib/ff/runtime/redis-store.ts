@@ -418,6 +418,9 @@ export class RedisFlagStore implements FlagStore {
         return { value: segment.override, reason: "segment-override", segmentId: segment.id };
       }
       if (segment.rollout) {
+        if (segment.rollout.shadow) {
+          continue;
+        }
         const result = this.evaluateRollout(
           segment.rollout,
           ctx,
@@ -445,6 +448,7 @@ export class RedisFlagStore implements FlagStore {
     defaultValue: OverrideValue,
   ): FlagEvaluationResult | undefined {
     if (!rollout) return undefined;
+    if (rollout.shadow) return undefined;
     const percent = ensurePercent(rollout.percent);
     if (percent >= 100) {
       return { value: defaultValue, reason: "global-rollout" } satisfies FlagEvaluationResult;

@@ -7,23 +7,27 @@ import { correlationFromNextContext } from "../metrics/correlation";
 import { FLAG_REGISTRY } from "./flags";
 import { FF } from "./runtime";
 
-type ExposureKey = string; // `${flag}:${value}`
+type ExposureKey = string; // `${type}:${flag}:${value}`
 const ALS = new AsyncLocalStorage<Set<ExposureKey>>();
 
 export type ExposureSource = "global" | "override" | "env" | "default";
 
-/** Обернуть SSR-рендер запроса: гарантирует дедуп экспозиций в его пределах. */
-export function withExposureContext<T>(fn: () => T): T {
-  return ALS.run(new Set<ExposureKey>(), fn);
-}
+/************************************
+ * Internal helpers
+ ***********************************/
 
-export function trackExposure(params: {
-  flag: string;
-  value: boolean | string | number;
-  source: ExposureSource;
-  stableId: string;
-  userId?: string;
-}) {
+type ExposureEventType = "exposure" | "exposure_shadow";
+
+function emitExposure(
+  type: ExposureEventType,
+  params: {
+    flag: string;
+    value: boolean | string | number;
+    source: ExposureSource;
+    stableId: string;
+    userId?: string;
+  },
+) {
   // Уважение DNT (Do-Not-Track)
   try {
     if (headers().get("dnt") === "1") return;
@@ -37,14 +41,14 @@ export function trackExposure(params: {
 
   const set = ALS.getStore();
   if (set) {
-    const key = `${params.flag}:${String(params.value)}`;
-    if (set.has(key)) return; // уже логировали на этом SSR
+    const key = `${type}:${params.flag}:${String(params.value)}`;
+    if (set.has(key)) return; // already logged in this SSR scope
     set.add(key);
   }
   const correlation = correlationFromNextContext();
   FF().telemetrySink.emit({
     ts: Date.now(),
-    type: "exposure",
+    type,
     flag: params.flag,
     value: safeValue,
     source: params.source,
@@ -54,4 +58,29 @@ export function trackExposure(params: {
     sessionId: correlation.sessionId,
     namespace: correlation.namespace,
   });
+}
+
+/** Обернуть SSR-рендер запроса: гарантирует дедуп экспозиций в его пределах. */
+export function withExposureContext<T>(fn: () => T): T {
+  return ALS.run(new Set<ExposureKey>(), fn);
+}
+
+export function trackExposure(params: {
+  flag: string;
+  value: boolean | string | number;
+  source: ExposureSource;
+  stableId: string;
+  userId?: string;
+}) {
+  emitExposure("exposure", params);
+}
+
+export function trackShadowExposure(params: {
+  flag: string;
+  value: boolean | string | number;
+  source: ExposureSource;
+  stableId: string;
+  userId?: string;
+}) {
+  emitExposure("exposure_shadow", params);
 }

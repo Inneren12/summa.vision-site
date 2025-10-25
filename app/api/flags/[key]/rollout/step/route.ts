@@ -40,6 +40,7 @@ const StepSchema = z.object({
   coolDownMs: z.number().int().min(0).optional(),
   hysteresis: HysteresisSchema,
   dryRun: z.boolean().optional(),
+  shadow: z.boolean().optional(),
 });
 
 function metricsUnavailable(): NextResponse {
@@ -256,6 +257,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     coolDownMs,
     hysteresis: rawHysteresis,
     dryRun,
+    shadow,
   } = parsed.data;
   const hysteresis = normalizeHysteresis(rawHysteresis);
   const key = params.key;
@@ -296,6 +298,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const lastStepAt = lastRecordedStep?.at ?? existing.updatedAt ?? 0;
   const effectiveStop = stop ?? existing.rollout?.stop;
   const effectiveHysteresis = hysteresis ?? existing.rollout?.hysteresis;
+  const shadowFlag = typeof shadow === "boolean" ? shadow : (existing.rollout?.shadow ?? false);
   const evaluation = evaluateRollout({
     stop: effectiveStop,
     hysteresis: effectiveHysteresis,
@@ -315,7 +318,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
         {
           ok: !evaluation.blocked,
           dryRun: true,
-          decision: evaluation.blocked ? "hold" : "advance",
+          decision: evaluation.blocked ? "hold" : shadowFlag ? "shadow" : "advance",
           reason: evaluation.reason,
           limit: evaluation.limit,
           actual: evaluation.actual,
@@ -325,6 +328,8 @@ export async function POST(req: Request, { params }: { params: { key: string } }
           metrics: metricsSnapshot,
           currentPct,
           nextPct: targetPct,
+          shadow: shadowFlag,
+          shadowCoverage: shadowFlag ? targetPct : undefined,
         },
         { status: 200 },
       ),
@@ -373,27 +378,32 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     if (!current) throw new Error("Flag disappeared");
     const base = clampPercent(current.rollout?.percent ?? 0);
     const target = clampPercent(targetPct);
-    if (Math.abs(base - target) < 1e-6) {
+    const currentShadow = Boolean(current.rollout?.shadow);
+    const nextShadow = typeof shadow === "boolean" ? shadow : currentShadow;
+    const percentChanged = Math.abs(base - target) >= 1e-6;
+    if (!percentChanged && nextShadow === currentShadow) {
       return { flag: current, changed: false } as const;
     }
     const now = Date.now();
     const existingSteps = current.rollout?.steps ?? [];
-    const nextSteps = [...existingSteps, { pct: target, at: now }];
+    const nextSteps = percentChanged ? [...existingSteps, { pct: target, at: now }] : existingSteps;
     const nextConfig = {
       ...current,
       rollout: {
-        percent: target,
+        percent: percentChanged ? target : base,
         salt: current.rollout?.salt,
         seedBy: current.rollout?.seedBy,
         seedByDefault: current.rollout?.seedByDefault ?? current.seedByDefault,
         stop: effectiveStop,
         hysteresis: effectiveHysteresis,
         steps: nextSteps,
+        shadow: nextShadow,
       },
       updatedAt: now,
     };
     const saved = await store.putFlag(nextConfig);
-    return { flag: saved, changed: true } as const;
+    const changed = percentChanged || nextShadow !== currentShadow;
+    return { flag: saved, changed } as const;
   });
 
   const apiFlag = flagToApi(updated.flag);
@@ -414,6 +424,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     action: "rollout_step",
     flag: key,
     nextPercent: apiFlag.rollout?.currentPct ?? apiFlag.rollout?.steps?.at(-1)?.pct ?? targetPct,
+    shadow: shadowFlag,
     requestId: correlation.requestId,
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,

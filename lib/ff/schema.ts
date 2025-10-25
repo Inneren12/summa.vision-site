@@ -39,6 +39,9 @@ function validateRollout(name: string, v: unknown, errors: string[], warnings: s
   if ("salt" in rollout && typeof rollout.salt !== "string") {
     errors.push(`${name}: "salt" must be string`);
   }
+  if ("shadow" in rollout && typeof rollout.shadow !== "boolean") {
+    errors.push(`${name}: "shadow" must be boolean`);
+  }
 }
 
 function validateVariant(name: string, v: unknown, errors: string[], warnings: string[]) {

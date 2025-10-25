@@ -34,6 +34,7 @@ export type AuditRecord =
       action: "rollout_step";
       flag: string;
       nextPercent: number;
+      shadow?: boolean;
     })
   | (AuditMetadata & {
       action: "rollout_blocked";
