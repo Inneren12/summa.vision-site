@@ -66,7 +66,9 @@ export async function getStoryBySlug(slug: string): Promise<StoryModule | null> 
     if (frontMatter.slug === slug) {
       return {
         slug,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
         frontMatter: frontMatter as any,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: await compileStoryContent(content, frontMatter as any),
       } satisfies StoryModule;
     }
