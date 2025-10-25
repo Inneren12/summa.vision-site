@@ -66,8 +66,8 @@ export async function getStoryBySlug(slug: string): Promise<StoryModule | null> 
     if (frontMatter.slug === slug) {
       return {
         slug,
-        frontMatter,
-        content: await compileStoryContent(content, frontMatter),
+        frontMatter: frontMatter as any,
+        content: await compileStoryContent(content, frontMatter as any),
       } satisfies StoryModule;
     }
   }
