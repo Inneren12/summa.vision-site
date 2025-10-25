@@ -31,6 +31,7 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
   }
   const known = new Set(flagNames);
   const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
   const unknown = new Map();
   const occurrences = [];
 
@@ -40,7 +41,7 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
     const before = text.slice(0, index);
     const line = (before.match(/\n/g)?.length ?? 0) + 1;
     const col = index - (before.lastIndexOf("\n") + 1) + 1;
-    occurrences.push({ name, index, line, col, kind: "ast" });
+    occurrences.push({ name, index, line, col, kind: "ast", fuzzy: false });
     if (known.has(name)) refs.set(name, (refs.get(name) || 0) + 1);
     else unknown.set(name, (unknown.get(name) || 0) + 1);
   }
@@ -99,5 +100,5 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
     }
   }
   walk(ast);
-  return { refs, unknown, occurrences };
+  return { refs, fuzzyRefs, unknown, occurrences };
 }

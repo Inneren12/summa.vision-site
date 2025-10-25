@@ -1,15 +1,55 @@
 import { stripComments } from "../utils/strip-comments.js";
 
-// Паттерны реального использования флагов:
+// Паттерны использования флагов. Fuzzy указывает на "серые" ссылки (строки, URL и пр.)
 const usagePatterns = [
-  /useFlag\(\s*(['"])([a-zA-Z0-9_-]+)\1\s*\)/g,
-  /<FlagGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<PercentGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<VariantGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
-  /<FlagGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /<PercentGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /<VariantGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
-  /\?ff=([a-zA-Z0-9_-]+)\s*:/g,
+  {
+    regex: /useFlag\(\s*(['"])([a-zA-Z0-9_-]+)\1\s*\)/g,
+    kind: "hook",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<FlagGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<PercentGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<VariantGate(?:Server|Client)?\b[^>]*\bname=(['"])([a-zA-Z0-9_-]+)\1/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<FlagGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<PercentGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /<VariantGate(?:Server|Client)?\b[^>]*\bname=\{\s*(['"])([a-zA-Z0-9_-]+)\1\s*\}/g,
+    kind: "jsx",
+    fuzzy: false,
+    extract: (match) => match[2] || match[1],
+  },
+  {
+    regex: /\?ff=([a-zA-Z0-9_-]+)\s*:/g,
+    kind: "query",
+    fuzzy: true,
+    extract: (match) => match[1],
+  },
 ];
 
 function buildLineIndex(text) {
@@ -37,22 +77,30 @@ export function scanTextForFlags(text, flagNames) {
   const lineIndex = buildLineIndex(cleaned);
   const known = new Set(flagNames);
   const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
   const unknown = new Map();
   const occurrences = [];
 
   for (const pat of usagePatterns) {
-    const re = new RegExp(pat.source, pat.flags);
+    const re = new RegExp(pat.regex.source, pat.regex.flags);
     for (const m of cleaned.matchAll(re)) {
-      const name = m[2] || m[1];
+      const name = pat.extract(m);
       if (!name) continue;
       const index = m.index ?? 0;
       const { line, col } = positionToLineCol(lineIndex, index);
-      occurrences.push({ name, index, line, col, kind: pat.toString() });
-      if (known.has(name)) refs.set(name, (refs.get(name) || 0) + 1);
-      else unknown.set(name, (unknown.get(name) || 0) + 1);
+      occurrences.push({ name, index, line, col, kind: pat.kind, fuzzy: pat.fuzzy });
+      if (known.has(name)) {
+        if (pat.fuzzy) {
+          fuzzyRefs.set(name, (fuzzyRefs.get(name) || 0) + 1);
+        } else {
+          refs.set(name, (refs.get(name) || 0) + 1);
+        }
+      } else {
+        unknown.set(name, (unknown.get(name) || 0) + 1);
+      }
     }
   }
-  return { refs, unknown, occurrences };
+  return { refs, fuzzyRefs, unknown, occurrences };
 }
 
 export default scanTextForFlags;
