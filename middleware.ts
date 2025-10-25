@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
+import { ulid } from "ulid";
 
 import {
   ADMIN_AID_COOKIE,
@@ -113,7 +114,7 @@ export async function middleware(req: NextRequest) {
 
   const snapshot = await FF().snapshot();
   const incomingRequestId = (req.headers.get("x-request-id") || "").trim();
-  const requestId = incomingRequestId || crypto.randomUUID();
+  const requestId = incomingRequestId || ulid();
   forwardedHeaders.set("x-request-id", requestId);
   const cookieJar = parseCookieHeader(forwardedHeaders.get("cookie"));
   const cookieUpdates: CookieRecord[] = [];
