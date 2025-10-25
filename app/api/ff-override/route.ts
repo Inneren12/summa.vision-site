@@ -31,7 +31,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   try {
     // --- S3-A preflight guard (RL + optional prod token) ---
-    const gate = guardOverrideRequest(req);
+    const gate = await guardOverrideRequest(req);
     if (!gate.allow) {
       return NextResponse.json(gate.body, { status: gate.code, headers: gate.headers });
     }

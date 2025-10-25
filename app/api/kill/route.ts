@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { enforceAdminRateLimit, resolveKillSwitchRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
 import { normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
@@ -20,6 +21,16 @@ const KillSchema = z.object({
 export async function POST(req: Request) {
   const auth = authorizeApi(req, "admin");
   if (!auth.ok) return auth.response;
+  const limit = resolveKillSwitchRpm();
+  const gate = await enforceAdminRateLimit({
+    req,
+    scope: "kill",
+    rpm: limit,
+    actor: { role: auth.role, session: auth.session },
+  });
+  if (!gate.ok) {
+    return auth.apply(gate.response);
+  }
   const json = await req.json().catch(() => null);
   const candidate: Record<string, unknown> = json && typeof json === "object" ? { ...json } : {};
   if (candidate.enable === undefined && typeof candidate.enabled === "boolean") {

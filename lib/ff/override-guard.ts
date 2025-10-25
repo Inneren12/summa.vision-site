@@ -14,32 +14,46 @@ export type GuardDecision =
       headers?: Record<string, string>;
     };
 
+function parseOverrideRpm(): number {
+  const raw = process.env.ADMIN_RATE_LIMIT_OVERRIDE_RPM ?? process.env.FF_OVERRIDE_RPM;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return 10;
+  }
+  if (parsed <= 0) return 0;
+  return Math.min(Math.max(1, parsed), 240);
+}
+
 /** Preflight for /api/ff-override: rate limit + prod tester token. */
-export function guardOverrideRequest(req: Request): GuardDecision {
-  const rawRpm = process.env.FF_OVERRIDE_RPM;
-  let rpm = Number(rawRpm);
-  if (!Number.isFinite(rpm)) rpm = 10;
-  rpm = Math.min(Math.max(1, rpm), 120);
+export async function guardOverrideRequest(req: Request): Promise<GuardDecision> {
+  const rpm = parseOverrideRpm();
   const requireToken = process.env.NODE_ENV === "production";
   const testerToken = process.env.FF_TESTER_TOKEN;
 
   // IP for rate-limiting
   const rawXff = req.headers.get("x-forwarded-for");
-  const clientIp = parseXForwardedFor(rawXff) || (req.headers.get("x-real-ip") ?? "unknown");
+  const parsedIp = parseXForwardedFor(rawXff);
+  const clientIp = parsedIp === "unknown" ? (req.headers.get("x-real-ip") ?? "unknown") : parsedIp;
   const cookieJar = req.headers.get("cookie") || "";
   const jar = parseCookieHeader(cookieJar);
   const sv = jar["sv_id"] || "nosvid";
-  const rlKey = `ff-override:${clientIp}:${sv}`;
-  const { ok, resetIn } = allow(rlKey, rpm);
-  if (!ok) {
-    inc("override.429");
-    const retry = Math.ceil(resetIn / 1000);
-    return {
-      allow: false,
-      code: 429,
-      body: { error: "Too many requests", retryAfter: retry },
-      headers: { "Retry-After": String(retry) },
-    };
+
+  if (rpm > 0) {
+    const rlKey = `ff-override:${clientIp}:${sv}`;
+    const { ok, resetIn } = await allow(rlKey, rpm);
+    if (!ok) {
+      inc("override.429");
+      const retry = Math.max(1, Math.ceil(resetIn / 1000));
+      console.warn(
+        `[OverrideGuard] rate limit exceeded (rpm=${rpm}) for ip=${clientIp} sv=${sv}, retry in ${retry}s`,
+      );
+      return {
+        allow: false,
+        code: 429,
+        body: { error: "Too many requests", retryAfter: retry },
+        headers: { "Retry-After": String(retry) },
+      };
+    }
   }
 
   if (process.env.NODE_ENV === "production") {
