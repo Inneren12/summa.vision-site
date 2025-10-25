@@ -4,60 +4,43 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
-function readSnapshotId(): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  return document.body?.dataset.ffSnapshot || undefined;
-}
+import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
+import type { JsErrorCorrelation } from "@/lib/reportError";
+import { reportJsError } from "@/lib/reportError";
 
-function postBeacon(url: string, payload: Record<string, unknown>, snapshot: string) {
-  try {
-    const body = JSON.stringify(payload);
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      return;
-    }
-    if (typeof fetch === "undefined") return;
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      "x-ff-snapshot": snapshot,
-    };
-    fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      keepalive: true,
-    }).catch(() => {
-      /* ignore */
-    });
-  } catch {
-    /* noop */
-  }
-}
+type ProvidersProps = {
+  children: ReactNode;
+  snapshotId: string;
+  correlation: JsErrorCorrelation;
+};
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, snapshotId, correlation }: ProvidersProps) {
+  const { requestId, sessionId, namespace } = correlation;
+
   useEffect(() => {
-    const snapshotId = readSnapshotId();
     if (!snapshotId) return;
+    const context = { requestId, sessionId, namespace };
     const onError = (event: ErrorEvent) => {
-      postBeacon(
-        "/api/js-error",
-        {
-          message: event.message,
-          stack: event.error?.stack,
-        },
-        snapshotId,
-      );
+      const message =
+        event.message || (event.error instanceof Error ? event.error.message : undefined);
+      const stack = event.error instanceof Error ? event.error.stack : undefined;
+      void reportJsError(snapshotId, context, {
+        message,
+        stack,
+        filename: event.filename || undefined,
+        url: typeof window !== "undefined" ? window.location.href : undefined,
+      });
     };
     const onRejection = (event: PromiseRejectionEvent) => {
-      postBeacon(
-        "/api/js-error",
-        {
-          message: event.reason instanceof Error ? event.reason.message : String(event.reason),
-          stack: event.reason instanceof Error ? event.reason.stack : undefined,
-        },
-        snapshotId,
-      );
+      const reason = event.reason;
+      const message =
+        reason instanceof Error ? reason.message : reason != null ? String(reason) : undefined;
+      const stack = reason instanceof Error ? reason.stack : undefined;
+      void reportJsError(snapshotId, context, {
+        message,
+        stack,
+        url: typeof window !== "undefined" ? window.location.href : undefined,
+      });
     };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
@@ -65,11 +48,13 @@ export function Providers({ children }: { children: ReactNode }) {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
     };
-  }, []);
+  }, [snapshotId, namespace, requestId, sessionId]);
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      {children}
-    </ThemeProvider>
+    <GlobalErrorBoundary snapshotId={snapshotId} correlation={correlation}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        {children}
+      </ThemeProvider>
+    </GlobalErrorBoundary>
   );
 }
