@@ -31,6 +31,8 @@ describe("env/load", () => {
     process.env.REDIS_URL = "redis://localhost:6379/0";
     process.env.ROLLOUT_LOCK_TTL_MS = "2000";
     process.env.METRICS_WINDOW_MS = "60000";
+    process.env.METRICS_ROTATE_MAX_MB = "64";
+    process.env.METRICS_ROTATE_DAYS = "10";
     process.env.NEXT_PUBLIC_DEV_TOOLS = "true";
 
     const env = loadEnv();
@@ -43,6 +45,8 @@ describe("env/load", () => {
     expect(env.REDIS_URL).toBe("redis://localhost:6379/0");
     expect(env.ROLLOUT_LOCK_TTL_MS).toBe(2000);
     expect(env.METRICS_WINDOW_MS).toBe(60000);
+    expect(env.METRICS_ROTATE_MAX_MB).toBe(64);
+    expect(env.METRICS_ROTATE_DAYS).toBe(10);
     expect(env.NEXT_PUBLIC_DEV_TOOLS).toBe(true);
   });
 
