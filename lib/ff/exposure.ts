@@ -6,6 +6,7 @@ import { correlationFromNextContext } from "../metrics/correlation";
 
 import { FLAG_REGISTRY } from "./flags";
 import { FF } from "./runtime";
+import type { FlagValue } from "./runtime/types";
 
 type ExposureKey = string; // `${type}:${flag}:${value}`
 const ALS = new AsyncLocalStorage<Set<ExposureKey>>();
@@ -22,7 +23,7 @@ function emitExposure(
   type: ExposureEventType,
   params: {
     flag: string;
-    value: boolean | string | number;
+    value: FlagValue;
     source: ExposureSource;
     stableId: string;
     userId?: string;
@@ -37,7 +38,7 @@ function emitExposure(
 
   // Редактирование чувствительных значений
   const meta = FLAG_REGISTRY[params.flag as keyof typeof FLAG_REGISTRY];
-  const safeValue = meta?.sensitive ? "[redacted]" : params.value;
+  const safeValue: FlagValue = meta?.sensitive ? "[redacted]" : params.value;
 
   const set = ALS.getStore();
   if (set) {
@@ -67,7 +68,7 @@ export function withExposureContext<T>(fn: () => T): T {
 
 export function trackExposure(params: {
   flag: string;
-  value: boolean | string | number;
+  value: FlagValue;
   source: ExposureSource;
   stableId: string;
   userId?: string;
@@ -77,7 +78,7 @@ export function trackExposure(params: {
 
 export function trackShadowExposure(params: {
   flag: string;
-  value: boolean | string | number;
+  value: FlagValue;
   source: ExposureSource;
   stableId: string;
   userId?: string;

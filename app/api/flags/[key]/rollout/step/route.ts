@@ -9,6 +9,7 @@ import { flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import type { RolloutHysteresis, RolloutStopConditions } from "@/lib/ff/runtime/types";
+import { FlagConfigSchema } from "@/lib/ff/schema";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
@@ -401,10 +402,23 @@ export async function POST(req: Request, { params }: { params: { key: string } }
       },
       updatedAt: now,
     };
-    const saved = await store.putFlag(nextConfig);
+    const parsed = FlagConfigSchema.safeParse(nextConfig);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error } as const;
+    }
+    const saved = await store.putFlag(parsed.data);
     const changed = percentChanged || nextShadow !== currentShadow;
-    return { flag: saved, changed } as const;
+    return { ok: true, flag: saved, changed } as const;
   });
+
+  if (!updated.ok) {
+    return auth.apply(
+      NextResponse.json(
+        { error: "Flag config invalid", details: updated.error.flatten() },
+        { status: 400 },
+      ),
+    );
+  }
 
   const apiFlag = flagToApi(updated.flag);
   if (!updated.changed) {

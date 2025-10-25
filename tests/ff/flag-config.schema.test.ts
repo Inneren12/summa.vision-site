@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FlagConfigListSchema } from "@/lib/ff/runtime/flag.schema";
+import { FlagConfigListSchema } from "@/lib/ff/schema";
 
 type PartialFlag = Partial<Parameters<typeof FlagConfigListSchema.parse>[0][number]>;
 
@@ -101,6 +101,22 @@ describe("FlagConfig schema", () => {
     if (!result.success) {
       const messages = result.error.issues.map((issue) => issue.message).join(" ");
       expect(messages).toMatch(/segments must contain at least one segment/i);
+    }
+  });
+
+  it("rejects rollout seedBy outside of allowed set", () => {
+    const flags = [
+      makeFlag({
+        key: "epsilon",
+        rollout: { percent: 10, seedBy: "unknown" as never },
+      }),
+    ];
+
+    const result = FlagConfigListSchema.safeParse(flags);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message).join(" ");
+      expect(messages).toMatch(/invalid enum value/i);
     }
   });
 });

@@ -222,11 +222,19 @@ export class MemoryFlagStore implements FlagStore {
     const flag = this.state.flags.get(key);
     if (!flag || !flag.enabled) return undefined;
 
-    if (flag.kill || process.env.FF_KILL_ALL === "true") {
+    const killActive = (flag.killSwitch ?? flag.kill ?? false) === true;
+    const globalKill = process.env.FF_KILL_ALL === "true";
+    if (killActive || globalKill) {
+      const killValue =
+        flag.killValue !== undefined
+          ? flag.killValue
+          : typeof flag.defaultValue === "boolean"
+            ? false
+            : flag.defaultValue;
       return {
-        value: typeof flag.defaultValue === "boolean" ? false : flag.defaultValue,
+        value: killValue,
         reason: "kill",
-      };
+      } satisfies FlagEvaluationResult;
     }
 
     const overrides = this.state.overrides.get(key);

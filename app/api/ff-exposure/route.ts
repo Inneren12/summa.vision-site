@@ -48,15 +48,16 @@ export async function POST(req: Request) {
 
   const flag = typeof body.flag === "string" ? body.flag : "";
   const source = typeof body.source === "string" ? (body.source as ExposureSource) : undefined;
-  const value = body.value as boolean | string | number | undefined;
+  const value = body.value as boolean | string | number | null | undefined;
   const valueType = typeof value;
-  const isValidValue = valueType === "boolean" || valueType === "string" || valueType === "number";
+  const isValidValue =
+    value === null || valueType === "boolean" || valueType === "string" || valueType === "number";
 
   if (!flag || !source || !ALLOWED_SOURCES.includes(source) || !isValidValue) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const normalizedValue = value as boolean | string | number;
+  const normalizedValue = value as boolean | string | number | null;
 
   const sid = buildStableId();
   const cookieId = cookies().get("sv_id")?.value;

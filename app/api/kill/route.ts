@@ -8,6 +8,7 @@ import { authorizeApi } from "@/lib/admin/rbac";
 import { normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
+import { FlagConfigSchema } from "@/lib/ff/schema";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
@@ -52,20 +53,39 @@ export async function POST(req: Request) {
   const now = Date.now();
   const appliedFlags = new Set<string>();
 
+  async function applyKill(flagKey: string) {
+    return lock.withLock(flagKey, async () => {
+      const current = await store.getFlag(flagKey);
+      if (!current) return { ok: true, skipped: true } as const;
+      const next = {
+        ...current,
+        kill: enable,
+        killSwitch: enable,
+        updatedAt: now,
+      };
+      const parsed = FlagConfigSchema.safeParse(next);
+      if (!parsed.success) {
+        return { ok: false, error: parsed.error } as const;
+      }
+      await store.putFlag(parsed.data);
+      return { ok: true, skipped: false } as const;
+    });
+  }
+
   if (flags && flags.length > 0) {
     for (const flagKey of flags) {
-      await lock.withLock(flagKey, async () => {
-        const current = await store.getFlag(flagKey);
-        if (!current) return;
-        const next = {
-          ...current,
-          kill: enable,
-          killSwitch: enable,
-          updatedAt: now,
-        };
-        await store.putFlag(next);
+      const result = await applyKill(flagKey);
+      if (!result.ok) {
+        return auth.apply(
+          NextResponse.json(
+            { error: "Flag config invalid", flag: flagKey, details: result.error.flatten() },
+            { status: 400 },
+          ),
+        );
+      }
+      if (!result.skipped) {
         appliedFlags.add(flagKey);
-      });
+      }
     }
     if (appliedFlags.size === 0) {
       return auth.apply(NextResponse.json({ error: "No matching flags" }, { status: 404 }));
@@ -102,18 +122,18 @@ export async function POST(req: Request) {
       );
     }
     for (const flag of matched) {
-      await lock.withLock(flag.key, async () => {
-        const current = await store.getFlag(flag.key);
-        if (!current) return;
-        const next = {
-          ...current,
-          kill: enable,
-          killSwitch: enable,
-          updatedAt: now,
-        };
-        await store.putFlag(next);
+      const result = await applyKill(flag.key);
+      if (!result.ok) {
+        return auth.apply(
+          NextResponse.json(
+            { error: "Flag config invalid", flag: flag.key, details: result.error.flatten() },
+            { status: 400 },
+          ),
+        );
+      }
+      if (!result.skipped) {
         appliedFlags.add(flag.key);
-      });
+      }
     }
     logAdminAction({
       timestamp: now,

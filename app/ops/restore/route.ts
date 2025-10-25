@@ -79,6 +79,7 @@ const FlagSchema = z.object({
   enabled: z.boolean(),
   kill: z.boolean().optional(),
   killSwitch: z.boolean().optional(),
+  killValue: z.union([z.boolean(), z.number(), z.string(), z.null()]).optional(),
   seedByDefault: SeedBySchema.optional(),
   defaultValue: z.union([z.boolean(), z.string(), z.number()]),
   tags: z.array(z.string()).optional(),

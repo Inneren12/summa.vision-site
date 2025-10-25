@@ -169,4 +169,21 @@ describe("evaluateFlag", () => {
     expect(first.reason).toBe("globalRollout");
     expect(second.reason).toBe("default");
   });
+
+  it("returns killValue when provided", () => {
+    const cfg: FlagConfig = {
+      key: "flag-kill",
+      enabled: true,
+      kill: true,
+      killSwitch: true,
+      killValue: null,
+      defaultValue: true,
+      seedByDefault: "anonId",
+      createdAt: 0,
+      updatedAt: 0,
+    };
+
+    const result = evaluateFlag({ cfg, ctx: baseCtx, seeds: baseSeeds });
+    expect(result).toMatchObject({ reason: "killSwitch", value: null });
+  });
 });

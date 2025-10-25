@@ -6,10 +6,11 @@ import { z } from "zod";
 import { authorizeApi } from "@/lib/admin/rbac";
 import { apiToFlag, flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
 import { FF } from "@/lib/ff/runtime";
+import { FlagConfigSchema } from "@/lib/ff/schema";
 
 export const runtime = "nodejs";
 
-const SeedEnum = z.enum(["userId", "cookie", "ipUa", "anonId"]);
+const SeedEnum = z.enum(["userId", "cookie", "ipUa", "anonId", "stableId"]);
 
 const ConditionValueSchema = z.union([z.string().min(1), z.array(z.string().min(1))]);
 
@@ -56,6 +57,7 @@ const FlagSchema = z.object({
   description: z.string().max(512).optional(),
   tags: z.array(z.string().min(1)).optional(),
   killSwitch: z.boolean().optional(),
+  killValue: z.union([z.boolean(), z.number(), z.string(), z.null()]).optional(),
   rollout: RolloutSchema,
   segments: z.array(SegmentSchema).optional(),
   createdAt: z.number().int().nonnegative().optional(),
@@ -97,8 +99,21 @@ export async function POST(req: Request) {
   const updated = await lock.withLock(payload.key, async () => {
     const existing = await store.getFlag(payload.key);
     const nextFlag = apiToFlag(payload, existing ?? undefined);
-    return store.putFlag(nextFlag);
+    const parsedFlag = FlagConfigSchema.safeParse(nextFlag);
+    if (!parsedFlag.success) {
+      return { ok: false, error: parsedFlag.error } as const;
+    }
+    const saved = await store.putFlag(parsedFlag.data);
+    return { ok: true, flag: saved } as const;
   });
-  const res = NextResponse.json({ ok: true, flag: flagToApi(updated) });
+  if (!updated.ok) {
+    return auth.apply(
+      NextResponse.json(
+        { error: "Flag config invalid", details: updated.error.flatten() },
+        { status: 400 },
+      ),
+    );
+  }
+  const res = NextResponse.json({ ok: true, flag: flagToApi(updated.flag) });
   return auth.apply(res);
 }

@@ -1,6 +1,8 @@
 // Telemetry sink for feature-flag evaluations (in-memory / console / none).
 // Non-blocking: tracking must never throw.
 
+import type { FlagValue } from "./runtime/types";
+
 export type TelemetrySource = "env" | "override" | "default" | "global";
 
 export type TelemetryEventType = "evaluation" | "exposure" | "exposure_shadow";
@@ -8,7 +10,7 @@ export type TelemetryEventType = "evaluation" | "exposure" | "exposure_shadow";
 export type TelemetryEvent = {
   ts: number; // timestamp (ms since epoch)
   flag: string; // flag name
-  value: boolean | string | number; // effective value
+  value: FlagValue; // effective value
   source: TelemetrySource; // where the value came from
   stableId: string; // stable identifier used for hashing
   userId?: string; // extracted from stableId if available

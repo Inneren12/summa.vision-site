@@ -26,7 +26,7 @@ const API_KEY_TO_FIELD: Record<string, SegmentCondition["field"]> = {
   tag: "tag",
 };
 
-export type ApiSeedBy = "userId" | "cookie" | "ipUa" | "anonId";
+export type ApiSeedBy = "userId" | "cookie" | "ipUa" | "anonId" | "stableId";
 
 export type ApiRolloutStep = {
   pct: number;
@@ -57,6 +57,7 @@ export type ApiFlagConfig = {
   description?: string;
   tags?: string[];
   killSwitch?: boolean;
+  killValue?: boolean | string | number | null;
   rollout?: ApiRollout;
   segments?: ApiSegment[];
   createdAt?: number;
@@ -84,7 +85,7 @@ function toApiSeed(seed?: SeedBy): ApiSeedBy | undefined {
       return "userId";
     case "anonId":
     case "stableId":
-      return "anonId";
+      return seed === "stableId" ? "stableId" : "anonId";
     default:
       return undefined;
   }
@@ -100,6 +101,8 @@ function fromApiSeed(seed?: ApiSeedBy): SeedBy | undefined {
       return "userId";
     case "anonId":
       return "anonId";
+    case "stableId":
+      return "stableId";
     default:
       return undefined;
   }
@@ -193,6 +196,7 @@ export function flagToApi(flag: FlagConfig): ApiFlagConfig {
     description: flag.description,
     tags: flag.tags,
     killSwitch: kill,
+    killValue: flag.killValue,
     rollout,
     segments,
     createdAt: flag.createdAt,
@@ -265,6 +269,7 @@ export function apiToFlag(payload: ApiFlagConfig, existing?: FlagConfig): FlagCo
 
   const defaultValue = payload.default;
   const killSwitch = payload.killSwitch ?? existing?.killSwitch ?? existing?.kill ?? false;
+  const killValue = payload.killValue !== undefined ? payload.killValue : existing?.killValue;
 
   return {
     key: payload.key,
@@ -274,6 +279,7 @@ export function apiToFlag(payload: ApiFlagConfig, existing?: FlagConfig): FlagCo
     enabled: existing?.enabled ?? true,
     kill: killSwitch,
     killSwitch,
+    killValue,
     seedByDefault: rollout?.seedByDefault ?? existing?.seedByDefault,
     defaultValue,
     tags: payload.tags ?? existing?.tags,
