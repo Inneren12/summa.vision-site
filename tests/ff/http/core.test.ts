@@ -165,6 +165,27 @@ describe("handleExposure", () => {
     expect(event.flag).toBe("betaUI");
   });
 
+  it("propagates correlation context to telemetry events", async () => {
+    const response = await handleExposure(
+      createRequest({
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "demo-123",
+          "x-namespace": "tenant-alpha",
+        },
+        cookies: { sv_id: "session-123" },
+        body: { flag: "betaUI", source: "global", value: true },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const event = telemetryEvents.at(-1) as Record<string, unknown>;
+    expect(event.requestId).toBe("demo-123");
+    expect(event.sessionId).toBe("session-123");
+    expect(event.namespace).toBe("tenant-alpha");
+  });
+
   it("returns 415 for invalid content type", async () => {
     const response = await handleExposure(
       createRequest({ method: "POST", headers: { "content-type": "text/plain" } }),

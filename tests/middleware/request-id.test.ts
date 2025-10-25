@@ -45,6 +45,7 @@ describe("middleware request id", () => {
     const res = await middleware(req);
     const requestId = res.headers.get("x-request-id");
     expect(requestId).toBeTruthy();
+    expect(requestId ?? "").toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
   });
 
   it("preserves provided request id", async () => {
