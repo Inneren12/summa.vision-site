@@ -9,7 +9,7 @@ import { trackShadowExposure } from "./exposure";
 import { FLAG_REGISTRY, type EffectiveFlags, type EffectiveValueFor, type FlagName } from "./flags";
 import { unitFromIdSalt } from "./hash";
 import { getFeatureFlagsFromHeadersWithSources, type FlagSources } from "./server";
-import { stableId as buildStableId, STABLEID_USER_PREFIX } from "./stable-id";
+import { sanitizeUserId, stableId as buildStableId } from "./stable-id";
 import { trackFlagEvaluation } from "./telemetry";
 import { unitFromVariantSalt } from "./variant";
 
@@ -19,13 +19,6 @@ function buildCookieHeaderString(): string {
   const all = ck.getAll();
   if (!all.length) return "";
   return all.map((c) => `${c.name}=${c.value}`).join("; ");
-}
-
-function deriveUserId(stableId: string): string | undefined {
-  if (stableId.startsWith(STABLEID_USER_PREFIX)) {
-    return stableId.slice(STABLEID_USER_PREFIX.length);
-  }
-  return undefined;
 }
 
 export type FlagsWithMeta = {
@@ -41,8 +34,8 @@ type GetFlagOpts = { userId?: string; cookieHeader?: string };
 export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promise<FlagsWithMeta> {
   const cookieHeader = buildCookieHeaderString();
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
-  const id = buildStableId(opts?.userId);
-  const userId = deriveUserId(id);
+  const id = buildStableId();
+  const userId = opts?.userId ? sanitizeUserId(opts.userId) : undefined;
   const correlation = correlationFromNextContext();
   const out: Partial<EffectiveFlags> = {};
   const rolloutUnits = new Map<string, number>();
@@ -112,7 +105,7 @@ export async function getFlagServer<N extends FlagName>(
 ): Promise<EffectiveValueFor<N>> {
   const cookieHeader = opts?.cookieHeader ?? buildCookieHeaderString();
   const { merged } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
-  const id = buildStableId(opts?.userId);
+  const id = buildStableId();
   const raw = Object.prototype.hasOwnProperty.call(merged, name)
     ? (merged as Record<string, unknown>)[name]
     : undefined;
@@ -130,14 +123,14 @@ export async function getFlagServerWithMeta<N extends FlagName>(
 }> {
   const cookieHeader = opts?.cookieHeader ?? buildCookieHeaderString();
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
-  const id = buildStableId(opts?.userId);
+  const id = buildStableId();
   const correlation = correlationFromNextContext();
   const unitForSalt = (salt: string, mode: "rollout" | "variant" = "rollout") => {
     if (mode === "variant") return unitFromVariantSalt(id, salt);
     return unitFromIdSalt(id, salt);
   };
   const source = sources[name] ?? "default";
-  const userId = deriveUserId(id);
+  const userId = opts?.userId ? sanitizeUserId(opts.userId) : undefined;
   const start = Date.now();
   const raw = Object.prototype.hasOwnProperty.call(merged, name)
     ? (merged as Record<string, unknown>)[name]

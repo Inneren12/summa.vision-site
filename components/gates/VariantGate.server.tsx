@@ -38,7 +38,7 @@ export default async function VariantGateServer<N extends VariantFlagKey>({
   const should = typeof val === "string" ? val === variant : false;
   if (should) {
     const effectiveUserId = userId ?? resolvedUserId;
-    const sid = stableId ?? buildStableId(effectiveUserId);
+    const sid = stableId ?? buildStableId();
     trackExposure({
       flag: key,
       value: val,

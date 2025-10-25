@@ -21,11 +21,11 @@ describe("S3-B StableId integration", () => {
   const savedNodeEnv = process.env.NODE_ENV;
   const savedFF = process.env.FEATURE_FLAGS_JSON;
 
-  const mockCookies = (sv?: string) => {
+  const mockCookies = (aid?: string) => {
     const get = vi.fn<(name: string) => CookieValue | undefined>((name) =>
-      name === "sv_id" && sv ? { value: sv } : undefined,
+      name === "ff_aid" && aid ? { value: aid } : undefined,
     );
-    const getAll = vi.fn<() => CookieRecord[]>(() => (sv ? [{ name: "sv_id", value: sv }] : []));
+    const getAll = vi.fn<() => CookieRecord[]>(() => (aid ? [{ name: "ff_aid", value: aid }] : []));
     cookiesMock.mockReturnValue({ get, getAll });
   };
 
@@ -46,37 +46,43 @@ describe("S3-B StableId integration", () => {
     }
   });
 
-  it("uses userId across devices (sv_id changes do not change outcome for same userId)", async () => {
-    // Предсказуемый результат для u:123
-    const expected = inRollout("u:123", 50, "newCheckout");
-    // sv_id #1
-    mockCookies("sv_aaa");
-    const f1 = await getFlagsServer({ userId: "123" });
-    expect(f1.newCheckout).toBe(expected);
-    // sv_id #2
-    mockCookies("sv_bbb");
-    const f2 = await getFlagsServer({ userId: "123" });
-    expect(f2.newCheckout).toBe(expected);
+  it("keeps rollout bucket stable across login/logout for the same ff_aid", async () => {
+    const cookieValue = "aid_login";
+    const expected = inRollout(cookieValue, 50, "newCheckout");
+    mockCookies(cookieValue);
+    const beforeLogin = await getFlagsServer();
+    mockCookies(cookieValue);
+    const afterLogin = await getFlagsServer({ userId: "123" });
+    expect(beforeLogin.newCheckout).toBe(expected);
+    expect(afterLogin.newCheckout).toBe(expected);
   });
 
-  it("without userId result depends on sv_id", async () => {
-    // Подберём парочку sv_id с разными исходами
+  it("ignores userId changes when ff_aid stays the same", async () => {
+    const cookieValue = "aid_user_change";
+    mockCookies(cookieValue);
+    const first = await getFlagsServer({ userId: "123" });
+    mockCookies(cookieValue);
+    const second = await getFlagsServer({ userId: "456" });
+    expect(first.newCheckout).toBe(second.newCheckout);
+  });
+
+  it("changes rollout bucket when ff_aid changes", async () => {
     let inId = "";
     let outId = "";
     for (let i = 0; i < 5000 && (!inId || !outId); i++) {
-      const c = `sv_${i}`;
-      if (inRollout(c, 50, "newCheckout")) {
-        if (!inId) inId = c;
-      } else {
-        if (!outId) outId = c;
+      const candidate = `aid_${i}`;
+      if (inRollout(candidate, 50, "newCheckout")) {
+        if (!inId) inId = candidate;
+      } else if (!outId) {
+        outId = candidate;
       }
     }
     expect(inId && outId).toBeTruthy();
     mockCookies(inId);
-    const a = await getFlagsServer();
-    expect(a.newCheckout).toBe(true);
+    const inRolloutResult = await getFlagsServer();
     mockCookies(outId);
-    const b = await getFlagsServer();
-    expect(b.newCheckout).toBe(false);
+    const outRolloutResult = await getFlagsServer();
+    expect(inRolloutResult.newCheckout).toBe(true);
+    expect(outRolloutResult.newCheckout).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import FlagGateServer from "@/components/gates/FlagGate.server";
 import PercentGateServer from "@/components/gates/PercentGate.server";
 import { getFlagsServer } from "@/lib/ff/effective.server";
 import { withExposureContext } from "@/lib/ff/exposure";
-import { stableId } from "@/lib/ff/stable-id";
+import { sanitizeUserId, stableId } from "@/lib/ff/stable-id";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +13,14 @@ export default async function Page({
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const userId = typeof searchParams?.user === "string" ? searchParams!.user : undefined;
-  const sid = stableId(userId);
+  const sid = stableId();
+  const sanitizedUserId = userId ? sanitizeUserId(userId) : undefined;
   return withExposureContext(async () => (
     <main style={{ padding: 16 }}>
       <h1>S3-B StableId Test</h1>
       <p>
-        <strong>userId</strong>: {userId ?? "(none)"} | <strong>stableId</strong>: {sid}
+        <strong>userId</strong>: {sanitizedUserId ?? userId ?? "(none)"} | <strong>stableId</strong>
+        : {sid}
       </p>
       <p>
         Try <code>?user=123</code> and reload with different cookies.

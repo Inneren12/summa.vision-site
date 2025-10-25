@@ -3,24 +3,24 @@ import crypto from "node:crypto";
 
 import { cookies } from "next/headers";
 
-export const STABLEID_USER_PREFIX = "u:"; // исключает коллизии с анонимным sv_id
+const STABLE_ID_COOKIE = "ff_aid";
 
-/** Утилита: взять sv_id из header-строки cookies (для клиента / утилит). */
+/** Утилита: взять ff_aid из header-строки cookies (для клиента / утилит). */
 export function getStableIdFromCookieHeader(header?: string): string | undefined {
   if (!header) return undefined;
   const parts = header.split(/;\s*/);
-  const kv = parts.find((p) => p.startsWith("sv_id="));
+  const kv = parts.find((p) => p.startsWith(`${STABLE_ID_COOKIE}=`));
   if (!kv) return undefined;
-  return kv.slice("sv_id=".length);
+  return kv.slice(`${STABLE_ID_COOKIE}=`.length);
 }
 
-/** Утилита: взять sv_id из next/headers cookies() на сервере. */
+/** Утилита: взять ff_aid из next/headers cookies() на сервере. */
 export function getStableIdFromCookies(): string | undefined {
   const ck = cookies();
-  return ck.get("sv_id")?.value;
+  return ck.get(STABLE_ID_COOKIE)?.value;
 }
 
-/** Сгенерировать uuid v4 для sv_id (анонимный посетитель). */
+/** Сгенерировать uuid v4 для ff_aid (анонимный посетитель). */
 export function generateStableId(): string {
   return crypto.randomUUID();
 }
@@ -33,18 +33,15 @@ export function sanitizeUserId(userId: string): string | undefined {
 
 /**
  * Главная функция: построить стабильный идентификатор.
- * - При валидном userId → "u:<userId>" (кросс-девайс стабильность).
- * - Иначе → sv_id cookie (анонимный) или "anon" (если cookie нет в текущем вызове).
+ * - При валидном userId — просто валидация; stableId остаётся cookie ff_aid.
+ * - Иначе → ff_aid cookie или "anon" (если cookie нет в текущем вызове).
  * Параметр strict, если true, бросит исключение при невалидном userId.
  */
 export function stableId(userId?: string, opts?: { strict?: boolean }): string {
   if (userId) {
     const ok = sanitizeUserId(userId);
-    if (!ok) {
-      if (opts?.strict) throw new Error("Invalid userId format");
-      // мягкий fallback без исключения
-    } else {
-      return `${STABLEID_USER_PREFIX}${ok}`;
+    if (!ok && opts?.strict) {
+      throw new Error("Invalid userId format");
     }
   }
   return getStableIdFromCookies() ?? "anon";

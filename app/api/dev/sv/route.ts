@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   const res = NextResponse.json({ ok: true });
   if (id === "clear") {
     res.cookies.set("sv_id", "", stableCookieOptions({ httpOnly: false, maxAge: 0 }));
+    res.cookies.set("ff_aid", "", stableCookieOptions({ httpOnly: false, maxAge: 0 }));
     return res;
   }
   let value = id;
@@ -26,10 +27,9 @@ export async function GET(req: Request) {
       value = `sv_${Date.now().toString(36)}`;
     }
   }
-  res.cookies.set(
-    "sv_id",
-    String(value),
-    stableCookieOptions({ httpOnly: false, maxAge: 365 * 24 * 60 * 60 }),
-  );
+  const cookieValue = String(value);
+  const attrs = stableCookieOptions({ httpOnly: false, maxAge: 365 * 24 * 60 * 60 });
+  res.cookies.set("sv_id", cookieValue, attrs);
+  res.cookies.set("ff_aid", cookieValue, attrs);
   return res;
 }
