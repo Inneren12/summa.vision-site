@@ -16,3 +16,5 @@ reports/logs/
 
 # Next.js build output
 apps/web/.next/
+
+*.bak
