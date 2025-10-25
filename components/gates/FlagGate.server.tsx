@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 
 import FlagGate from "./FlagGate";
 import { shouldRenderFlag } from "./flag-evaluate";
@@ -56,15 +56,15 @@ export default async function FlagGateServer<N extends KeyName>({
     });
   }
 
-  return (
-    <FlagGate
-      name={name}
-      equals={equals}
-      fallback={fallback}
-      skeleton={skeleton}
-      ssr={{ shouldRender }}
-    >
-      {children}
-    </FlagGate>
+  return createElement(
+    FlagGate,
+    {
+      name,
+      equals,
+      fallback,
+      skeleton,
+      ssr: { shouldRender },
+    },
+    children,
   );
 }
