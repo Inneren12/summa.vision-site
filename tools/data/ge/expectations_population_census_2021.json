@@ -3,9 +3,7 @@
   "expectation_suite_name": "population_census_2021_suite",
   "meta": {
     "great_expectations_version": "1.0.0",
-    "notes": [
-      "Validates the aggregated regional census summary extract."
-    ]
+    "notes": ["Validates the aggregated regional census summary extract."]
   },
   "expectations": [
     {
@@ -17,12 +15,7 @@
     {
       "expectation_type": "expect_table_columns_to_match_ordered_list",
       "kwargs": {
-        "column_list": [
-          "district",
-          "total_households",
-          "total_population",
-          "median_age"
-        ]
+        "column_list": ["district", "total_households", "total_population", "median_age"]
       }
     },
     {

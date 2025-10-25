@@ -3,9 +3,7 @@
   "expectation_suite_name": "municipal_budgets_2023_suite",
   "meta": {
     "great_expectations_version": "1.0.0",
-    "notes": [
-      "Validates the aggregated municipal budget allocations and spending summary."
-    ]
+    "notes": ["Validates the aggregated municipal budget allocations and spending summary."]
   },
   "expectations": [
     {
@@ -17,11 +15,7 @@
     {
       "expectation_type": "expect_table_columns_to_match_ordered_list",
       "kwargs": {
-        "column_list": [
-          "city",
-          "total_allocated",
-          "total_spent"
-        ]
+        "column_list": ["city", "total_allocated", "total_spent"]
       }
     },
     {

@@ -306,9 +306,18 @@ export default async function AdminFlagsPage() {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-3">
         <h1 className="text-2xl font-bold">Feature Flags Admin</h1>
         <p className="text-sm text-neutral-600">Current role: {role}</p>
+        <nav className="flex flex-wrap gap-2 text-sm">
+          <span className="rounded bg-neutral-900 px-3 py-1 text-white">Flags</span>
+          <Link
+            className="rounded px-3 py-1 text-neutral-700 hover:bg-neutral-200"
+            href="/admin/data-health"
+          >
+            Data Health
+          </Link>
+        </nav>
         <div className="flex flex-wrap gap-4 text-sm text-neutral-700">
           <Link className="text-blue-700 underline" href="/api/telemetry/export">
             Export telemetry (ndjson)
