@@ -73,6 +73,54 @@ describe("RolloutPolicySchema", () => {
     expect(parsed.hysteresis).toEqual({ CLS: 0.2, INP: 200 });
   });
 
+  it("accepts canary cohort entries with either identifier", () => {
+    const parsed = parseRolloutPolicy({
+      ...basePolicy,
+      canary: {
+        ttlHours: 24,
+        cohort: [
+          { userId: "ops-user" },
+          { ff_aid: "aid-123" },
+          { userId: "dual", ff_aid: "aid-dual" },
+        ],
+      },
+    });
+    expect(parsed.canary).toEqual({
+      ttlHours: 24,
+      cohort: [{ userId: "ops-user" }, { ffAid: "aid-123" }, { userId: "dual", ffAid: "aid-dual" }],
+    });
+  });
+
+  it("rejects canary entries without identifiers", () => {
+    const result = RolloutPolicySchema.safeParse({
+      ...basePolicy,
+      canary: {
+        ttlHours: 12,
+        cohort: [{}],
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = formatRolloutPolicyIssues(result.error.issues);
+      expect(message).toContain("must include userId and/or ff_aid");
+    }
+  });
+
+  it("rejects canary TTL outside supported range", () => {
+    const result = RolloutPolicySchema.safeParse({
+      ...basePolicy,
+      canary: {
+        ttlHours: 0,
+        cohort: [{ userId: "ops-user" }],
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = formatRolloutPolicyIssues(result.error.issues);
+      expect(message).toContain("canary.ttlHours must be within [1..168] hours");
+    }
+  });
+
   it("throws RolloutPolicyValidationError with formatted issues", () => {
     expect(() =>
       parseRolloutPolicy({

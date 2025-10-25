@@ -12,6 +12,16 @@ export interface RolloutPolicyHysteresis {
   INP?: number;
 }
 
+export interface RolloutPolicyCanaryMember {
+  userId?: string;
+  ffAid?: string;
+}
+
+export interface RolloutPolicyCanary {
+  ttlHours: number;
+  cohort: RolloutPolicyCanaryMember[];
+}
+
 export interface RolloutPolicy {
   host: string;
   flag: string;
@@ -23,6 +33,7 @@ export interface RolloutPolicy {
   hysteresis?: RolloutPolicyHysteresis;
   token?: string;
   shadow?: boolean;
+  canary?: RolloutPolicyCanary;
 }
 
 export declare const RolloutPolicySchema: z.ZodType<RolloutPolicy>;
