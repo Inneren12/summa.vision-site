@@ -53,8 +53,8 @@ jobs:
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
 
-      # ✅ Commitlint: для PR (range base..head) и для push (HEAD^..HEAD)
-      - name: Commitlint (PR range or push)
+      # ✅ Commitlint: для PR (range base..head) и push (HEAD^..HEAD), с fallback на apps/web
+      - name: Commitlint (PR range or push, workspace fallback)
         run: |
           set -euo pipefail
           TO_SHA="${{ github.sha }}"
@@ -64,10 +64,19 @@ jobs:
           else
             FROM_SHA="$(git rev-parse "$TO_SHA^" 2>/dev/null || echo "$TO_SHA")"
           fi
+
           echo "Linting commits from $FROM_SHA to $TO_SHA"
           export COMMITLINT_FROM="$FROM_SHA"
           export COMMITLINT_TO="$TO_SHA"
-          npm run commitlint
+
+          echo "::group::Debug npm context"
+          pwd; node -v; npm -v
+          echo "Root scripts:"; npm run || true
+          echo "apps/web scripts:"; (cd apps/web && npm run || true)
+          echo "::endgroup::"
+
+          # сначала пытаемся в корне, если скрипта нет — пробуем в apps/web
+          (npm run commitlint) || (npm --workspace apps/web run commitlint)
 
       - name: Lint
         run: npm run lint || true
