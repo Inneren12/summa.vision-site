@@ -15,15 +15,17 @@ export type StepProps = {
   children: ReactNode;
   className?: string;
   descriptionId?: string;
+  anchorId?: string;
 };
 
 const INTERSECTION_ROOT_MARGIN = "-35% 0px -35% 0px";
 const INTERSECTION_THRESHOLD = 0.5;
 
-const Step = ({ id, title, children, className, descriptionId }: StepProps) => {
+const Step = ({ id, title, children, className, descriptionId, anchorId }: StepProps) => {
   const { activeStepId, registerStep, unregisterStep, setActiveStep } = useStoryContext();
   const articleRef = useRef<HTMLElement | null>(null);
   const handleKeyDown = useKeyboardNav(id);
+  const domId = anchorId ?? id;
 
   useEffect(() => {
     const element = articleRef.current;
@@ -76,13 +78,13 @@ const Step = ({ id, title, children, className, descriptionId }: StepProps) => {
     }
 
     return typeof title === "string" ? (
-      <h2 className="scrolly-step__title" id={`${id}-title`}>
+      <h2 className="scrolly-step__title" id={`${domId}-title`}>
         {title}
       </h2>
     ) : (
       title
     );
-  }, [id, title]);
+  }, [domId, title]);
 
   const ariaCurrent = activeStepId === id ? "step" : undefined;
   const labelledBy = useMemo(() => {
@@ -90,17 +92,18 @@ const Step = ({ id, title, children, className, descriptionId }: StepProps) => {
       return undefined;
     }
 
-    return `${id}-title`;
-  }, [id, title]);
+    return `${domId}-title`;
+  }, [domId, title]);
 
-  const stepDescriptionId = descriptionId ?? (typeof title === "string" ? `${id}-body` : undefined);
+  const stepDescriptionId =
+    descriptionId ?? (typeof title === "string" ? `${domId}-body` : undefined);
 
   return (
     // Keyboard navigation between narrative steps is intentional.
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex
     <article
       ref={articleRef}
-      id={id}
+      id={domId}
       aria-current={ariaCurrent}
       aria-describedby={stepDescriptionId ?? undefined}
       aria-labelledby={labelledBy}
