@@ -5,13 +5,13 @@ import React from "react";
 
 import { useOptionalFlag } from "../../lib/ff/client";
 
-import type { GeneratedFlagName } from "@/types/flags.generated";
+import type { FlagKey } from "@/types/flags";
 
 type Props = {
   children: ReactNode;
   fallback?: ReactNode;
   /** Render children only if requireFlag === equals (default equals=true for boolean flags) */
-  requireFlag?: GeneratedFlagName;
+  requireFlag?: FlagKey;
   equals?: string | number | boolean;
 };
 

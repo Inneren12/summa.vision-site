@@ -4,12 +4,15 @@ import { getFlagsServerWithMeta } from "@/lib/ff/effective.server";
 import { trackExposure } from "@/lib/ff/exposure";
 import { FLAG_REGISTRY, type FlagName } from "@/lib/ff/flags";
 import { stableId as buildStableId } from "@/lib/ff/stable-id";
+import type { FlagKey } from "@/types/flags";
 
 type VariantFlagName = {
   [K in FlagName]: (typeof FLAG_REGISTRY)[K]["type"] extends "variant" ? K : never;
 }[FlagName];
 
-type Props<N extends VariantFlagName = VariantFlagName> = {
+type VariantFlagKey = VariantFlagName & FlagKey;
+
+type Props<N extends VariantFlagKey = VariantFlagKey> = {
   name: N;
   variant: string;
   fallback?: ReactNode;
@@ -17,7 +20,7 @@ type Props<N extends VariantFlagName = VariantFlagName> = {
   userId?: string;
 };
 
-export default async function VariantGateServer<N extends VariantFlagName>({
+export default async function VariantGateServer<N extends VariantFlagKey>({
   name,
   variant,
   fallback = null,
@@ -30,15 +33,16 @@ export default async function VariantGateServer<N extends VariantFlagName>({
     stableId,
     userId: resolvedUserId,
   } = await getFlagsServerWithMeta({ userId });
-  const val = flags[name];
+  const key = name as FlagName;
+  const val = flags[key];
   const should = typeof val === "string" ? val === variant : false;
   if (should) {
     const effectiveUserId = userId ?? resolvedUserId;
     const sid = stableId ?? buildStableId(effectiveUserId);
     trackExposure({
-      flag: name,
+      flag: key,
       value: val,
-      source: sources[name] ?? "default",
+      source: sources[key] ?? "default",
       stableId: sid,
       userId: effectiveUserId,
     });

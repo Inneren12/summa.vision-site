@@ -5,7 +5,11 @@ import { trackExposure } from "../../lib/ff/exposure";
 import { FLAG_REGISTRY, type FlagName, type EffectiveValueFor } from "../../lib/ff/flags";
 import { stableId as buildStableId } from "../../lib/ff/stable-id";
 
-type Props<N extends FlagName = FlagName> = {
+import type { FlagKey } from "@/types/flags";
+
+type KeyName = FlagKey & FlagName;
+
+type Props<N extends KeyName = KeyName> = {
   name: N;
   equals?: EffectiveValueFor<N>;
   fallback?: ReactNode;
@@ -14,7 +18,7 @@ type Props<N extends FlagName = FlagName> = {
   userId?: string;
 };
 
-export default async function FlagGateServer<N extends FlagName>({
+export default async function FlagGateServer<N extends KeyName>({
   name,
   equals,
   fallback = null,
@@ -27,9 +31,10 @@ export default async function FlagGateServer<N extends FlagName>({
     stableId,
     userId: resolvedUserId,
   } = await getFlagsServerWithMeta({ userId });
-  const meta = FLAG_REGISTRY[name];
-  const value = flags[name];
-  const source = sources[name] ?? "default";
+  const key = name as FlagName;
+  const meta = FLAG_REGISTRY[key];
+  const value = flags[key];
+  const source = sources[key] ?? "default";
 
   let shouldRender = false;
   if (meta.type === "boolean" || meta.type === "rollout") {
@@ -52,7 +57,7 @@ export default async function FlagGateServer<N extends FlagName>({
     const effectiveUserId = userId ?? resolvedUserId;
     const sid = stableId ?? buildStableId(effectiveUserId);
     trackExposure({
-      flag: name,
+      flag: key,
       value: value as EffectiveValueFor<N>,
       source,
       stableId: sid,

@@ -23,6 +23,7 @@
     "test": "npm run test:ci",
     "test:ci": "npm run web:test",
     "ff:codegen": "node ./scripts/ff-codegen.mjs",
+    "ff:types": "node ./scripts/ff-generate-types.mjs",
     "ff:docs:check": "node ./scripts/ff-docs-verify.mjs",
     "ff:doctor": "npm run ff:codegen && node ./scripts/ff-doctor.mjs || exit 0",
     "ff:doctor:strict": "npm run ff:codegen && node ./scripts/ff-doctor.mjs",
@@ -44,7 +45,7 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o .out-sb",
     "prepare": "husky install",
-    "postinstall": "npm run ff:codegen && node scripts/patch-next.cjs",
+    "postinstall": "npm run ff:codegen && npm run ff:types && node scripts/patch-next.cjs",
     "perf:lhci": "npx -y @lhci/cli@0.12.0 autorun --config=.lighthouserc.cjs",
     "perf:check": "npm run web:build && npm run perf:lhci",
     "visual:browsers": "playwright install --with-deps chromium",
@@ -54,6 +55,9 @@
     "test:unit:watch": "vitest",
     "test:e2e:flags": "playwright test --config=playwright.flags.config.ts",
     "prebuild": "npm run ff:codegen",
+    "postbuild": "npm run ff:types",
+    "pretest": "npm run ff:types",
+    "pretest:ci": "npm run ff:types",
     "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json"
   },
   "dependencies": {

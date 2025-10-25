@@ -8,7 +8,8 @@ import { readOverridesFromCookieHeader } from "./overrides";
 import { parseFlagsJson, mergeFlags, type FeatureFlags, type FlagValue } from "./shared";
 
 import { useFlags } from "@/components/FlagsProvider";
-import type { GeneratedFlagTypeMap, GeneratedFlagName } from "@/types/flags.generated";
+import type { FlagKey } from "@/types/flags";
+import type { GeneratedFlagTypeMap } from "@/types/flags.generated";
 
 export function getFeatureFlags(): FeatureFlags {
   const env = getClientEnv();
@@ -38,16 +39,16 @@ export function useFlagValue<T extends FlagValue = boolean>(
 }
 
 /** useFlag с жёсткой типизацией возвращаемого значения по имени флага. */
-export function useFlag<N extends GeneratedFlagName>(name: N): GeneratedFlagTypeMap[N] {
-  const flags = useFlags() as Record<string, unknown>;
+export function useFlag<N extends FlagKey>(name: N): GeneratedFlagTypeMap[N] {
+  const flags = useFlags() as Record<FlagKey, unknown>;
   return flags[name] as GeneratedFlagTypeMap[N];
 }
 
 /** Получить значение флага, если имя известно; иначе вернуть undefined. */
-export function useOptionalFlag<N extends GeneratedFlagName>(
+export function useOptionalFlag<N extends FlagKey>(
   name: N | undefined,
 ): GeneratedFlagTypeMap[N] | undefined {
-  const flags = useFlags() as Record<string, unknown>;
+  const flags = useFlags() as Record<FlagKey, unknown>;
   if (!name) return undefined;
   return flags[name] as GeneratedFlagTypeMap[N];
 }
