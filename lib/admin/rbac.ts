@@ -52,11 +52,7 @@ export const ADMIN_SESSION_MAX_AGE = 60 * 15; // 15 minutes
 export const ADMIN_AID_COOKIE = "ff_aid";
 
 export const ADMIN_SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "strict" as const,
-  secure: FF_COOKIE_SECURE,
-  path: FF_COOKIE_PATH,
-  domain: FF_COOKIE_DOMAIN,
+  ...FF_PRIVATE_COOKIE_OPTIONS,
   maxAge: ADMIN_SESSION_MAX_AGE,
 };
 

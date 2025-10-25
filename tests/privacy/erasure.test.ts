@@ -1,95 +1,97 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SelfHostedMetricsProvider } from "@/lib/ops/self-hosted-metrics-provider";
 import {
-  appendErasureRecord,
-  buildErasureIndex,
-  isIdentifierErased,
-  loadErasureIndex,
-  purgeNdjsonFile,
-  summarizeIdentifiers,
+  __clearErasureCacheForTests,
+  appendErasure,
+  purgeNdjsonFiles,
 } from "@/lib/privacy/erasure";
 
 describe("privacy erasure registry", () => {
-  let tmpDir: string;
+  const originalEnv = { ...process.env };
+  let tempDir: string;
   let erasureFile: string;
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(path.join(os.tmpdir(), "privacy-erasure-"));
-    erasureFile = path.join(tmpDir, "privacy.erasure.ndjson");
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "erasure-test-"));
+    erasureFile = path.join(tempDir, "privacy.erasure.ndjson");
     process.env.PRIVACY_ERASURE_FILE = erasureFile;
+    __clearErasureCacheForTests();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
   });
 
   afterEach(async () => {
-    delete process.env.PRIVACY_ERASURE_FILE;
-    await rm(tmpDir, { recursive: true, force: true });
+    __clearErasureCacheForTests();
+    if (originalEnv.PRIVACY_ERASURE_FILE) {
+      process.env.PRIVACY_ERASURE_FILE = originalEnv.PRIVACY_ERASURE_FILE;
+    } else {
+      delete process.env.PRIVACY_ERASURE_FILE;
+    }
+    vi.useRealTimers();
+    if (tempDir) {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   });
 
-  it("appends erasure entries and loads index", async () => {
-    await appendErasureRecord(
-      { sid: "sid-1" },
-      { filePath: erasureFile, timestamp: 1000, source: "self" },
-    );
-    await appendErasureRecord(
-      { aid: "aid-2", userId: "user-9" },
-      { filePath: erasureFile, timestamp: 2000, source: "admin" },
-    );
-
-    const entries = await readFile(erasureFile, "utf8");
-    expect(entries.trim().split(/\n/)).toHaveLength(2);
-
-    const index = await loadErasureIndex(erasureFile);
-    expect(index.entries).toHaveLength(2);
-    expect(isIdentifierErased(index, { sid: "sid-1" })).toBe(true);
-    expect(isIdentifierErased(index, { aid: "aid-2" })).toBe(true);
-    expect(isIdentifierErased(index, { userId: "user-9" })).toBe(true);
-    const snapshot = buildErasureIndex(index.entries);
-    expect(summarizeIdentifiers(snapshot.entries[1])).toEqual({
-      sid: undefined,
-      aid: "aid-2",
-      userId: "user-9",
-    });
-  });
-
-  it("purges matching entries from ndjson files when under threshold", async () => {
-    const file = path.join(tmpDir, "vitals.ndjson");
+  it("filters metrics for erased identifiers", async () => {
+    const vitalsFile = path.join(tempDir, "vitals.ndjson");
+    const errorsFile = path.join(tempDir, "errors.ndjson");
+    const now = Date.now();
     const lines = [
-      { sid: "sid-keep", metric: "INP", value: 100 },
-      { sid: "sid-remove", metric: "INP", value: 200 },
-      { aid: "aid-remove", metric: "CLS", value: 0.1 },
+      { snapshotId: "flag/ns", metric: "CLS", value: 0.12, ts: now, sid: "sid-keep" },
+      { snapshotId: "flag/ns", metric: "CLS", value: 0.34, ts: now, sid: "sid-erase" },
     ];
-    await writeFile(file, lines.map((entry) => JSON.stringify(entry)).join("\n") + "\n", "utf8");
-
-    const summary = await purgeNdjsonFile(
-      file,
-      { sid: "sid-remove", aid: "aid-remove" },
-      { thresholdBytes: 1024 },
+    const errorEvents = [{ snapshotId: "flag/ns", ts: now, sid: "sid-erase" }];
+    await fs.writeFile(
+      vitalsFile,
+      lines.map((line) => `${JSON.stringify(line)}\n`).join(""),
+      "utf8",
     );
-    expect(summary.purged).toBe(true);
-    expect(summary.removed).toBe(2);
+    await fs.writeFile(
+      errorsFile,
+      errorEvents.map((line) => `${JSON.stringify(line)}\n`).join(""),
+      "utf8",
+    );
 
-    const content = await readFile(file, "utf8");
-    const remaining = content
-      .trim()
-      .split(/\n/)
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].sid).toBe("sid-keep");
+    await appendErasure({ sid: "sid-erase" }, "self");
+
+    const provider = new SelfHostedMetricsProvider({ vitalsFile, errorsFile });
+    const vital = await provider.getWebVital("CLS", "flag", "flag/ns");
+    expect(vital).toBeCloseTo(0.12);
+
+    const errorRate = await provider.getErrorRate("flag", "flag/ns");
+    expect(errorRate).toBe(0);
   });
 
-  it("skips purging when file is larger than threshold", async () => {
-    const file = path.join(tmpDir, "large.ndjson");
-    const payload = "{}\n".repeat(10);
-    await writeFile(file, payload, "utf8");
+  it("purges small ndjson files eagerly", async () => {
+    const telemetryFile = path.join(tempDir, "telemetry.ndjson");
+    const keep = { stableId: "sid-keep", ts: Date.now(), type: "evaluation" };
+    const remove = { stableId: "sid-erase", ts: Date.now(), type: "evaluation" };
+    await fs.writeFile(
+      telemetryFile,
+      `${JSON.stringify(keep)}\n${JSON.stringify(remove)}\n`,
+      "utf8",
+    );
 
-    const summary = await purgeNdjsonFile(file, { sid: "sid-any" }, { thresholdBytes: 1 });
-    expect(summary.skipped).toBe(true);
-    expect(summary.reason).toBe("over_threshold");
+    const report = await purgeNdjsonFiles([telemetryFile], { sid: "sid-erase" });
+    const contents = await fs.readFile(telemetryFile, "utf8");
+    const lines = contents
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
 
-    const snapshot = await readFile(file, "utf8");
-    expect(snapshot).toBe(payload);
+    expect(report[0]).toMatchObject({
+      removed: 1,
+      skipped: false,
+      file: path.resolve(telemetryFile),
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].stableId).toBe("sid-keep");
   });
 });

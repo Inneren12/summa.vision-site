@@ -1,10 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const deleteOverridesByUser = vi.fn(async () => 0);
+import { __clearErasureCacheForTests } from "@/lib/privacy/erasure";
+
+const deleteOverridesByUser = vi.fn();
+const logAdminAction = vi.fn();
 
 vi.mock("@/lib/ff/runtime", () => ({
   FF: () => ({
@@ -14,57 +17,53 @@ vi.mock("@/lib/ff/runtime", () => ({
   }),
 }));
 
+vi.mock("@/lib/ff/audit", () => ({
+  logAdminAction,
+}));
+
 describe("POST /api/privacy/erase", () => {
-  let tmpDir: string;
+  const originalEnv = { ...process.env };
+  let tempDir: string;
   let erasureFile: string;
-  let vitalsFile: string;
-  let errorsFile: string;
-  let telemetryFile: string;
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(path.join(os.tmpdir(), "privacy-erase-route-"));
-    erasureFile = path.join(tmpDir, "privacy.erasure.ndjson");
-    vitalsFile = path.join(tmpDir, "vitals.ndjson");
-    errorsFile = path.join(tmpDir, "errors.ndjson");
-    telemetryFile = path.join(tmpDir, "telemetry.ndjson");
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "privacy-erase-"));
+    erasureFile = path.join(tempDir, "privacy.erasure.ndjson");
     process.env.PRIVACY_ERASURE_FILE = erasureFile;
-    process.env.METRICS_VITALS_FILE = vitalsFile;
-    process.env.METRICS_ERRORS_FILE = errorsFile;
-    process.env.TELEMETRY_FILE = telemetryFile;
+    process.env.METRICS_VITALS_FILE = path.join(tempDir, "vitals.ndjson");
+    process.env.METRICS_ERRORS_FILE = path.join(tempDir, "errors.ndjson");
+    process.env.TELEMETRY_FILE = path.join(tempDir, "telemetry.ndjson");
     deleteOverridesByUser.mockReset();
+    logAdminAction.mockReset();
+    __clearErasureCacheForTests();
   });
 
   afterEach(async () => {
-    delete process.env.PRIVACY_ERASURE_FILE;
-    delete process.env.METRICS_VITALS_FILE;
-    delete process.env.METRICS_ERRORS_FILE;
-    delete process.env.TELEMETRY_FILE;
-    await rm(tmpDir, { recursive: true, force: true });
+    __clearErasureCacheForTests();
+    if (originalEnv.PRIVACY_ERASURE_FILE) {
+      process.env.PRIVACY_ERASURE_FILE = originalEnv.PRIVACY_ERASURE_FILE;
+    } else {
+      delete process.env.PRIVACY_ERASURE_FILE;
+    }
+    if (originalEnv.METRICS_VITALS_FILE) {
+      process.env.METRICS_VITALS_FILE = originalEnv.METRICS_VITALS_FILE;
+    } else {
+      delete process.env.METRICS_VITALS_FILE;
+    }
+    if (originalEnv.METRICS_ERRORS_FILE) {
+      process.env.METRICS_ERRORS_FILE = originalEnv.METRICS_ERRORS_FILE;
+    } else {
+      delete process.env.METRICS_ERRORS_FILE;
+    }
+    if (originalEnv.TELEMETRY_FILE) {
+      process.env.TELEMETRY_FILE = originalEnv.TELEMETRY_FILE;
+    } else {
+      delete process.env.TELEMETRY_FILE;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   });
 
-  it("allows self-service erasure using cookies", async () => {
-    await writeFile(
-      vitalsFile,
-      [
-        { sid: "sid-self", metric: "INP", value: 100 },
-        { sid: "sid-other", metric: "INP", value: 200 },
-      ]
-        .map((entry) => JSON.stringify(entry))
-        .join("\n") + "\n",
-      "utf8",
-    );
-    await writeFile(errorsFile, "", "utf8");
-    await writeFile(
-      telemetryFile,
-      [
-        { userId: "user-self", flag: "test", value: true },
-        { userId: "user-other", flag: "test", value: false },
-      ]
-        .map((entry) => JSON.stringify(entry))
-        .join("\n") + "\n",
-      "utf8",
-    );
-
+  it("self-service erases identifiers from cookies", async () => {
     const { POST } = await import("@/app/api/privacy/erase/route");
     const request = new Request("http://localhost/api/privacy/erase", {
       method: "POST",
@@ -74,30 +73,34 @@ describe("POST /api/privacy/erase", () => {
     });
 
     const response = await POST(request);
+
     expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.ok).toBe(true);
-    expect(body.identifiers).toEqual({ sid: "sid-self", aid: "aid-self", userId: undefined });
+    expect(await response.json()).toEqual({ ok: true });
+    const registry = await fs.readFile(erasureFile, "utf8");
+    const records = registry
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ sid: "sid-self", aid: "aid-self", source: "self" });
     expect(deleteOverridesByUser).not.toHaveBeenCalled();
-
-    const setCookieHeader = response.headers.get("set-cookie") ?? "";
-    expect(setCookieHeader).toContain("sv_id=");
-
-    const erasureLog = await readFile(erasureFile, "utf8");
-    expect(erasureLog).toMatch(/sid-self/);
-
-    const vitalsContent = await readFile(vitalsFile, "utf8");
-    expect(vitalsContent).not.toContain("sid-self");
   });
 
-  it("allows admin erasure by userId and logs overrides", async () => {
-    const logModule = await import("@/lib/ff/audit");
-    const logSpy = vi.spyOn(logModule, "logAdminAction");
-    deleteOverridesByUser.mockResolvedValueOnce(3);
-
-    await writeFile(vitalsFile, "", "utf8");
-    await writeFile(errorsFile, "", "utf8");
-    await writeFile(telemetryFile, "", "utf8");
+  it("admin purge removes metrics and logs audit", async () => {
+    const now = Date.now();
+    const vitalsLine = {
+      snapshotId: "flag/ns",
+      metric: "CLS",
+      value: 0.5,
+      ts: now,
+      sid: "sid-admin",
+    };
+    const errorsLine = { snapshotId: "flag/ns", ts: now, sid: "sid-admin" };
+    const telemetryLine = { stableId: "sid-admin", ts: now, type: "evaluation" };
+    await fs.writeFile(process.env.METRICS_VITALS_FILE!, `${JSON.stringify(vitalsLine)}\n`, "utf8");
+    await fs.writeFile(process.env.METRICS_ERRORS_FILE!, `${JSON.stringify(errorsLine)}\n`, "utf8");
+    await fs.writeFile(process.env.TELEMETRY_FILE!, `${JSON.stringify(telemetryLine)}\n`, "utf8");
+    deleteOverridesByUser.mockResolvedValue(2);
 
     const { POST } = await import("@/app/api/privacy/erase/route");
     const request = new Request("http://localhost/api/privacy/erase", {
@@ -105,25 +108,58 @@ describe("POST /api/privacy/erase", () => {
       headers: {
         "content-type": "application/json",
         "x-ff-console-role": "admin",
+        "x-request-id": "req-admin",
+        cookie: "sv_id=sid-admin",
       },
-      body: JSON.stringify({ userId: "user-42", sid: "sid-42" }),
+      body: JSON.stringify({ userId: "user_123", sid: "sid-admin" }),
     });
 
     const response = await POST(request);
+
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.ok).toBe(true);
-    expect(payload.identifiers).toEqual({ sid: "sid-42", aid: undefined, userId: "user-42" });
-    expect(payload.overridesRemoved).toBe(3);
-    expect(deleteOverridesByUser).toHaveBeenCalledWith("user-42");
-    expect(logSpy).toHaveBeenCalledWith(
+    expect(payload.removedOverrides).toBe(2);
+    expect(Array.isArray(payload.purge)).toBe(true);
+    expect(payload.purge).toHaveLength(3);
+    expect(deleteOverridesByUser).toHaveBeenCalledWith("user_123");
+    expect(logAdminAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "privacy_erase",
         actor: "admin",
-        identifiers: { sid: "sid-42", aid: undefined, userId: "user-42" },
-        removedOverrides: 3,
+        removedOverrides: 2,
+        identifiers: expect.objectContaining({ userId: "user_123", sid: "sid-admin" }),
       }),
     );
-    logSpy.mockRestore();
+
+    const metricsContent = await fs.readFile(process.env.METRICS_VITALS_FILE!, "utf8");
+    expect(metricsContent.trim()).toBe("");
+    const errorsContent = await fs.readFile(process.env.METRICS_ERRORS_FILE!, "utf8");
+    expect(errorsContent.trim()).toBe("");
+    const telemetryContent = await fs.readFile(process.env.TELEMETRY_FILE!, "utf8");
+    expect(telemetryContent.trim()).toBe("");
+  });
+
+  it("reports erasure status for matching sid", async () => {
+    const { POST } = await import("@/app/api/privacy/erase/route");
+    await POST(
+      new Request("http://localhost/api/privacy/erase", {
+        method: "POST",
+        headers: { cookie: "sv_id=sid-status" },
+      }),
+    );
+
+    const { GET } = await import("@/app/api/privacy/status/route");
+    const response = await GET(
+      new Request("http://localhost/api/privacy/status", {
+        headers: { cookie: "sv_id=sid-status" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      erased: true,
+      identifiers: { sid: "sid-status" },
+    });
   });
 });

@@ -79,8 +79,8 @@ describe("POST /api/vitals", () => {
       sessionId: "session-vitals",
       namespace: "default",
     });
+    expect(details?.url).toBeUndefined();
     expect(details?.sid).toBe("session-vitals");
     expect(details?.aid).toBeUndefined();
-    expect(details?.url).toBeUndefined();
   });
 });

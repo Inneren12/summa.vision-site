@@ -65,6 +65,34 @@ export async function middleware(req: NextRequest) {
   const incomingRequestId = (req.headers.get("x-request-id") || "").trim();
   const requestId = incomingRequestId || crypto.randomUUID();
   forwardedHeaders.set("x-request-id", requestId);
+  const cookieJar = parseCookieHeader(forwardedHeaders.get("cookie"));
+  const cookieUpdates: CookieRecord[] = [];
+
+  ensureCookie(
+    cookieJar,
+    "sv_id",
+    () => crypto.randomUUID(),
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+  ensureCookie(
+    cookieJar,
+    "ff_aid",
+    () => crypto.randomUUID(),
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+  ensureCookie(
+    cookieJar,
+    "sv_consent",
+    () => "necessary",
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+
+  if (cookieUpdates.length > 0) {
+    forwardedHeaders.set("cookie", serializeCookieJar(cookieJar));
+  }
   const required = requiredRoleFor(req.nextUrl.pathname, req.method);
   let res: NextResponse;
   let ffAidValue = requestCookies.get(ADMIN_AID_COOKIE)?.value;

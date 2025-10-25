@@ -1,125 +1,145 @@
-import fs from "node:fs/promises";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 
-export type PrivacyIdentifierSet = {
+export type ErasureIdentifier = {
   sid?: string;
   aid?: string;
   userId?: string;
+  stableId?: string;
 };
 
-export type PrivacyErasureRecord = PrivacyIdentifierSet & {
-  at: number;
-  source?: string;
+export type ErasureRecord = ErasureIdentifier & {
+  ts: number;
+  source: "self" | "admin" | "ops" | "system";
+  note?: string;
 };
 
-export type PrivacyErasureIndex = {
-  entries: PrivacyErasureRecord[];
-  sid: Map<string, PrivacyErasureRecord>;
-  aid: Map<string, PrivacyErasureRecord>;
-  userId: Map<string, PrivacyErasureRecord>;
+type Candidate = {
+  sid?: string | null;
+  aid?: string | null;
+  userId?: string | null;
+  stableId?: string | null;
+  sessionId?: string | null;
 };
 
-export type PurgeSummary = {
-  file: string | null;
-  removed: number;
-  purged: boolean;
-  skipped: boolean;
-  reason?: string;
-  size?: number;
+type ErasureSets = {
+  sid: Set<string>;
+  aid: Set<string>;
+  user: Set<string>;
 };
 
-const DEFAULT_RUNTIME_DIR = path.resolve(".runtime");
-const DEFAULT_ERASURE_FILE = path.join(DEFAULT_RUNTIME_DIR, "privacy.erasure.ndjson");
-const DEFAULT_VITALS_FILE = path.join(DEFAULT_RUNTIME_DIR, "vitals.ndjson");
-const DEFAULT_ERRORS_FILE = path.join(DEFAULT_RUNTIME_DIR, "errors.ndjson");
-const DEFAULT_TELEMETRY_FILE = path.join(DEFAULT_RUNTIME_DIR, "telemetry.ndjson");
-
-const MAX_PURGE_BYTES = 50 * 1024 * 1024; // 50 MB
-
-type AppendOptions = {
-  filePath?: string;
-  source?: string;
-  timestamp?: number;
+type Matcher = {
+  hasAny(): boolean;
+  isErased(candidate: Candidate): boolean;
 };
 
-type PurgeOptions = {
-  thresholdBytes?: number;
-};
+const DEFAULT_ERASURE_FILE = path.resolve(".runtime", "privacy.erasure.ndjson");
+const PURGE_THRESHOLD_BYTES = 50 * 1024 * 1024; // 50MB
 
-const LINE_SPLIT = /\r?\n/;
+let cache: { mtimeMs: number; matcher: Matcher } | null = null;
 
-function resolveFile(envKey: string, fallback: string): string {
-  const raw = process.env[envKey];
-  if (raw && raw.trim()) {
-    return path.resolve(raw.trim());
-  }
-  return fallback;
+function getFilePath(): string {
+  return process.env.PRIVACY_ERASURE_FILE
+    ? path.resolve(process.env.PRIVACY_ERASURE_FILE)
+    : DEFAULT_ERASURE_FILE;
 }
 
-export function resolveErasureFilePath(filePath?: string): string {
-  if (filePath) {
-    return path.resolve(filePath);
-  }
-  return resolveFile("PRIVACY_ERASURE_FILE", DEFAULT_ERASURE_FILE);
-}
-
-export function resolveVitalsFilePath(): string {
-  return resolveFile("METRICS_VITALS_FILE", DEFAULT_VITALS_FILE);
-}
-
-export function resolveErrorsFilePath(): string {
-  return resolveFile("METRICS_ERRORS_FILE", DEFAULT_ERRORS_FILE);
-}
-
-export function resolveTelemetryFilePath(): string {
-  return resolveFile("TELEMETRY_FILE", DEFAULT_TELEMETRY_FILE);
-}
-
-function normalize(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
+function normalize(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function normalizeIdentifiers(ids: PrivacyIdentifierSet): PrivacyIdentifierSet {
+function buildSets(records: Iterable<Partial<ErasureRecord>>): ErasureSets {
+  const sid = new Set<string>();
+  const aid = new Set<string>();
+  const user = new Set<string>();
+  for (const rec of records) {
+    const sidValue = normalize(rec.sid) ?? normalize(rec.stableId);
+    if (sidValue) {
+      sid.add(sidValue);
+    }
+    const aidValue = normalize(rec.aid);
+    if (aidValue) {
+      aid.add(aidValue);
+    }
+    const userValue = normalize(rec.userId);
+    if (userValue) {
+      user.add(userValue);
+      sid.add(`u:${userValue}`);
+    }
+  }
+  return { sid, aid, user } satisfies ErasureSets;
+}
+
+function createMatcher(records: Iterable<Partial<ErasureRecord>>): Matcher {
+  const sets = buildSets(records);
   return {
-    sid: normalize(ids.sid),
-    aid: normalize(ids.aid),
-    userId: normalize(ids.userId),
-  };
+    hasAny() {
+      return sets.sid.size > 0 || sets.aid.size > 0 || sets.user.size > 0;
+    },
+    isErased(candidate: Candidate) {
+      if (!this.hasAny()) return false;
+      const sidCandidate =
+        normalize(candidate.sid) ?? normalize(candidate.sessionId) ?? normalize(candidate.stableId);
+      if (sidCandidate && sets.sid.has(sidCandidate)) {
+        return true;
+      }
+      const aidCandidate = normalize(candidate.aid);
+      if (aidCandidate && sets.aid.has(aidCandidate)) {
+        return true;
+      }
+      const userCandidate = normalize(candidate.userId);
+      if (userCandidate && sets.user.has(userCandidate)) {
+        return true;
+      }
+      return false;
+    },
+  } satisfies Matcher;
 }
 
-export function hasIdentifiers(ids: PrivacyIdentifierSet): boolean {
-  return Boolean(ids.sid || ids.aid || ids.userId);
-}
+const EMPTY_MATCHER = createMatcher([]);
 
-export async function appendErasureRecord(
-  ids: PrivacyIdentifierSet,
-  options?: AppendOptions,
-): Promise<PrivacyErasureRecord | null> {
-  const normalized = normalizeIdentifiers(ids);
-  if (!hasIdentifiers(normalized)) {
+function parseRecord(line: string): ErasureRecord | null {
+  try {
+    const parsed = JSON.parse(line) as Partial<ErasureRecord>;
+    const ts = typeof parsed.ts === "number" && Number.isFinite(parsed.ts) ? parsed.ts : Date.now();
+    const source =
+      parsed.source === "self" ||
+      parsed.source === "admin" ||
+      parsed.source === "ops" ||
+      parsed.source === "system"
+        ? parsed.source
+        : "system";
+    const record: ErasureRecord = {
+      ts,
+      source,
+      sid: normalize(parsed.sid),
+      aid: normalize(parsed.aid),
+      userId: normalize(parsed.userId),
+      stableId: normalize(parsed.stableId),
+      note: typeof parsed.note === "string" ? parsed.note : undefined,
+    };
+    if (!record.sid && !record.aid && !record.userId && !record.stableId) {
+      return null;
+    }
+    return record;
+  } catch {
     return null;
   }
-  const record: PrivacyErasureRecord = {
-    ...normalized,
-    at: Number.isFinite(options?.timestamp) ? Number(options?.timestamp) : Date.now(),
-    source: options?.source,
-  };
-  const file = resolveErasureFilePath(options?.filePath);
-  const dir = path.dirname(file);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.appendFile(file, `${JSON.stringify(record)}\n`, "utf8");
-  return record;
 }
 
-async function readLines(file: string): Promise<string[]> {
+async function readRecords(): Promise<ErasureRecord[]> {
+  const file = getFilePath();
   try {
-    const content = await fs.readFile(file, "utf8");
-    return content
-      .split(LINE_SPLIT)
+    const data = await fsp.readFile(file, "utf8");
+    return data
+      .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+      .filter((line) => line.length > 0)
+      .map(parseRecord)
+      .filter((record): record is ErasureRecord => record !== null);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return [];
@@ -128,190 +148,213 @@ async function readLines(file: string): Promise<string[]> {
   }
 }
 
-export async function readErasureRegistry(filePath?: string): Promise<PrivacyErasureRecord[]> {
-  const file = resolveErasureFilePath(filePath);
-  const lines = await readLines(file);
-  const records: PrivacyErasureRecord[] = [];
-  for (const line of lines) {
-    try {
-      const parsed = JSON.parse(line) as PrivacyErasureRecord;
-      const normalized = normalizeIdentifiers(parsed);
-      if (!hasIdentifiers(normalized)) {
-        continue;
-      }
-      records.push({
-        ...normalized,
-        at: Number.isFinite(parsed.at) ? Number(parsed.at) : Date.now(),
-        source: parsed.source,
-      });
-    } catch {
-      // ignore malformed entries
-    }
-  }
-  return records;
-}
-
-export function buildErasureIndex(entries: PrivacyErasureRecord[]): PrivacyErasureIndex {
-  const sorted = entries.slice().sort((a, b) => a.at - b.at);
-  const index: PrivacyErasureIndex = {
-    entries: sorted,
-    sid: new Map(),
-    aid: new Map(),
-    userId: new Map(),
-  };
-  for (const entry of sorted) {
-    if (entry.sid) {
-      index.sid.set(entry.sid, entry);
-    }
-    if (entry.aid) {
-      index.aid.set(entry.aid, entry);
-    }
-    if (entry.userId) {
-      index.userId.set(entry.userId, entry);
-    }
-  }
-  return index;
-}
-
-export async function loadErasureIndex(filePath?: string): Promise<PrivacyErasureIndex> {
-  const entries = await readErasureRegistry(filePath);
-  return buildErasureIndex(entries);
-}
-
-export function isIdentifierErased(index: PrivacyErasureIndex, ids: PrivacyIdentifierSet): boolean {
-  const normalized = normalizeIdentifiers(ids);
-  if (normalized.sid && index.sid.has(normalized.sid)) return true;
-  if (normalized.aid && index.aid.has(normalized.aid)) return true;
-  if (normalized.userId && index.userId.has(normalized.userId)) return true;
-  return false;
-}
-
-function extractIdentifiers(payload: unknown): PrivacyIdentifierSet {
-  if (!payload || typeof payload !== "object") {
-    return {};
-  }
-  const record = payload as Record<string, unknown>;
-  const sid = normalize(record.sid ?? record.sessionId ?? record.stableId);
-  const aid = normalize(record.aid ?? record.accountId ?? record.ff_aid ?? record.sv_aid);
-  const userId = normalize(record.userId);
-  return { sid, aid, userId };
-}
-
-function shouldRemove(
-  normalizedTarget: PrivacyIdentifierSet,
-  candidate: PrivacyIdentifierSet,
-): boolean {
-  if (normalizedTarget.sid && candidate.sid && normalizedTarget.sid === candidate.sid) {
-    return true;
-  }
-  if (normalizedTarget.aid && candidate.aid && normalizedTarget.aid === candidate.aid) {
-    return true;
-  }
-  if (normalizedTarget.userId && candidate.userId && normalizedTarget.userId === candidate.userId) {
-    return true;
-  }
-  return false;
-}
-
-export async function purgeNdjsonFile(
-  filePath: string | undefined,
-  ids: PrivacyIdentifierSet,
-  options?: PurgeOptions,
-): Promise<PurgeSummary> {
-  const normalized = normalizeIdentifiers(ids);
-  const file = filePath ? path.resolve(filePath) : null;
-  if (!file || !hasIdentifiers(normalized)) {
-    return { file: file ?? null, removed: 0, purged: false, skipped: true, reason: "no_match" };
-  }
-  const threshold = Number.isFinite(options?.thresholdBytes)
-    ? Number(options?.thresholdBytes)
-    : MAX_PURGE_BYTES;
+function readRecordsSync(): ErasureRecord[] {
+  const file = getFilePath();
   try {
-    const stats = await fs.stat(file);
-    if (stats.size > threshold) {
-      return {
-        file,
-        removed: 0,
-        purged: false,
-        skipped: true,
-        reason: "over_threshold",
-        size: stats.size,
-      } satisfies PurgeSummary;
-    }
-    const content = await fs.readFile(file, "utf8");
-    const lines = content.split(LINE_SPLIT);
-    const kept: string[] = [];
-    let removed = 0;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-        const candidate = extractIdentifiers(parsed);
-        if (shouldRemove(normalized, candidate)) {
-          removed += 1;
-          continue;
-        }
-      } catch {
-        // keep malformed lines
-      }
-      kept.push(trimmed);
-    }
-    if (removed > 0) {
-      const payload = kept.length > 0 ? `${kept.join("\n")}\n` : "";
-      await fs.writeFile(file, payload, "utf8");
-    }
-    return { file, removed, purged: removed > 0, skipped: false, size: stats.size };
+    const data = fs.readFileSync(file, "utf8");
+    return data
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map(parseRecord)
+      .filter((record): record is ErasureRecord => record !== null);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return {
-        file,
-        removed: 0,
-        purged: false,
-        skipped: true,
-        reason: "missing",
-      } satisfies PurgeSummary;
+      return [];
     }
     throw error;
   }
 }
 
-export async function purgeTelemetryFiles(
-  ids: PrivacyIdentifierSet,
-  options?: PurgeOptions,
-): Promise<{ vitals: PurgeSummary; errors: PurgeSummary; telemetry: PurgeSummary }> {
-  const vitalsFile = resolveVitalsFilePath();
-  const errorsFile = resolveErrorsFilePath();
-  const telemetryFile = resolveTelemetryFilePath();
-  const [vitals, errors, telemetry] = await Promise.all([
-    purgeNdjsonFile(vitalsFile, ids, options),
-    purgeNdjsonFile(errorsFile, ids, options),
-    purgeNdjsonFile(telemetryFile, ids, options),
+export async function appendErasure(
+  record: ErasureIdentifier,
+  source: ErasureRecord["source"],
+  note?: string,
+) {
+  const payload: ErasureRecord = {
+    ts: Date.now(),
+    source,
+    note,
+    sid: normalize(record.sid),
+    aid: normalize(record.aid),
+    userId: normalize(record.userId),
+    stableId: normalize(record.stableId),
+  };
+  if (!payload.sid && !payload.aid && !payload.userId && !payload.stableId) {
+    throw new Error("At least one identifier is required for erasure");
+  }
+  const file = getFilePath();
+  const dir = path.dirname(file);
+  await fsp.mkdir(dir, { recursive: true });
+  const line = `${JSON.stringify(payload)}\n`;
+  await fsp.appendFile(file, line, "utf8");
+  cache = null;
+}
+
+export async function loadErasureMatcher(): Promise<Matcher> {
+  const file = getFilePath();
+  try {
+    const stats = await fsp.stat(file);
+    if (cache && cache.mtimeMs === stats.mtimeMs) {
+      return cache.matcher;
+    }
+    const records = await readRecords();
+    const matcher = createMatcher(records);
+    cache = { mtimeMs: stats.mtimeMs, matcher };
+    return matcher;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      cache = { mtimeMs: 0, matcher: EMPTY_MATCHER };
+      return EMPTY_MATCHER;
+    }
+    throw error;
+  }
+}
+
+export function loadErasureMatcherSync(): Matcher {
+  const file = getFilePath();
+  try {
+    const stats = fs.statSync(file);
+    if (cache && cache.mtimeMs === stats.mtimeMs) {
+      return cache.matcher;
+    }
+    const records = readRecordsSync();
+    const matcher = createMatcher(records);
+    cache = { mtimeMs: stats.mtimeMs, matcher };
+    return matcher;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      cache = { mtimeMs: 0, matcher: EMPTY_MATCHER };
+      return EMPTY_MATCHER;
+    }
+    throw error;
+  }
+}
+
+export function isErasedSync(candidate: Candidate): boolean {
+  return loadErasureMatcherSync().isErased(candidate);
+}
+
+export async function isErased(candidate: Candidate): Promise<boolean> {
+  const matcher = await loadErasureMatcher();
+  return matcher.isErased(candidate);
+}
+
+type PurgeCandidate = ErasureIdentifier;
+
+export type PurgeFileReport = {
+  file: string;
+  removed: number;
+  retained: number;
+  sizeBytes: number;
+  skipped: boolean;
+};
+
+function createMatcherForPurge(candidate: PurgeCandidate): Matcher {
+  return createMatcher([
+    {
+      sid: candidate.sid,
+      aid: candidate.aid,
+      userId: candidate.userId,
+      stableId: candidate.stableId,
+    },
   ]);
-  return { vitals, errors, telemetry };
 }
 
-export function lookupErasure(
-  index: PrivacyErasureIndex,
-  ids: PrivacyIdentifierSet,
-): {
-  sid?: PrivacyErasureRecord;
-  aid?: PrivacyErasureRecord;
-  userId?: PrivacyErasureRecord;
-} {
-  const normalized = normalizeIdentifiers(ids);
-  return {
-    sid: normalized.sid ? index.sid.get(normalized.sid) : undefined,
-    aid: normalized.aid ? index.aid.get(normalized.aid) : undefined,
-    userId: normalized.userId ? index.userId.get(normalized.userId) : undefined,
+function shouldPurgeLine(line: string, matcher: Matcher): boolean {
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    parsed = JSON.parse(line) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  const candidate: Candidate = {
+    sid: typeof parsed.sid === "string" ? parsed.sid : undefined,
+    aid: typeof parsed.aid === "string" ? parsed.aid : undefined,
+    userId: typeof parsed.userId === "string" ? parsed.userId : undefined,
+    stableId: typeof parsed.stableId === "string" ? parsed.stableId : undefined,
+    sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : undefined,
   };
+  if (!candidate.sid && typeof parsed.stableId === "string") {
+    candidate.sid = parsed.stableId;
+  }
+  if (!candidate.sid && typeof parsed.sessionId === "string") {
+    candidate.sid = parsed.sessionId;
+  }
+  if (!candidate.aid) {
+    const aid = (parsed as Record<string, unknown>)["ff_aid"];
+    if (typeof aid === "string") {
+      candidate.aid = aid;
+    }
+  }
+  return matcher.isErased(candidate);
 }
 
-export function summarizeIdentifiers(ids: PrivacyIdentifierSet): PrivacyIdentifierSet {
-  const normalized = normalizeIdentifiers(ids);
-  return {
-    sid: normalized.sid,
-    aid: normalized.aid,
-    userId: normalized.userId,
-  };
+export async function purgeNdjsonFiles(
+  files: string[],
+  candidate: PurgeCandidate,
+): Promise<PurgeFileReport[]> {
+  const matcher = createMatcherForPurge(candidate);
+  if (!matcher.hasAny()) {
+    return files.map((file) => ({
+      file: path.resolve(file),
+      removed: 0,
+      retained: 0,
+      sizeBytes: 0,
+      skipped: true,
+    }));
+  }
+  const reports: PurgeFileReport[] = [];
+  for (const file of files) {
+    const resolved = path.resolve(file);
+    try {
+      const stats = await fsp.stat(resolved);
+      if (stats.size > PURGE_THRESHOLD_BYTES) {
+        reports.push({
+          file: resolved,
+          removed: 0,
+          retained: 0,
+          sizeBytes: stats.size,
+          skipped: true,
+        });
+        continue;
+      }
+      const content = await fsp.readFile(resolved, "utf8");
+      const lines = content.split(/\r?\n/);
+      const kept: string[] = [];
+      let removed = 0;
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (shouldPurgeLine(line, matcher)) {
+          removed += 1;
+          continue;
+        }
+        kept.push(line);
+      }
+      if (removed > 0) {
+        const payload = kept.map((line) => `${line}\n`).join("");
+        await fsp.writeFile(resolved, payload, "utf8");
+        cache = null;
+      }
+      reports.push({
+        file: resolved,
+        removed,
+        retained: kept.length,
+        sizeBytes: stats.size,
+        skipped: false,
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        reports.push({ file: resolved, removed: 0, retained: 0, sizeBytes: 0, skipped: false });
+        continue;
+      }
+      throw error;
+    }
+  }
+  return reports;
+}
+
+export function __clearErasureCacheForTests() {
+  cache = null;
 }

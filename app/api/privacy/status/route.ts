@@ -3,49 +3,48 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { readIdentifiers } from "@/lib/metrics/privacy";
-import {
-  loadErasureIndex,
-  lookupErasure,
-  summarizeIdentifiers,
-  type PrivacyIdentifierSet,
-} from "@/lib/privacy/erasure";
+import { loadErasureMatcher } from "@/lib/privacy/erasure";
 
 export const runtime = "nodejs";
 
-function parseQueryIdentifiers(url: string): PrivacyIdentifierSet {
-  try {
-    const search = new URL(url);
-    const userId = search.searchParams.get("userId")?.trim() || undefined;
-    const sid = search.searchParams.get("sid")?.trim() || undefined;
-    const aid = search.searchParams.get("aid")?.trim() || undefined;
-    return { sid, aid, userId };
-  } catch {
-    return {};
-  }
+function coerce(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 export async function GET(req: Request) {
-  const cookieIds = readIdentifiers(req.headers);
-  const queryIds = parseQueryIdentifiers(req.url);
-  const ids = {
-    sid: cookieIds.sid ?? queryIds.sid,
-    aid: cookieIds.aid ?? queryIds.aid,
-    userId: queryIds.userId,
-  } satisfies PrivacyIdentifierSet;
-
-  const index = await loadErasureIndex();
-  const matches = lookupErasure(index, ids);
-  const erased = Boolean(matches.sid || matches.aid || matches.userId);
-
-  const response = NextResponse.json({
+  const matcher = await loadErasureMatcher();
+  const url = new URL(req.url);
+  const querySid =
+    coerce(url.searchParams.get("sid")) ||
+    coerce(url.searchParams.get("sv_id")) ||
+    coerce(url.searchParams.get("stableId")) ||
+    coerce(url.searchParams.get("sessionId"));
+  const queryAid =
+    coerce(url.searchParams.get("aid")) ||
+    coerce(url.searchParams.get("ff_aid")) ||
+    coerce(url.searchParams.get("sv_aid"));
+  const queryUser = coerce(url.searchParams.get("userId"));
+  const identifiers = readIdentifiers(req.headers);
+  const sid = querySid ?? identifiers.sid;
+  const aid = queryAid ?? identifiers.aid;
+  const userId = queryUser;
+  const stableId = querySid;
+  const erased = matcher.isErased({
+    sid: sid ?? stableId ?? null,
+    aid,
+    userId,
+    sessionId: stableId ?? sid ?? null,
+  });
+  return NextResponse.json({
+    ok: true,
     erased,
-    identifiers: summarizeIdentifiers(ids),
-    matches: {
-      sid: matches.sid ? { at: matches.sid.at, source: matches.sid.source } : undefined,
-      aid: matches.aid ? { at: matches.aid.at, source: matches.aid.source } : undefined,
-      userId: matches.userId ? { at: matches.userId.at, source: matches.userId.source } : undefined,
+    identifiers: {
+      sid: sid ?? null,
+      aid: aid ?? null,
+      userId: userId ?? null,
+      stableId: stableId ?? null,
     },
   });
-  response.headers.set("cache-control", "no-store");
-  return response;
 }

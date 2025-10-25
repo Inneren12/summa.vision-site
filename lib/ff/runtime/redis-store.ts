@@ -334,33 +334,25 @@ export class RedisFlagStore implements FlagStore {
   async deleteOverridesByUser(userId: string): Promise<number> {
     return this.handle(
       async () => {
-        const targetField = scopeField({ type: "user", id: userId });
-        let cursor = "0";
+        const keys = await this.scanKeys(OVERRIDE_KEY_PREFIX);
+        if (keys.length === 0) {
+          return 0;
+        }
+        const field = scopeField({ type: "user", id: userId });
+        const pipeline = this.redis.pipeline();
+        for (const key of keys) {
+          pipeline.hdel(key, field);
+        }
+        const results = await pipeline.exec();
         let removed = 0;
-        do {
-          const [nextCursor, keys] = await this.redis.scan(
-            cursor,
-            "MATCH",
-            `${OVERRIDE_KEY_PREFIX}*`,
-            "COUNT",
-            this.scanCount,
-          );
-          cursor = nextCursor;
-          if (keys.length === 0) continue;
-          const pipeline = this.redis.pipeline();
-          for (const key of keys) {
-            pipeline.hdel(key, targetField);
+        for (const [error, value] of results) {
+          if (!error && typeof value === "number") {
+            removed += value;
           }
-          const results = await pipeline.exec();
-          if (Array.isArray(results)) {
-            for (const [, value] of results) {
-              if (typeof value === "number") {
-                removed += value;
-              }
-            }
-          }
-        } while (cursor !== "0");
-        await this.memoryFallback.deleteOverridesByUser(userId);
+        }
+        if (removed > 0) {
+          await this.memoryFallback.deleteOverridesByUser(userId);
+        }
         return removed;
       },
       () => this.memoryFallback.deleteOverridesByUser(userId),

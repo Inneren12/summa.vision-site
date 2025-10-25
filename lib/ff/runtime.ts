@@ -29,14 +29,14 @@ type MetricsProvider = {
   recordVital(snapshotId: string, metric: string, value: number, details?: VitalDetails): void;
   recordError(
     snapshotId: string,
-    message: string,
+    message: string | undefined,
     stack?: string,
     details?: {
-      context?: RequestCorrelation;
-      sid?: string;
-      aid?: string;
       url?: string;
       filename?: string;
+      sid?: string;
+      aid?: string;
+      context?: RequestCorrelation;
     },
   ): void;
   summarize(snapshotId?: string): SnapshotSummary[];
