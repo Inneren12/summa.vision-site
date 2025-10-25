@@ -76,6 +76,7 @@ function classNames(...values: Array<string | undefined | false>): string {
 export default function Story({ children, stickyTop, className, storyId }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
+  const visualizationRef = useRef<StoryVisualizationController | null>(null);
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const initialHashHandled = useRef(false);
