@@ -13,11 +13,11 @@ export async function GET(req: Request, { params }: { params: { key: string } })
   if (!auth.ok) return auth.response;
   const key = params.key;
   const store = FF().store;
-  const flag = store.getFlag(key);
+  const flag = await store.getFlag(key);
   if (!flag) {
     return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
   }
-  const overrides = store.listOverrides(key);
+  const overrides = await store.listOverrides(key);
   const res = NextResponse.json({ ok: true, flag: flagToApi(flag), overrides });
   return auth.apply(res);
 }

@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   if (flags && flags.length > 0) {
     for (const flagKey of flags) {
       await lock.withLock(flagKey, async () => {
-        const current = store.getFlag(flagKey);
+        const current = await store.getFlag(flagKey);
         if (!current) return;
         const next = {
           ...current,
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
           killSwitch: enable,
           updatedAt: now,
         };
-        store.putFlag(next);
+        await store.putFlag(next);
         appliedFlags.add(flagKey);
       });
     }
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
 
   if (nsInput) {
     const namespace = normalizeNamespace(nsInput);
-    const allFlags = store.listFlags();
+    const allFlags = await store.listFlags();
     const matched = allFlags.filter((flag) => normalizeNamespace(flag.namespace) === namespace);
     if (matched.length === 0) {
       return auth.apply(
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
     }
     for (const flag of matched) {
       await lock.withLock(flag.key, async () => {
-        const current = store.getFlag(flag.key);
+        const current = await store.getFlag(flag.key);
         if (!current) return;
         const next = {
           ...current,
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
           killSwitch: enable,
           updatedAt: now,
         };
-        store.putFlag(next);
+        await store.putFlag(next);
         appliedFlags.add(flag.key);
       });
     }

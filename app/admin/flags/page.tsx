@@ -130,7 +130,7 @@ async function removeOverride(formData: FormData) {
   const store = FF().store;
   const lock = FF().lock;
   await lock.withLock(flag, async () => {
-    store.removeOverride(flag, scope);
+    await store.removeOverride(flag, scope);
   });
   logAdminAction({
     timestamp: Date.now(),
@@ -150,15 +150,15 @@ async function adjustRollout(formData: FormData) {
   if (!flag) throw new Error("Flag key is required");
   if (!Number.isFinite(delta)) throw new Error("Invalid step");
   const { store, lock, metrics } = FF();
-  const existing = store.getFlag(flag);
+  const existing = await store.getFlag(flag);
   if (!existing) throw new Error("Flag not found");
-  const snapshot = FF().snapshot();
+  const snapshot = await FF().snapshot();
   const requiresMetrics = (process.env.METRICS_PROVIDER || "self").toLowerCase() === "self";
   if (requiresMetrics && !metrics.hasData(snapshot.id)) {
     throw new Error("Metrics not available for rollout step");
   }
   const updated = await lock.withLock(flag, async () => {
-    const current = store.getFlag(flag);
+    const current = await store.getFlag(flag);
     if (!current) throw new Error("Flag disappeared");
     const base = current.rollout?.percent ?? 0;
     const nextPercent = Math.max(0, Math.min(100, base + delta));

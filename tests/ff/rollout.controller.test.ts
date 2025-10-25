@@ -71,7 +71,7 @@ describe("rollout step controller", () => {
   let metrics: MockMetricsProvider;
   let snapshotId: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetFFRuntime();
     Object.assign(process.env, originalEnv);
     process.env.ADMIN_TOKEN_OPS = "ops-token";
@@ -80,12 +80,12 @@ describe("rollout step controller", () => {
     metrics = new MockMetricsProvider();
     const lock = new InMemoryRuntimeLock();
     composeFFRuntime({ store, lock, metrics });
-    store.putFlag({
+    await store.putFlag({
       ...createInitialConfig("feature.newCheckout"),
       namespace: "tenant:acme",
       rollout: { percent: 0, steps: [{ pct: 0, at: Date.now() - 60_000 }] },
     });
-    snapshotId = FF().snapshot().id;
+    snapshotId = (await FF().snapshot()).id;
   });
 
   afterEach(() => {
@@ -146,13 +146,13 @@ describe("rollout step controller", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.rollout?.currentPct).toBe(10);
-    const updated = FF().store.getFlag("feature.newCheckout");
+    const updated = await FF().store.getFlag("feature.newCheckout");
     expect(updated?.rollout?.percent).toBe(10);
   });
 
   it("enforces cooldown between rollout steps", async () => {
     const now = Date.now();
-    store.putFlag({
+    await store.putFlag({
       ...createInitialConfig("feature.newCheckout"),
       namespace: "tenant:acme",
       rollout: {
@@ -164,7 +164,7 @@ describe("rollout step controller", () => {
       },
       updatedAt: now - 5 * 60 * 1000,
     });
-    snapshotId = FF().snapshot().id;
+    snapshotId = (await FF().snapshot()).id;
     metrics.setSummary(
       makeSummary({ snapshotId, sampleCount: 500, errorRate: 0.005, cls: 0.05, inp: 150 }),
     );
@@ -190,7 +190,7 @@ describe("rollout step controller", () => {
     expect(json.dryRun).toBe(true);
     expect(json.decision).toBe("advance");
     expect(json.metrics.denominator).toBe(350);
-    const current = FF().store.getFlag("feature.newCheckout");
+    const current = await FF().store.getFlag("feature.newCheckout");
     expect(current?.rollout?.percent).toBe(0);
   });
 });
