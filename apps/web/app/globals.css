@@ -24,3 +24,7 @@
 body {
   @apply bg-bg text-fg;
 }
+
+.story-step-anchor {
+  scroll-margin-top: clamp(5rem, 12vh, 7rem);
+}
