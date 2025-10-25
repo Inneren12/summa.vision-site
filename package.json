@@ -64,7 +64,8 @@
     "pretest:ci": "npm run ff:types",
     "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json",
     "policy:validate": "tsx scripts/policy-validate.ts",
-    "policy:schema:export": "tsx scripts/policy-schema-export.ts"
+    "policy:schema:export": "tsx scripts/policy-schema-export.ts",
+    "stories:validate": "node scripts/stories-validate.mjs"
   },
   "dependencies": {
     "@types/jszip": "^3.4.0",
@@ -94,6 +95,7 @@
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsx-a11y": "^6.8.0",
     "eslint-plugin-unused-imports": "^3.2.0",
+    "gray-matter": "^4.0.3",
     "glob": "^10.4.5",
     "husky": "^9.1.6",
     "ioredis-mock": "^6.0.5",
