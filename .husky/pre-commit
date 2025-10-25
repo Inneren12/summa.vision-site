@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-npm run lint:staged
+# husky v10+: без sourcing husky.sh
+set -e
+# Запускаем lint-staged, если есть
+npm run lint:staged --if-present
