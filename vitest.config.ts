@@ -7,6 +7,10 @@ if (!process.env.COLUMNS) {
 }
 
 export default defineConfig({
+  esbuild: {
+    jsx: "automatic",
+    jsxImportSource: "react",
+  },
   resolve: {
     alias: {
       "server-only": path.resolve(__dirname, "tests/mocks/server-only.ts"),
