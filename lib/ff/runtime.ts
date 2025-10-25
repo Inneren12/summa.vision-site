@@ -17,11 +17,21 @@ type VitalDetails = {
   delta?: number;
   navigationType?: string;
   attribution?: Record<string, unknown>;
+  url?: string;
+  sid?: string;
+  aid?: string;
+};
+
+type ErrorDetails = {
+  url?: string;
+  filename?: string;
+  sid?: string;
+  aid?: string;
 };
 
 type MetricsProvider = {
   recordVital(snapshotId: string, metric: string, value: number, details?: VitalDetails): void;
-  recordError(snapshotId: string, message: string, stack?: string): void;
+  recordError(snapshotId: string, message?: string, stack?: string, details?: ErrorDetails): void;
   summarize(snapshotId?: string): SnapshotSummary[];
   hasData(snapshotId: string): boolean;
 };

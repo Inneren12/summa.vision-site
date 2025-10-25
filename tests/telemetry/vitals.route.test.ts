@@ -30,7 +30,8 @@ describe("POST /api/vitals", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ skipped: true });
     expect(recordVital).not.toHaveBeenCalled();
   });
 
@@ -42,6 +43,7 @@ describe("POST /api/vitals", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-2",
         "x-consent": "necessary",
+        cookie: "sv_id=sid-123; sv_aid=aid-456",
       },
       body: JSON.stringify({
         name: "FID",
@@ -54,6 +56,7 @@ describe("POST /api/vitals", () => {
             count: 5,
           },
         },
+        url: "https://example.com/path",
       }),
     });
 
@@ -68,5 +71,34 @@ describe("POST /api/vitals", () => {
         count: 5,
       },
     });
+    expect(details?.url).toBeUndefined();
+    expect(details?.sid).toBe("sid-123");
+    expect(details?.aid).toBe("aid-456");
+  });
+
+  it("preserves full payload when consent cookie allows all", async () => {
+    const { POST } = await import("@/app/api/vitals/route");
+    const request = new Request("http://localhost/api/vitals", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ff-snapshot": "snapshot-3",
+        cookie: "sv_consent=all; sv_id=sid-cookie; sv_aid=aid-cookie",
+      },
+      body: JSON.stringify({
+        name: "INP",
+        value: 220,
+        url: "https://example/x",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(204);
+    expect(recordVital).toHaveBeenCalledTimes(1);
+    const [, , , details] = recordVital.mock.calls[0];
+    expect(details?.url).toBe("https://example/x");
+    expect(details?.sid).toBe("sid-cookie");
+    expect(details?.aid).toBe("aid-cookie");
   });
 });

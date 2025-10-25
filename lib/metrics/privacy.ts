@@ -1,15 +1,36 @@
-const REDACTED_VALUE = "[redacted]" as const;
-
 export type ConsentLevel = "all" | "necessary";
 
 function normalize(value: string | null): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+function parseCookies(headers: Headers): Record<string, string> {
+  const header = headers.get("cookie");
+  if (!header) return {};
+  const jar: Record<string, string> = {};
+  for (const part of header.split(/;\s*/)) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const key = part.slice(0, eq);
+    const value = part.slice(eq + 1);
+    try {
+      jar[key] = decodeURIComponent(value);
+    } catch {
+      jar[key] = value;
+    }
+  }
+  return jar;
+}
+
 export function readConsent(headers: Headers): ConsentLevel {
   const header = normalize(headers.get("x-consent"));
   if (header === "all") return "all";
   if (header === "necessary") return "necessary";
+  const cookies = parseCookies(headers);
+  const cookie = normalize(cookies["sv_consent"] ?? null);
+  if (cookie === "all") return "all";
+  if (cookie === "necessary") return "necessary";
   return "necessary";
 }
 
@@ -25,7 +46,17 @@ export function hasDoNotTrackEnabled(headers: Headers): boolean {
   return false;
 }
 
-const SENSITIVE_KEYS = new Set(["url", "message"]);
+const SENSITIVE_KEYS = new Set(["url", "message", "stack", "filename"]);
+
+export function readIdentifiers(headers: Headers): { sid?: string; aid?: string } {
+  const cookies = parseCookies(headers);
+  const sid = (headers.get("x-sid") || cookies["sv_id"] || "").trim();
+  const aid = (headers.get("x-aid") || cookies["sv_aid"] || "").trim();
+  return {
+    sid: sid || undefined,
+    aid: aid || undefined,
+  };
+}
 
 function redactValue(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -53,10 +84,11 @@ export function sanitizeAttribution(
   return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 
-export function redactMessage(consent: ConsentLevel, value: string | undefined): string {
-  if (consent === "necessary") {
-    return REDACTED_VALUE;
-  }
+export function sanitizeMessage(
+  consent: ConsentLevel,
+  value: string | undefined,
+): string | undefined {
+  if (consent === "necessary") return undefined;
   return value ?? "Unknown error";
 }
 
@@ -68,4 +100,15 @@ export function sanitizeStack(
   return stack;
 }
 
-export { REDACTED_VALUE };
+export function sanitizeUrl(consent: ConsentLevel, url: string | undefined): string | undefined {
+  if (consent === "necessary") return undefined;
+  return url;
+}
+
+export function sanitizeFilename(
+  consent: ConsentLevel,
+  filename: string | undefined,
+): string | undefined {
+  if (consent === "necessary") return undefined;
+  return filename;
+}

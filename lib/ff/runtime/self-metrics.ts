@@ -16,13 +16,20 @@ type VitalEvent = {
   delta?: number;
   navigationType?: string;
   attribution?: Record<string, unknown>;
+  url?: string;
+  sid?: string;
+  aid?: string;
   ts: number;
 };
 
 type ErrorEvent = {
   snapshotId: string;
-  message: string;
+  message?: string;
   stack?: string;
+  url?: string;
+  filename?: string;
+  sid?: string;
+  aid?: string;
   ts: number;
 };
 
@@ -76,6 +83,9 @@ export class SelfMetricsProvider {
       delta?: number;
       navigationType?: string;
       attribution?: Record<string, unknown>;
+      url?: string;
+      sid?: string;
+      aid?: string;
     },
   ) {
     const event: VitalEvent = {
@@ -89,6 +99,9 @@ export class SelfMetricsProvider {
       delta: details?.delta,
       navigationType: details?.navigationType,
       attribution: details?.attribution,
+      url: details?.url,
+      sid: details?.sid,
+      aid: details?.aid,
       ts: now(),
     };
     this.vitals.push(event);
@@ -100,8 +113,22 @@ export class SelfMetricsProvider {
     this.prune();
   }
 
-  recordError(snapshotId: string, message: string, stack?: string) {
-    const event: ErrorEvent = { snapshotId, message, stack, ts: now() };
+  recordError(
+    snapshotId: string,
+    message?: string,
+    stack?: string,
+    details?: { url?: string; filename?: string; sid?: string; aid?: string },
+  ) {
+    const event: ErrorEvent = {
+      snapshotId,
+      message,
+      stack,
+      url: details?.url,
+      filename: details?.filename,
+      sid: details?.sid,
+      aid: details?.aid,
+      ts: now(),
+    };
     this.errors.push(event);
     if (this.errorsFile) {
       this.enqueue(async () => {
