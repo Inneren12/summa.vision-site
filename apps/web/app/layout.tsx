@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 
+import { correlationFromNextContext } from "../../../lib/metrics/correlation";
+
 import { Providers } from "./providers";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -18,10 +20,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   } catch {
     snapshotId = "";
   }
+  const correlation = correlationFromNextContext();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
-        <Providers>
+        <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content
           </a>

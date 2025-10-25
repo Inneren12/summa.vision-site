@@ -8,7 +8,7 @@ const withSentry = Boolean(process.env.SENTRY_DSN);
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  experimental: { typedRoutes: true },
+  experimental: { externalDir: true, typedRoutes: true },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
