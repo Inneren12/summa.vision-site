@@ -1,10 +1,17 @@
+/* eslint-disable import/order */
+"use client";
+
 import type { ComponentPropsWithoutRef } from "react";
+
+import { usePrefersReducedMotion } from "./motion/prefersReducedMotion";
 
 export type SpinnerProps = ComponentPropsWithoutRef<"div">;
 
 export function Spinner({ className = "", ...props }: SpinnerProps) {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const classes = [
-    "h-5 w-5 animate-spin rounded-full border-2 border-muted/30 border-t-primary",
+    "h-5 w-5 rounded-full border-2 border-muted/30 border-t-primary",
+    prefersReducedMotion ? "" : "animate-spin",
     className,
   ]
     .filter(Boolean)
