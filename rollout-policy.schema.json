@@ -1,0 +1,107 @@
+{
+  "$ref": "#/definitions/RolloutPolicy",
+  "definitions": {
+    "RolloutPolicy": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "default": "http://localhost:3000"
+        },
+        "flag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Flag key to rollout"
+        },
+        "ns": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Namespace for rollout analytics"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "minItems": 1
+        },
+        "stop": {
+          "type": "object",
+          "properties": {
+            "maxErrorRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "maxCLS": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "maxINP": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          },
+          "additionalProperties": false
+        },
+        "minSamples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coolDownMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hysteresis": {
+          "type": "object",
+          "properties": {
+            "errorRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "CLS": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cls": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "INP": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "inp": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          },
+          "additionalProperties": false
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shadow": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "flag",
+        "steps"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
