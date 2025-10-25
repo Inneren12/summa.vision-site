@@ -38,7 +38,7 @@ export type EvaluateFlagReason =
   | "default";
 
 export type EvaluateFlagResult = {
-  value: OverrideValue;
+  value: FlagValue | undefined;
   reason: EvaluateFlagReason;
   segmentId?: string;
 };
@@ -135,13 +135,12 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
   const seedByDefault = cfg.seedByDefault ?? "stableId";
 
   const killSwitchActive = (cfg as { killSwitch?: boolean }).killSwitch ?? cfg.kill ?? false;
-  if (killSwitchActive) {
-    const killValue: FlagValue =
-      cfg.killValue !== undefined
-        ? cfg.killValue
-        : typeof cfg.defaultValue === "boolean"
-          ? false
-          : cfg.defaultValue;
+  const globalKillActive = process.env.FF_KILL_ALL === "true";
+  if (killSwitchActive || globalKillActive) {
+    if (typeof cfg.defaultValue === "boolean") {
+      return { value: false, reason: "killSwitch" };
+    }
+    const killValue = cfg.killValue !== undefined ? cfg.killValue : undefined;
     return { value: killValue, reason: "killSwitch" };
   }
 

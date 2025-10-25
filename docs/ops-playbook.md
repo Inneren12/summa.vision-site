@@ -27,6 +27,8 @@ curl -X POST https://<host>/api/kill \
 - Запрос требует роли `admin` (`authorizeApi(req, "admin")`).
 - Эндпоинт включает/выключает как `kill`, так и `killSwitch` для всех флагов через `FF().store`.
 - Проверить состояние: `GET /ops/summary` → поле `killAll` (`true`/`false`).
+- Для небулевых флагов kill-switch возвращает `killValue`, а при его отсутствии `undefined`. Клиенты обязаны трактовать
+  `undefined`/`null` как выключенное состояние.
 
 **По namespace:**
 

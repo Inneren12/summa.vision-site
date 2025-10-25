@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { evaluateFlag } from "../../lib/ff/runtime/evaluate-flag";
 import type { FlagConfig } from "../../lib/ff/runtime/types";
 
 describe("evaluateFlag", () => {
+  afterEach(() => {
+    delete process.env.FF_KILL_ALL;
+  });
+
   const baseCtx = {
     stableId: "aid-1",
     userId: "user-1",
@@ -171,6 +175,23 @@ describe("evaluateFlag", () => {
     expect(second.reason).toBe("default");
   });
 
+  it("returns undefined for non-boolean flags without killValue", () => {
+    const cfg: FlagConfig = {
+      key: "flag-kill",
+      enabled: true,
+      kill: true,
+      killSwitch: true,
+      defaultValue: "variant-a",
+      seedByDefault: "stableId",
+      createdAt: 0,
+      updatedAt: 0,
+    };
+
+    const result = evaluateFlag({ cfg, ctx: baseCtx, seeds: baseSeeds });
+    expect(result.reason).toBe("killSwitch");
+    expect(result.value).toBeUndefined();
+  });
+
   it("returns killValue when provided", () => {
     const cfg: FlagConfig = {
       key: "flag-kill",
@@ -185,6 +206,23 @@ describe("evaluateFlag", () => {
     };
 
     const result = evaluateFlag({ cfg, ctx: baseCtx, seeds: baseSeeds });
-    expect(result).toMatchObject({ reason: "killSwitch", value: null });
+    expect(result).toMatchObject({ reason: "killSwitch", value: false });
+  });
+
+  it("returns killValue when FF_KILL_ALL is active", () => {
+    process.env.FF_KILL_ALL = "true";
+    const cfg: FlagConfig = {
+      key: "flag-kill-all",
+      enabled: true,
+      kill: false,
+      defaultValue: 42,
+      killValue: 0,
+      seedByDefault: "stableId",
+      createdAt: 0,
+      updatedAt: 0,
+    };
+
+    const result = evaluateFlag({ cfg, ctx: baseCtx, seeds: baseSeeds });
+    expect(result).toMatchObject({ reason: "killSwitch", value: 0 });
   });
 });

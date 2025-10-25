@@ -348,15 +348,16 @@ export class RedisFlagStore implements FlagStore {
         const killActive = (flag.killSwitch ?? flag.kill ?? false) === true;
         const globalKill = process.env.FF_KILL_ALL === "true";
         if (killActive || globalKill) {
-          const killValue =
-            flag.killValue !== undefined
-              ? flag.killValue
-              : typeof flag.defaultValue === "boolean"
-                ? false
-                : flag.defaultValue;
+          if (typeof flag.defaultValue === "boolean") {
+            return {
+              value: false,
+              reason: "killSwitch",
+            } satisfies FlagEvaluationResult;
+          }
+          const killValue = flag.killValue !== undefined ? flag.killValue : undefined;
           return {
             value: killValue,
-            reason: "kill",
+            reason: "killSwitch",
           } satisfies FlagEvaluationResult;
         }
 
