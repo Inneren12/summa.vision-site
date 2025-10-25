@@ -1,0 +1,139 @@
+@layer components {
+  .scrolly {
+    --scrolly-sticky-top: var(--space-7);
+    --scrolly-viewport-height: 100vh;
+    display: grid;
+    gap: var(--space-6);
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--space-7);
+    padding-inline: var(--space-4);
+  }
+
+  @media (min-width: calc(var(--space-8) * 24)) {
+    .scrolly {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-7);
+      padding-inline: var(--space-6);
+    }
+  }
+
+  @media (min-width: calc(var(--space-8) * 32)) {
+    .scrolly {
+      grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--space-8) * 21));
+      align-items: start;
+    }
+  }
+
+  .scrolly-sticky {
+    position: sticky;
+    top: var(--scrolly-sticky-top);
+    height: calc(var(--scrolly-viewport-height) - var(--scrolly-sticky-top));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-l);
+    border: 1px solid var(--color-border-subtle);
+    box-shadow: var(--shadow-z1);
+    overflow: hidden;
+  }
+
+  .scrolly-sticky figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+
+  .scrolly-sticky figure figcaption {
+    color: var(--color-fg-muted);
+  }
+
+  .scrolly-demo-graphic {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--radius-l);
+    background: radial-gradient(
+      circle at 30% 30%,
+      color-mix(in srgb, var(--color-brand-blue-500) 25%, transparent) 0%,
+      transparent 70%
+    );
+  }
+
+  @media (max-width: calc(var(--space-8) * 24 - 0.02px)) {
+    .scrolly-sticky {
+      position: relative;
+      top: auto;
+      height: auto;
+      min-height: calc(var(--space-5) * 12);
+    }
+  }
+
+  .scrolly-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    max-width: min(100%, calc(var(--space-8) * 20));
+    margin-inline: auto;
+  }
+
+  @media (min-width: calc(var(--space-8) * 32)) {
+    .scrolly-steps {
+      margin-inline: unset;
+    }
+  }
+
+  .scrolly-step {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-l);
+    border: 1px solid var(--color-border-subtle);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    color: var(--color-fg-muted);
+    transition:
+      color var(--motion-duration-base) var(--motion-easing-standard),
+      border-color var(--motion-duration-base) var(--motion-easing-standard),
+      background-color var(--motion-duration-base) var(--motion-easing-standard),
+      box-shadow var(--motion-duration-base) var(--motion-easing-standard);
+  }
+
+  .scrolly-step[aria-current="step"] {
+    color: var(--color-fg-default);
+    background: var(--color-bg-canvas);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-z2);
+  }
+
+  .scrolly-step:focus-visible {
+    outline: var(--a11y-focus-ring-width) solid var(--a11y-focus-ring-color);
+    outline-offset: var(--a11y-focus-ring-offset);
+  }
+
+  .scrolly-step__title {
+    margin: 0;
+    font-size: var(--font-size-h3);
+    line-height: var(--font-line-height-headings);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-fg-default);
+  }
+
+  .scrolly-step__body {
+    font-size: var(--font-size-body);
+    line-height: var(--font-line-height-body);
+  }
+
+  .scrolly-step__body p {
+    margin: 0;
+    color: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scrolly-step {
+      transition: none;
+    }
+  }
+}
