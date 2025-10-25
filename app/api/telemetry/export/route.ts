@@ -3,12 +3,22 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 
+import JSZip from "jszip";
 import { NextResponse } from "next/server";
 
 import { enforceAdminRateLimit, resolveTelemetryExportRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
+import { readAuditRecent } from "@/lib/ff/audit";
+import { listNdjsonFiles } from "@/lib/metrics/ndjson";
 
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
+const DEFAULT_VITALS_FILE = "./.runtime/vitals.ndjson";
+const DEFAULT_ERRORS_FILE = "./.runtime/errors.ndjson";
+
+const ZIP_RECORD_LIMIT = 200_000;
+const ZIP_SIZE_LIMIT = 25 * 1024 * 1024; // 25MB pre-compression
+const ZIP_WARNING_RECORDS = 100_000;
+const ZIP_WARNING_BYTES = 15 * 1024 * 1024; // 15MB
 
 type TelemetryExportEventType =
   | "flag_evaluated"
@@ -203,6 +213,98 @@ function parseTimeParam(value: string | null): TimeParamResult {
   return { ok: true, value: parsed };
 }
 
+function parseFlagFilters(url: URL): Set<string> {
+  const raw = [...url.searchParams.getAll("flag"), ...url.searchParams.getAll("flags")];
+  const values = new Set<string>();
+  for (const entry of raw) {
+    for (const part of entry.split(/[\s,]+/)) {
+      const trimmed = part.trim();
+      if (trimmed) values.add(trimmed);
+    }
+  }
+  return values;
+}
+
+function withinRange(ts: number | undefined, fromTs?: number, toTs?: number): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  if (typeof fromTs === "number" && ts < fromTs) return false;
+  if (typeof toTs === "number" && ts > toTs) return false;
+  return true;
+}
+
+function matchesFlagFilter(row: TelemetryExportRow, flags: Set<string>): boolean {
+  if (flags.size === 0) return true;
+  const flag = row.flag?.trim();
+  if (!flag) return false;
+  return flags.has(flag);
+}
+
+function matchesAuditFlag(record: Record<string, unknown>, flags: Set<string>): boolean {
+  if (flags.size === 0) return true;
+  const single = typeof record.flag === "string" ? record.flag.trim() : "";
+  if (single && flags.has(single)) return true;
+  const list = Array.isArray((record as Record<string, unknown>).flags)
+    ? ((record as Record<string, unknown>).flags as unknown[])
+    : [];
+  for (const item of list) {
+    if (typeof item === "string" && flags.has(item.trim())) return true;
+  }
+  return false;
+}
+
+async function collectNdjson(
+  basePath: string | undefined,
+  filters: { fromTs?: number; toTs?: number },
+): Promise<string[]> {
+  if (!basePath) return [];
+  const files = await listNdjsonFiles(basePath, { maxChunkCount: 0, maxChunkDays: 0 });
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const file of files) {
+    if (seen.has(file)) continue;
+    seen.add(file);
+    let content = "";
+    try {
+      content = await fs.readFile(file, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+    for (const rawLine of content.split("\n")) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        parsed = JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      const tsValue = sanitizeNumber((parsed as Record<string, unknown>).ts);
+      if (!withinRange(tsValue, filters.fromTs, filters.toTs)) continue;
+      lines.push(JSON.stringify(parsed));
+    }
+  }
+  return lines;
+}
+
+type ZipDatasetBreakdown = {
+  telemetry: { records: number; bytes: number };
+  vitals: { records: number; bytes: number };
+  errors: { records: number; bytes: number };
+  audit: { records: number; bytes: number };
+};
+
+function summarizeLines(lines: string[]): { records: number; bytes: number } {
+  if (lines.length === 0) return { records: 0, bytes: 0 };
+  const joined = `${lines.join("\n")}\n`;
+  return {
+    records: lines.length,
+    bytes: Buffer.byteLength(joined, "utf8"),
+  };
+}
+
 export async function GET(req: Request) {
   const auth = authorizeApi(req, "viewer");
   if (!auth.ok) return auth.response;
@@ -218,7 +320,7 @@ export async function GET(req: Request) {
   }
   const url = new URL(req.url);
   const fmtParam = (url.searchParams.get("fmt") || "ndjson").toLowerCase();
-  if (fmtParam !== "ndjson" && fmtParam !== "csv") {
+  if (fmtParam !== "ndjson" && fmtParam !== "csv" && fmtParam !== "zip") {
     return NextResponse.json({ error: "Unsupported format" }, { status: 400 });
   }
 
@@ -235,6 +337,7 @@ export async function GET(req: Request) {
   if (typeof fromTs === "number" && typeof toTs === "number" && fromTs > toTs) {
     return NextResponse.json({ error: "from must be ≤ to" }, { status: 400 });
   }
+  const flagFilters = parseFlagFilters(url);
 
   const file = process.env.TELEMETRY_FILE || DEFAULT_TELEMETRY_FILE;
   let content = "";
@@ -246,8 +349,8 @@ export async function GET(req: Request) {
 
   const hashSalt = process.env.TELEMETRY_HASH_SALT || "";
   const rows = parseTelemetry(content, hashSalt).filter((row) => {
-    if (typeof fromTs === "number" && row.ts < fromTs) return false;
-    if (typeof toTs === "number" && row.ts > toTs) return false;
+    if (!withinRange(row.ts, fromTs, toTs)) return false;
+    if (!matchesFlagFilter(row, flagFilters)) return false;
     return true;
   });
 
@@ -263,6 +366,105 @@ export async function GET(req: Request) {
         "content-type": "text/csv; charset=utf-8",
       },
     });
+    return auth.apply(res);
+  }
+
+  if (fmtParam === "zip") {
+    const telemetryLines = rows.map((row) => JSON.stringify(row));
+    const vitalsLines = await collectNdjson(
+      process.env.METRICS_VITALS_FILE || DEFAULT_VITALS_FILE,
+      { fromTs, toTs },
+    );
+    const errorsLines = await collectNdjson(
+      process.env.METRICS_ERRORS_FILE || DEFAULT_ERRORS_FILE,
+      { fromTs, toTs },
+    );
+    const auditLines = readAuditRecent(ZIP_RECORD_LIMIT)
+      .filter((record) => withinRange(record.timestamp, fromTs, toTs))
+      .filter((record) =>
+        matchesAuditFlag(record as unknown as Record<string, unknown>, flagFilters),
+      )
+      .map((record) => JSON.stringify(record));
+
+    const telemetrySummary = summarizeLines(telemetryLines);
+    const vitalsSummary = summarizeLines(vitalsLines);
+    const errorsSummary = summarizeLines(errorsLines);
+    const auditSummary = summarizeLines(auditLines);
+
+    const totalRecords =
+      telemetrySummary.records +
+      vitalsSummary.records +
+      errorsSummary.records +
+      auditSummary.records;
+    const totalBytes =
+      telemetrySummary.bytes + vitalsSummary.bytes + errorsSummary.bytes + auditSummary.bytes;
+
+    if (totalRecords === 0) {
+      return auth.apply(new NextResponse(null, { status: 204 }));
+    }
+
+    if (totalRecords > ZIP_RECORD_LIMIT || totalBytes > ZIP_SIZE_LIMIT) {
+      return auth.apply(
+        NextResponse.json({ error: "Export exceeds safety limits" }, { status: 413 }),
+      );
+    }
+
+    const metadata = {
+      generatedAt: new Date().toISOString(),
+      filters: {
+        from: typeof fromTs === "number" ? fromTs : null,
+        to: typeof toTs === "number" ? toTs : null,
+        flags: Array.from(flagFilters),
+      },
+      totals: {
+        records: totalRecords,
+        bytes: totalBytes,
+      },
+      datasets: {
+        telemetry: telemetrySummary,
+        vitals: vitalsSummary,
+        errors: errorsSummary,
+        audit: auditSummary,
+      },
+    } satisfies {
+      generatedAt: string;
+      filters: { from: number | null; to: number | null; flags: string[] };
+      totals: { records: number; bytes: number };
+      datasets: ZipDatasetBreakdown;
+    };
+
+    const zip = new JSZip();
+    if (telemetryLines.length > 0) {
+      zip.file("telemetry.ndjson", `${telemetryLines.join("\n")}\n`);
+    }
+    if (vitalsLines.length > 0) {
+      zip.file("vitals.ndjson", `${vitalsLines.join("\n")}\n`);
+    }
+    if (errorsLines.length > 0) {
+      zip.file("errors.ndjson", `${errorsLines.join("\n")}\n`);
+    }
+    if (auditLines.length > 0) {
+      zip.file("audit.ndjson", `${auditLines.join("\n")}\n`);
+    }
+    zip.file("metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
+    const buffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
+
+    const res = new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": "attachment; filename=telemetry-export.zip",
+      },
+    });
+
+    if (totalRecords > ZIP_WARNING_RECORDS || totalBytes > ZIP_WARNING_BYTES) {
+      res.headers.set("sv-telemetry-warning", "large-export");
+    }
+
     return auth.apply(res);
   }
 

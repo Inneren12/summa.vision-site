@@ -121,7 +121,8 @@ async function selfErase(req: Request) {
     return NextResponse.json({ error: "Missing identifiers" }, { status: 400 });
   }
   await appendErasure({ sid, aid }, "self");
-  await purgeNdjsonFiles(metricsFiles(), { sid, aid });
+  const files = await metricsFiles();
+  await purgeNdjsonFiles(files, { sid, aid });
   const response = NextResponse.json({ ok: true });
   clearAidCookies(response);
   return response;

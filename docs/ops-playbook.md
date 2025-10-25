@@ -5,7 +5,7 @@
 ## 0. Чек-лист перед началом
 
 - Убедитесь, что у вас есть ops/admin токен (`FF_CONSOLE_OPS_TOKENS` или `FF_ADMIN_TOKEN`).
-- Проверьте состояние рантайма: `curl -H "Authorization: Bearer $FF_ADMIN_TOKEN" https://<host>/ops/summary`.
+- Проверьте состояние рантайма: `curl -H "Authorization: Bearer $FF_ADMIN_TOKEN" https://<host>/ops/summary` → ответ включает размеры NDJSON-журналов, параметры ротации и статус consent/DNT.
 - Локально держите директорию `.runtime/` смонтированной или доступной для чтения (telemetry/vitals/errors.ndjson, flags.snapshot.json).
 
 ---
@@ -72,6 +72,29 @@ curl -X POST https://<host>/api/kill \
 | `.runtime/vitals.ndjson` | Web Vitals (`INP`, `CLS`, `LCP`, `FCP`) |
 | `.runtime/errors.ndjson` | ошибки и stack traces (`/api/js-error`) |
 
+### Экспорт расследования одним архивом
+
+`GET /api/telemetry/export?fmt=zip` возвращает ZIP-архив с четырьмя файлами (`telemetry.ndjson`, `vitals.ndjson`, `errors.ndjson`, `audit.ndjson`) и `metadata.json` с агрегатами. Фильтры:
+
+- `from`, `to` — временной диапазон (`ms` или ISO8601).
+- `flag`/`flags` — можно повторять параметр или передать список через запятую.
+
+Пример CLI:
+
+```bash
+FROM=$(date -u -d '30 minutes ago' +%s000)
+TO=$(date -u +%s000)
+curl -L \
+  -H "Authorization: Bearer $FF_CONSOLE_OPS_TOKEN" \
+  "https://<host>/api/telemetry/export?fmt=zip&from=$FROM&to=$TO&flag=checkout" \
+  -o telemetry-export.zip
+unzip -l telemetry-export.zip
+```
+
+> ⚠️ Экспорт ограничен по объёму (200k записей или 25 МБ до сжатия). При приближении к лимиту ответ содержит заголовок `sv-telemetry-warning: large-export`.
+
+Архив удобно распаковать в отдельную папку и анализировать локально (`jq`, `duckdb`, `rg`). Audit-лог (`audit.ndjson`) помогает увидеть ручные действия ops/admin.
+
 ### Быстрый просмотр последнего события
 
 ```bash
@@ -135,6 +158,17 @@ SQL
   ```
 
 - Поля `sessionId` и `namespace` добавляются рядом, поэтому корреляцию можно расширять до конкретной сессии/тенанта.
+
+### Быстрая расшифровка /ops/summary
+
+Ответ `GET /ops/summary` дополнен диагностикой:
+
+- `ndjson.telemetry|vitals|errors` — количество файлов, строк и общий размер в байтах.
+- `rotation.maxMb|days` — актуальные настройки ротации (`METRICS_ROTATE_MAX_MB`, `METRICS_ROTATE_DAYS`).
+- `metricsWindowMs` и `metricsProvider` — активный провайдер и окно агрегации.
+- `privacy` — что именно учитывается для consent и Do-Not-Track (заголовки/cookie).
+
+Это позволяет сразу понять, есть ли свежие метрики и не переполнились ли локальные журналы.
 
 ---
 

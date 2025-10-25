@@ -66,6 +66,7 @@
   "dependencies": {
     "@types/jszip": "^3.4.0",
     "ioredis": "^4.28.5",
+    "jszip": "^3.10.1",
     "ulid": "^3.0.1",
     "zod": "^3.23.8"
   },
@@ -83,7 +84,6 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "axe-core": "^4.8.2",
-    "glob": "^10.4.5",
     "chalk": "^4.1.2",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.8",
@@ -91,6 +91,7 @@
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsx-a11y": "^6.8.0",
     "eslint-plugin-unused-imports": "^3.2.0",
+    "glob": "^10.4.5",
     "husky": "^9.1.6",
     "ioredis-mock": "^6.0.5",
     "jest-axe": "^9.0.0",
