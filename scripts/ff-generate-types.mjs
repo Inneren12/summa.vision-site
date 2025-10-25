@@ -7,11 +7,18 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function escapeSingleQuotes(name) {
+  return name.replace(/'/g, "\\'");
+}
+
 function formatFlagUnion(names) {
   if (!names.length) {
     return "export type FlagKey = never;";
   }
-  const lines = ["export type FlagKey =", ...names.map((name) => `  | ${JSON.stringify(name)}`)];
+  const lines = [
+    "export type FlagKey =",
+    ...names.map((name) => `  | '${escapeSingleQuotes(String(name))}'`),
+  ];
   lines[lines.length - 1] += ";";
   return lines.join("\n");
 }
