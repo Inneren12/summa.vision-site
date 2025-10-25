@@ -138,7 +138,7 @@ export function Providers({ children, correlation }: ProvidersProps) {
       reporter.send({
         message: error?.message,
         stack: error?.stack,
-        componentStack: info?.componentStack,
+        componentStack: (info?.componentStack ?? undefined),
         source: "boundary",
       });
     },
