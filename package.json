@@ -19,8 +19,10 @@
     "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
+    "lint:staged": "lint-staged",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "commitlint": "commitlint",
     "test": "npm run test:ci",
     "test:ci": "npm run web:test",
     "ff:codegen": "node ./scripts/ff-codegen.mjs",
@@ -64,6 +66,7 @@
     "policy:schema:export": "tsx scripts/policy-schema-export.ts"
   },
   "dependencies": {
+    "@types/jszip": "^3.4.0",
     "ioredis": "^4.28.5",
     "ulid": "^3.0.1",
     "zod": "^3.23.8"

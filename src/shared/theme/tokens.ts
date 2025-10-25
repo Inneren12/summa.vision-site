@@ -1,7 +1,7 @@
 /* eslint-disable */
 /**
  * Do not edit directly
- * Generated on Thu, 23 Oct 2025 20:27:30 GMT
+ * Generated on Sat, 25 Oct 2025 08:20:35 GMT
  */
 
 export const tokens = {
@@ -186,6 +186,48 @@ export const tokens = {
       "textOnSurface": {
         "minRatio": 4.5
       }
+    },
+    "motion": {
+      "reduce": {
+        "duration": {
+          "instant": "1ms",
+          "fast": "60ms",
+          "base": "90ms",
+          "gentle": "120ms"
+        },
+        "easing": {
+          "standard": "linear",
+          "emphasized": "linear"
+        }
+      }
+    },
+    "forcedColors": {
+      "fg": {
+        "default": "CanvasText",
+        "muted": "GrayText",
+        "inverse": "Canvas",
+        "accent": "LinkText"
+      },
+      "bg": {
+        "canvas": "Canvas",
+        "surface": "Canvas",
+        "elevated": "Canvas",
+        "subtle": "Canvas",
+        "inverse": "CanvasText"
+      },
+      "border": {
+        "default": "CanvasText",
+        "emphasis": "CanvasText",
+        "focus": "Highlight"
+      },
+      "focus": {
+        "ringColor": "Highlight",
+        "ringText": "HighlightText"
+      },
+      "selection": {
+        "bg": "Highlight",
+        "text": "HighlightText"
+      }
     }
   },
   "component": {
@@ -218,7 +260,7 @@ export const tokens = {
 } as const;
 
 export type Tokens = typeof tokens;
-export type TokenPath = 'a11y.contrast.textOnCanvas.minRatio' | 'a11y.contrast.textOnSurface.minRatio' | 'a11y.focus.ringColor' | 'a11y.focus.ringOffset' | 'a11y.focus.ringWidth' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'component.button.primary.bg' | 'component.button.primary.hover' | 'component.button.primary.text' | 'component.button.secondary.bg' | 'component.button.secondary.border' | 'component.button.secondary.text' | 'component.card.bg' | 'component.card.border' | 'component.card.shadow' | 'component.chip.bg' | 'component.chip.text' | 'component.tooltip.bg' | 'component.tooltip.text' | 'dataviz.shape.gridOpacity.major' | 'dataviz.shape.gridOpacity.minor' | 'dataviz.shape.lineWidth.bold' | 'dataviz.shape.lineWidth.regular' | 'dataviz.shape.lineWidth.thin' | 'dataviz.shape.markerSize.l' | 'dataviz.shape.markerSize.m' | 'dataviz.shape.markerSize.s' | 'font.family.mono' | 'font.family.sans' | 'font.family.serif' | 'font.lineHeight.body' | 'font.lineHeight.display' | 'font.lineHeight.headings' | 'font.numeric.tabular' | 'font.size.body' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.emphasized' | 'motion.easing.standard' | 'radius.2xl' | 'radius.full' | 'radius.l' | 'radius.m' | 'radius.s' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'z.base' | 'z.below' | 'z.modal' | 'z.nav' | 'z.popover' | 'z.toast';
+export type TokenPath = 'a11y.contrast.textOnCanvas.minRatio' | 'a11y.contrast.textOnSurface.minRatio' | 'a11y.focus.ringColor' | 'a11y.focus.ringOffset' | 'a11y.focus.ringWidth' | 'a11y.forcedColors.bg.canvas' | 'a11y.forcedColors.bg.elevated' | 'a11y.forcedColors.bg.inverse' | 'a11y.forcedColors.bg.subtle' | 'a11y.forcedColors.bg.surface' | 'a11y.forcedColors.border.default' | 'a11y.forcedColors.border.emphasis' | 'a11y.forcedColors.border.focus' | 'a11y.forcedColors.fg.accent' | 'a11y.forcedColors.fg.default' | 'a11y.forcedColors.fg.inverse' | 'a11y.forcedColors.fg.muted' | 'a11y.forcedColors.focus.ringColor' | 'a11y.forcedColors.focus.ringText' | 'a11y.forcedColors.selection.bg' | 'a11y.forcedColors.selection.text' | 'a11y.motion.reduce.duration.base' | 'a11y.motion.reduce.duration.fast' | 'a11y.motion.reduce.duration.gentle' | 'a11y.motion.reduce.duration.instant' | 'a11y.motion.reduce.easing.emphasized' | 'a11y.motion.reduce.easing.standard' | 'color.accent.magenta' | 'color.accent.orange' | 'color.accent.teal' | 'color.accent.violet' | 'color.accent.yellow' | 'color.bg.canvas' | 'color.bg.elevated' | 'color.bg.inverse' | 'color.bg.subtle' | 'color.bg.surface' | 'color.border.default' | 'color.border.emphasis' | 'color.border.focus' | 'color.border.inverse' | 'color.border.subtle' | 'color.brand.blue.500' | 'color.fg.accent' | 'color.fg.default' | 'color.fg.inverse' | 'color.fg.muted' | 'color.fg.subtle' | 'color.neutral.000' | 'color.neutral.050' | 'color.neutral.100' | 'color.neutral.200' | 'color.neutral.300' | 'color.neutral.400' | 'color.neutral.500' | 'color.neutral.600' | 'color.neutral.700' | 'color.neutral.800' | 'color.neutral.900' | 'color.neutral.950' | 'color.status.alert' | 'color.status.info' | 'color.status.ok' | 'color.status.warn' | 'color.statusSurface.alert.bg' | 'color.statusSurface.alert.border' | 'color.statusSurface.alert.fg' | 'color.statusSurface.info.bg' | 'color.statusSurface.info.border' | 'color.statusSurface.info.fg' | 'color.statusSurface.ok.bg' | 'color.statusSurface.ok.border' | 'color.statusSurface.ok.fg' | 'color.statusSurface.warn.bg' | 'color.statusSurface.warn.border' | 'color.statusSurface.warn.fg' | 'component.button.primary.bg' | 'component.button.primary.hover' | 'component.button.primary.text' | 'component.button.secondary.bg' | 'component.button.secondary.border' | 'component.button.secondary.text' | 'component.card.bg' | 'component.card.border' | 'component.card.shadow' | 'component.chip.bg' | 'component.chip.text' | 'component.tooltip.bg' | 'component.tooltip.text' | 'dataviz.shape.gridOpacity.major' | 'dataviz.shape.gridOpacity.minor' | 'dataviz.shape.lineWidth.bold' | 'dataviz.shape.lineWidth.regular' | 'dataviz.shape.lineWidth.thin' | 'dataviz.shape.markerSize.l' | 'dataviz.shape.markerSize.m' | 'dataviz.shape.markerSize.s' | 'font.family.mono' | 'font.family.sans' | 'font.family.serif' | 'font.lineHeight.body' | 'font.lineHeight.display' | 'font.lineHeight.headings' | 'font.numeric.tabular' | 'font.size.body' | 'font.size.caption' | 'font.size.display' | 'font.size.h1' | 'font.size.h2' | 'font.size.h3' | 'font.size.h4' | 'font.weight.bold' | 'font.weight.medium' | 'font.weight.regular' | 'font.weight.semibold' | 'motion.duration.base' | 'motion.duration.fast' | 'motion.duration.gentle' | 'motion.easing.emphasized' | 'motion.easing.standard' | 'radius.2xl' | 'radius.full' | 'radius.l' | 'radius.m' | 'radius.s' | 'radius.xs' | 'shadow.z1' | 'shadow.z2' | 'shadow.z3' | 'space.0' | 'space.1' | 'space.2' | 'space.3' | 'space.4' | 'space.5' | 'space.6' | 'space.7' | 'space.8' | 'z.base' | 'z.below' | 'z.modal' | 'z.nav' | 'z.popover' | 'z.toast';
 
 export const tokenPaths = [
   'a11y.contrast.textOnCanvas.minRatio',
@@ -226,6 +268,28 @@ export const tokenPaths = [
   'a11y.focus.ringColor',
   'a11y.focus.ringOffset',
   'a11y.focus.ringWidth',
+  'a11y.forcedColors.bg.canvas',
+  'a11y.forcedColors.bg.elevated',
+  'a11y.forcedColors.bg.inverse',
+  'a11y.forcedColors.bg.subtle',
+  'a11y.forcedColors.bg.surface',
+  'a11y.forcedColors.border.default',
+  'a11y.forcedColors.border.emphasis',
+  'a11y.forcedColors.border.focus',
+  'a11y.forcedColors.fg.accent',
+  'a11y.forcedColors.fg.default',
+  'a11y.forcedColors.fg.inverse',
+  'a11y.forcedColors.fg.muted',
+  'a11y.forcedColors.focus.ringColor',
+  'a11y.forcedColors.focus.ringText',
+  'a11y.forcedColors.selection.bg',
+  'a11y.forcedColors.selection.text',
+  'a11y.motion.reduce.duration.base',
+  'a11y.motion.reduce.duration.fast',
+  'a11y.motion.reduce.duration.gentle',
+  'a11y.motion.reduce.duration.instant',
+  'a11y.motion.reduce.easing.emphasized',
+  'a11y.motion.reduce.easing.standard',
   'color.accent.magenta',
   'color.accent.orange',
   'color.accent.teal',

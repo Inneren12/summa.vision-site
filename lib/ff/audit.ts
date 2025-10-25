@@ -63,6 +63,16 @@ export type AuditRecord =
       action: "privacy_erase";
       identifiers: { sid?: string; aid?: string; userId?: string; stableId?: string };
       removedOverrides: number;
+    })
+  | (AuditMetadata & {
+      action: "privacy_export";
+      identifiers: {
+        sid?: string | null;
+        aid?: string | null;
+        userId?: string | null;
+        stableId?: string | null;
+      };
+      recordCount: number;
     });
 
 const MAX = 1000;
