@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 
-import murmur from "imurmurhash";
 import type { Redis } from "ioredis";
+
+import { pctHit, seedFor } from "../bucketing";
 
 import { MemoryFlagStore } from "./memory-store";
 import {
@@ -42,33 +43,6 @@ function cloneOverride(entry: OverrideEntry): OverrideEntry {
 function isExpired(entry: OverrideEntry, now = Date.now()): boolean {
   if (!entry.expiresAt) return false;
   return entry.expiresAt <= now;
-}
-
-function hashToUnit(seed: string): number {
-  const h = murmur(seed).result();
-  const unsigned = h >>> 0;
-  return unsigned / 0xffffffff;
-}
-
-function buildSeed(ctx: FlagEvaluationContext, seedBy: SeedBy | undefined): string {
-  switch (seedBy) {
-    case "user":
-    case "userId":
-      return ctx.userId || ctx.stableId;
-    case "namespace":
-      return ctx.namespace || ctx.stableId;
-    case "cookie":
-      return ctx.cookieId || ctx.stableId;
-    case "ipUa": {
-      const ip = ctx.ip || "0.0.0.0";
-      const ua = ctx.userAgent || "unknown";
-      return `${ip}::${ua}`;
-    }
-    case "anonId":
-    case "stableId":
-    default:
-      return ctx.stableId;
-  }
 }
 
 function matchesSegment(segment: SegmentConfig, ctx: FlagEvaluationContext): boolean {
@@ -490,10 +464,9 @@ export class RedisFlagStore implements FlagStore {
       return { value: defaultValue, reason: "global-rollout" } satisfies FlagEvaluationResult;
     }
     if (percent <= 0) return undefined;
-    const seedKey = buildSeed(ctx, rollout.seedBy ?? seedByDefault);
+    const seedKey = seedFor(flag.key, ctx, undefined, rollout.seedBy ?? seedByDefault);
     const salt = rollout.salt || saltKey;
-    const unit = hashToUnit(`${seedKey}:${salt}`);
-    if (unit * 100 < percent) {
+    if (pctHit(`${seedKey}:${salt}`, percent)) {
       return { value: defaultValue, reason: "global-rollout" } satisfies FlagEvaluationResult;
     }
     return undefined;

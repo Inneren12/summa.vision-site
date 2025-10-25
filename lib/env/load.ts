@@ -10,6 +10,7 @@ export type Env = {
   ROLLOUT_LOCK_TTL_MS: number;
   METRICS_WINDOW_MS: number;
   NEXT_PUBLIC_DEV_TOOLS: boolean;
+  FF_BUCKET_STRATEGY?: string;
 };
 
 const DEFAULTS: Pick<
@@ -67,12 +68,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Readonly<Env> 
 
   const cleanedStrings: Pick<
     EnvSchemaShape,
-    "ADMIN_TOKENS" | "FF_COOKIE_DOMAIN" | "FF_COOKIE_PATH" | "REDIS_URL"
+    "ADMIN_TOKENS" | "FF_COOKIE_DOMAIN" | "FF_COOKIE_PATH" | "REDIS_URL" | "FF_BUCKET_STRATEGY"
   > = {
     ADMIN_TOKENS: cleanString(raw.ADMIN_TOKENS),
     FF_COOKIE_DOMAIN: cleanString(raw.FF_COOKIE_DOMAIN),
     FF_COOKIE_PATH: cleanString(raw.FF_COOKIE_PATH),
     REDIS_URL: cleanString(raw.REDIS_URL),
+    FF_BUCKET_STRATEGY: cleanString(raw.FF_BUCKET_STRATEGY),
   };
 
   const env: Env = {
@@ -89,6 +91,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Readonly<Env> 
       raw.NEXT_PUBLIC_DEV_TOOLS,
       defaultsUsed,
     ),
+    FF_BUCKET_STRATEGY: cleanedStrings.FF_BUCKET_STRATEGY,
   };
 
   if (defaultsUsed.length > 0) {
