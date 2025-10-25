@@ -252,4 +252,35 @@ describe("SelfHostedMetricsProvider", () => {
     vi.advanceTimersByTime(2_000);
     await expect(provider.getWebVital("INP", "flag-cache", snapshotId)).resolves.toBe(480);
   });
+
+  it("ignores chunk files outside the configured window", async () => {
+    const snapshotId = "snapshot-chunks";
+    const now = Date.now();
+    const baseEntry = { snapshotId, metric: "INP", value: 120, ts: now - 500 };
+    const recentChunkEntry = { snapshotId, metric: "INP", value: 250, ts: now - 1_000 };
+    const oldChunkEntry = { snapshotId, metric: "INP", value: 999, ts: now - 1_500 };
+
+    await writeFile(vitalsFile, `${JSON.stringify(baseEntry)}\n`, "utf8");
+    await writeFile(
+      path.join(tmpDir, "vitals-20231231.ndjson"),
+      `${JSON.stringify(recentChunkEntry)}\n`,
+      "utf8",
+    );
+    await writeFile(
+      path.join(tmpDir, "vitals-20231220.ndjson"),
+      `${JSON.stringify(oldChunkEntry)}\n`,
+      "utf8",
+    );
+    await writeFile(errorsFile, "", "utf8");
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 60 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+      maxChunkDays: 3,
+      maxChunkCount: 5,
+    });
+
+    await expect(provider.getWebVital("INP", "flag-chunks", snapshotId)).resolves.toBe(250);
+  });
 });

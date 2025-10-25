@@ -1,5 +1,7 @@
 import "server-only";
 
+import path from "node:path";
+
 import { NextResponse } from "next/server";
 
 import { logAdminAction } from "@/lib/ff/audit";
@@ -7,6 +9,7 @@ import { stableCookieOptions } from "@/lib/ff/cookies";
 import { FF } from "@/lib/ff/runtime";
 import { sanitizeUserId } from "@/lib/ff/stable-id";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
+import { listNdjsonFiles } from "@/lib/metrics/ndjson";
 import { readIdentifiers } from "@/lib/metrics/privacy";
 import {
   appendErasure,
@@ -23,13 +26,25 @@ const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 
 const ROLE_HEADER = "x-ff-console-role";
 
-function metricsFiles(): string[] {
-  const files = [
+async function metricsFiles(): Promise<string[]> {
+  const bases = [
     process.env.METRICS_VITALS_FILE || DEFAULT_VITALS_FILE,
     process.env.METRICS_ERRORS_FILE || DEFAULT_ERRORS_FILE,
     process.env.TELEMETRY_FILE || DEFAULT_TELEMETRY_FILE,
   ];
-  return Array.from(new Set(files));
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const base of bases) {
+    const files = await listNdjsonFiles(base);
+    for (const file of files) {
+      const resolved = path.resolve(file);
+      if (!seen.has(resolved)) {
+        seen.add(resolved);
+        result.push(resolved);
+      }
+    }
+  }
+  return result;
 }
 
 function coerceId(value: unknown): string | undefined {
@@ -132,7 +147,7 @@ export async function POST(req: Request) {
   }
 
   await appendErasure(ids, role);
-  const files = metricsFiles();
+  const files = await metricsFiles();
   const purgeReport: PurgeFileReport[] = await purgeNdjsonFiles(files, ids);
 
   let removedOverrides = 0;

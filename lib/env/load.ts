@@ -9,6 +9,8 @@ export type Env = {
   REDIS_URL?: string;
   ROLLOUT_LOCK_TTL_MS: number;
   METRICS_WINDOW_MS: number;
+  METRICS_ROTATE_MAX_MB: number;
+  METRICS_ROTATE_DAYS: number;
   NEXT_PUBLIC_DEV_TOOLS: boolean;
   FF_BUCKET_STRATEGY?: string;
 };
@@ -19,12 +21,16 @@ const DEFAULTS: Pick<
   | "FF_COOKIE_SECURE"
   | "ROLLOUT_LOCK_TTL_MS"
   | "METRICS_WINDOW_MS"
+  | "METRICS_ROTATE_MAX_MB"
+  | "METRICS_ROTATE_DAYS"
   | "NEXT_PUBLIC_DEV_TOOLS"
 > = {
   FF_COOKIE_PATH: "/",
   FF_COOKIE_SECURE: false,
   ROLLOUT_LOCK_TTL_MS: 15_000,
   METRICS_WINDOW_MS: 1_800_000,
+  METRICS_ROTATE_MAX_MB: 50,
+  METRICS_ROTATE_DAYS: 7,
   NEXT_PUBLIC_DEV_TOOLS: false,
 };
 
@@ -86,6 +92,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Readonly<Env> 
     REDIS_URL: cleanedStrings.REDIS_URL,
     ROLLOUT_LOCK_TTL_MS: applyDefault("ROLLOUT_LOCK_TTL_MS", raw.ROLLOUT_LOCK_TTL_MS, defaultsUsed),
     METRICS_WINDOW_MS: applyDefault("METRICS_WINDOW_MS", raw.METRICS_WINDOW_MS, defaultsUsed),
+    METRICS_ROTATE_MAX_MB: applyDefault(
+      "METRICS_ROTATE_MAX_MB",
+      raw.METRICS_ROTATE_MAX_MB,
+      defaultsUsed,
+    ),
+    METRICS_ROTATE_DAYS: applyDefault("METRICS_ROTATE_DAYS", raw.METRICS_ROTATE_DAYS, defaultsUsed),
     NEXT_PUBLIC_DEV_TOOLS: applyDefault(
       "NEXT_PUBLIC_DEV_TOOLS",
       raw.NEXT_PUBLIC_DEV_TOOLS,

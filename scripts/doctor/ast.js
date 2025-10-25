@@ -5,19 +5,27 @@ import path from "node:path";
 const FALLBACK_ENABLED = true;
 let tsMorphModulePromise;
 let projectPromise;
+let fallbackToRegex = false;
 let virtualId = 0;
 
 async function loadTsMorph() {
+  if (fallbackToRegex) {
+    return null;
+  }
   if (!tsMorphModulePromise) {
     tsMorphModulePromise = import("ts-morph").catch(() => null);
   }
-  return tsMorphModulePromise;
+  return tsMorphModule;
 }
 
 async function getProject() {
+  if (fallbackToRegex) {
+    return null;
+  }
   if (!projectPromise) {
     projectPromise = (async () => {
       const tsMorph = await loadTsMorph();
+      if (!tsMorph) return null;
       const { Project, ts } = tsMorph;
       return new Project({
         useInMemoryFileSystem: true,
@@ -69,7 +77,10 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
   try {
     project = await getProject();
   } catch {
-    return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
+    return scanWithFallback(text, flagNames);
+  }
+  if (!project) {
+    return scanWithFallback(text, flagNames);
   }
 
   const refs = new Map(flagNames.map((n) => [n, 0]));
@@ -88,7 +99,7 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
       scriptKind: getScriptKind(tsMorph, filename),
     });
   } catch {
-    return { refs, fuzzyRefs, unknown, occurrences };
+    return scanWithFallback(text, flagNames);
   }
 
   const gateNames = new Set([
