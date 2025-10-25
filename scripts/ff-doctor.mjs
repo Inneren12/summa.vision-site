@@ -10,11 +10,19 @@ const NAMES_JSON = path.join(ROOT, "generated", "flags.names.json");
 const TS_FLAGS = path.join(ROOT, "lib", "ff", "flags.ts");
 const ALLOW_FILE = path.join(ROOT, "scripts", "ff-doctor.allow"); // optional
 
+const DEFAULT_TELEMETRY_PATHS = [
+  path.join(ROOT, "reports", "telemetry.ndjson"),
+  path.join(ROOT, "reports", "ff-telemetry.ndjson"),
+  path.join(ROOT, "reports", "telemetry"),
+  path.join(ROOT, ".runtime", "telemetry.ndjson"),
+];
+
 function readFlagNames() {
+  const diagnostics = [];
   // 1) JSON из codegen (предпочтительно)
   try {
     const j = JSON.parse(fs.readFileSync(NAMES_JSON, "utf8"));
-    if (Array.isArray(j?.names) && j.names.length) return j.names;
+    if (Array.isArray(j?.names) && j.names.length) return { names: j.names, diagnostics };
   } catch {
     // ignore and fallback to TypeScript source
   }
@@ -26,17 +34,16 @@ function readFlagNames() {
       const body = m[1];
       const names = Array.from(body.matchAll(/['"]([a-zA-Z0-9_-]+)['"]/g)).map((x) => x[1]);
       if (names.length) {
-        console.warn(
+        diagnostics.push(
           "[ff-doctor] fallback: parsed names from lib/ff/flags.ts (run ff:codegen to speed up)",
         );
-        return names;
+        return { names, diagnostics };
       }
     }
   } catch {
     // ignore and report below
   }
-  console.error("[ff-doctor] No flag names available. Run: npm run ff:codegen");
-  process.exit(2);
+  throw new Error("[ff-doctor] No flag names available. Run: npm run ff:codegen");
 }
 
 function readAllowList() {
@@ -79,6 +86,7 @@ function parseArgs(argv) {
     days: 30,
     minExposures: 5,
     telemetry: [],
+    watch: false,
   };
   const readValue = (arg, key, next) => {
     if (arg.startsWith(`${key}=`)) return { value: arg.slice(key.length + 1), consumed: 0 };
@@ -89,6 +97,10 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--json") {
       opts.jsonMode = true;
+      continue;
+    }
+    if (arg === "--watch") {
+      opts.watch = true;
       continue;
     }
     if (arg === "--hint") {
@@ -185,13 +197,7 @@ function discoverTelemetryFiles(explicitPaths) {
   if (explicitPaths.length) {
     explicitPaths.forEach(addFile);
   } else {
-    const defaults = [
-      path.join(ROOT, "reports", "telemetry.ndjson"),
-      path.join(ROOT, "reports", "ff-telemetry.ndjson"),
-      path.join(ROOT, "reports", "telemetry"),
-      path.join(ROOT, ".runtime", "telemetry.ndjson"),
-    ];
-    defaults.forEach(addFile);
+    DEFAULT_TELEMETRY_PATHS.forEach(addFile);
   }
   return Array.from(found).sort();
 }
@@ -255,270 +261,458 @@ function readTelemetry(files, { days }) {
   return { exposures, events, available, files: files.length, range };
 }
 
-const flagNames = readFlagNames();
-const allow = readAllowList();
-const files = readFiles();
 const HAS_AST = await astAvailable();
 const options = parseArgs(process.argv.slice(2));
-const HINT = options.hint;
-const JSON_MODE = options.jsonMode;
-const telemetryFiles = discoverTelemetryFiles(options.telemetry);
-const telemetryReport = readTelemetry(telemetryFiles, options);
+const resolvedOutPath = resolveOutPath(options.out);
 
-const refs = new Map(flagNames.map((n) => [n, 0]));
-const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
-const unknown = new Map();
-const unknownDetails = [];
-const fuzzyDetails = [];
-const knownSet = new Set(flagNames);
+if (options.watch) {
+  await runWatchMode({ options, hasAst: HAS_AST, outPath: resolvedOutPath });
+} else {
+  await runOnce({ options, hasAst: HAS_AST, outPath: resolvedOutPath });
+}
 
-for (const file of files) {
-  const text = fs.readFileSync(file, "utf8");
-  const ext = path.extname(file).toLowerCase();
-  const regexResult = scanTextForFlags(text, flagNames);
-  let r = regexResult;
-  const canAST = HAS_AST && /\.(c|m)?(t|j)sx?$/.test(ext);
-  let usedAST = false;
-  if (canAST) {
+function resolveOutPath(outOption) {
+  if (!outOption) return null;
+  return path.isAbsolute(outOption) ? outOption : path.join(ROOT, outOption);
+}
+
+function writeOutputFile(payload, outPath) {
+  if (!outPath) return;
+  const outDir = path.dirname(outPath);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+function serializeError(error) {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message, stack: error.stack };
+  }
+  return { message: String(error) };
+}
+
+function computeWatchTargets(options) {
+  const targets = new Set();
+  for (const dir of SRC_DIRS) {
+    targets.add(path.join(ROOT, dir));
+  }
+  targets.add(path.join(ROOT, "generated"));
+  targets.add(path.join(ROOT, "lib", "ff"));
+  targets.add(ALLOW_FILE);
+  targets.add(NAMES_JSON);
+  targets.add(TS_FLAGS);
+  const telemetrySources = options.telemetry.length ? options.telemetry : DEFAULT_TELEMETRY_PATHS;
+  for (const source of telemetrySources) {
+    targets.add(path.resolve(ROOT, source));
+  }
+  return Array.from(targets);
+}
+
+async function performScan({ options, hasAst }) {
+  const { names: flagNames, diagnostics: flagDiagnostics } = readFlagNames();
+  const allow = readAllowList();
+  const files = readFiles();
+  const telemetryFiles = discoverTelemetryFiles(options.telemetry);
+  const telemetryReport = readTelemetry(telemetryFiles, options);
+  const diagnostics = [...flagDiagnostics];
+
+  const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
+  const unknown = new Map();
+  const unknownDetails = [];
+  const fuzzyDetails = [];
+  const knownSet = new Set(flagNames);
+
+  for (const file of files) {
+    let text;
     try {
-      const astResult = await scanTextForFlagsAST(text, file, flagNames);
-      if (astResult?.occurrences?.length) {
-        r = astResult;
-        usedAST = true;
-      }
+      text = fs.readFileSync(file, "utf8");
     } catch {
-      // no-op, fallback ниже
+      continue;
     }
-  }
-  for (const [k, v] of r.refs ?? []) refs.set(k, (refs.get(k) || 0) + v);
-  for (const [k, v] of r.fuzzyRefs ?? []) fuzzyRefs.set(k, (fuzzyRefs.get(k) || 0) + v);
-  for (const [k, v] of r.unknown ?? []) unknown.set(k, (unknown.get(k) || 0) + v);
-  for (const occ of r.occurrences ?? []) {
-    if (knownSet.has(occ.name)) {
-      if (occ.fuzzy) {
-        fuzzyDetails.push({ name: occ.name, file, line: occ.line, col: occ.col, kind: occ.kind });
+    const ext = path.extname(file).toLowerCase();
+    const regexResult = scanTextForFlags(text, flagNames);
+    let r = regexResult;
+    const canAST = hasAst && /\.(c|m)?(t|j)sx?$/.test(ext);
+    let usedAST = false;
+    if (canAST) {
+      try {
+        const astResult = await scanTextForFlagsAST(text, file, flagNames);
+        if (astResult?.occurrences?.length) {
+          r = astResult;
+          usedAST = true;
+        }
+      } catch {
+        // ignore, fallback ниже
       }
-    } else {
-      unknownDetails.push({
-        name: occ.name,
-        file,
-        line: occ.line,
-        col: occ.col,
-        kind: occ.kind,
-        fuzzy: !!occ.fuzzy,
-      });
     }
-  }
-  if (usedAST) {
-    for (const occ of regexResult.occurrences ?? []) {
-      if (!occ.fuzzy) continue;
+    for (const [k, v] of r.refs ?? []) refs.set(k, (refs.get(k) || 0) + v);
+    for (const [k, v] of r.fuzzyRefs ?? []) fuzzyRefs.set(k, (fuzzyRefs.get(k) || 0) + v);
+    for (const [k, v] of r.unknown ?? []) unknown.set(k, (unknown.get(k) || 0) + v);
+    for (const occ of r.occurrences ?? []) {
       if (knownSet.has(occ.name)) {
-        fuzzyRefs.set(occ.name, (fuzzyRefs.get(occ.name) || 0) + 1);
-        fuzzyDetails.push({ name: occ.name, file, line: occ.line, col: occ.col, kind: occ.kind });
+        if (occ.fuzzy) {
+          fuzzyDetails.push({ name: occ.name, file, line: occ.line, col: occ.col, kind: occ.kind });
+        }
       } else {
-        unknown.set(occ.name, (unknown.get(occ.name) || 0) + 1);
         unknownDetails.push({
           name: occ.name,
           file,
           line: occ.line,
           col: occ.col,
           kind: occ.kind,
-          fuzzy: true,
+          fuzzy: !!occ.fuzzy,
         });
       }
     }
+    if (usedAST) {
+      for (const occ of regexResult.occurrences ?? []) {
+        if (!occ.fuzzy) continue;
+        if (knownSet.has(occ.name)) {
+          fuzzyRefs.set(occ.name, (fuzzyRefs.get(occ.name) || 0) + 1);
+          fuzzyDetails.push({ name: occ.name, file, line: occ.line, col: occ.col, kind: occ.kind });
+        } else {
+          unknown.set(occ.name, (unknown.get(occ.name) || 0) + 1);
+          unknownDetails.push({
+            name: occ.name,
+            file,
+            line: occ.line,
+            col: occ.col,
+            kind: occ.kind,
+            fuzzy: true,
+          });
+        }
+      }
+    }
   }
-}
 
-// Применяем allow-лист
-for (const name of allow.use) {
-  if (refs.has(name)) refs.set(name, Math.max(1, refs.get(name) || 0));
-}
-for (const name of allow.allowUnknown) {
-  if (unknown.has(name)) unknown.delete(name);
-}
-
-const exposuresKnown = new Map(flagNames.map((n) => [n, telemetryReport.exposures.get(n) || 0]));
-const telemetryUnknown = [];
-for (const [flag, count] of telemetryReport.exposures.entries()) {
-  if (!knownSet.has(flag)) telemetryUnknown.push({ name: flag, count });
-}
-
-const fuzzyByName = new Map();
-for (const detail of fuzzyDetails) {
-  if (!fuzzyByName.has(detail.name)) fuzzyByName.set(detail.name, []);
-  fuzzyByName.get(detail.name).push(detail);
-}
-
-const errors = [];
-const warnings = [];
-const unused = [];
-const stale = [];
-const fuzzyOnly = [];
-
-for (const [name, count] of unknown.entries()) {
-  const coords = unknownDetails
-    .filter((x) => x.name === name)
-    .slice(0, 5)
-    .map((x) => `${x.file}:${x.line}:${x.col}`)
-    .join(", ");
-  errors.push(`unknown flag usage "${name}" (${count} refs) at ${coords}`);
-}
-
-for (const item of telemetryUnknown) {
-  errors.push(`telemetry exposure for unknown flag "${item.name}" (${item.count})`);
-}
-
-const telemetryAvailable = telemetryReport.available;
-
-const classifyUnusedConfidence = ({ fuzzyRefsCount, telemetryAvailable: telemetry }) => {
-  if (telemetry) {
-    return fuzzyRefsCount > 0 ? "medium" : "high";
+  for (const name of allow.use) {
+    if (refs.has(name)) refs.set(name, Math.max(1, refs.get(name) || 0));
   }
-  return fuzzyRefsCount > 0 ? "low" : "medium";
-};
+  for (const name of allow.allowUnknown) {
+    if (unknown.has(name)) unknown.delete(name);
+  }
 
-const classifyStaleConfidence = ({ exposures, telemetryAvailable: telemetry }) => {
-  if (!telemetry) return "low";
-  if (exposures === 0) return "medium";
-  return "low";
-};
+  const exposuresKnown = new Map(flagNames.map((n) => [n, telemetryReport.exposures.get(n) || 0]));
+  const telemetryUnknown = [];
+  for (const [flag, count] of telemetryReport.exposures.entries()) {
+    if (!knownSet.has(flag)) telemetryUnknown.push({ name: flag, count });
+  }
 
-for (const name of flagNames) {
-  const direct = refs.get(name) || 0;
-  const exposures = exposuresKnown.get(name) || 0;
-  const fuzzyCount = fuzzyRefs.get(name) || 0;
-  if (direct === 0 && exposures === 0) {
-    const detail = {
+  const fuzzyByName = new Map();
+  for (const detail of fuzzyDetails) {
+    if (!fuzzyByName.has(detail.name)) fuzzyByName.set(detail.name, []);
+    fuzzyByName.get(detail.name).push(detail);
+  }
+
+  const errors = [];
+  const warnings = [];
+  const unused = [];
+  const stale = [];
+  const fuzzyOnly = [];
+
+  for (const [name, count] of unknown.entries()) {
+    const coords = unknownDetails
+      .filter((x) => x.name === name)
+      .slice(0, 5)
+      .map((x) => `${x.file}:${x.line}:${x.col}`)
+      .join(", ");
+    errors.push(`unknown flag usage "${name}" (${count} refs) at ${coords}`);
+  }
+
+  for (const item of telemetryUnknown) {
+    errors.push(`telemetry exposure for unknown flag "${item.name}" (${item.count})`);
+  }
+
+  const telemetryAvailable = telemetryReport.available;
+
+  const classifyUnusedConfidence = ({ fuzzyRefsCount, telemetryAvailable: telemetry }) => {
+    if (telemetry) {
+      return fuzzyRefsCount > 0 ? "medium" : "high";
+    }
+    return fuzzyRefsCount > 0 ? "low" : "medium";
+  };
+
+  const classifyStaleConfidence = ({ exposures, telemetryAvailable: telemetry }) => {
+    if (!telemetry) return "low";
+    if (exposures === 0) return "medium";
+    return "low";
+  };
+
+  for (const name of flagNames) {
+    const direct = refs.get(name) || 0;
+    const exposures = exposuresKnown.get(name) || 0;
+    const fuzzyCount = fuzzyRefs.get(name) || 0;
+    if (direct === 0 && exposures === 0) {
+      const detail = {
+        name,
+        references: direct,
+        fuzzyReferences: fuzzyCount,
+        exposures,
+        telemetryAvailable,
+        confidence: classifyUnusedConfidence({ fuzzyRefsCount: fuzzyCount, telemetryAvailable }),
+      };
+      unused.push(detail);
+      warnings.push(`${name}: unused (confidence=${detail.confidence})`);
+    }
+    if (telemetryAvailable && direct > 0 && exposures < options.minExposures) {
+      const detail = {
+        name,
+        references: direct,
+        exposures,
+        threshold: options.minExposures,
+        confidence: classifyStaleConfidence({ exposures, telemetryAvailable }),
+      };
+      stale.push(detail);
+      warnings.push(`${name}: stale (exposures=${exposures}, confidence=${detail.confidence})`);
+    }
+  }
+
+  for (const [name, details] of fuzzyByName.entries()) {
+    const direct = refs.get(name) || 0;
+    if (direct > 0) continue;
+    const exposures = exposuresKnown.get(name) || 0;
+    fuzzyOnly.push({
       name,
-      references: direct,
-      fuzzyReferences: fuzzyCount,
+      fuzzyRefs: fuzzyRefs.get(name) || details.length,
       exposures,
-      telemetryAvailable,
-      confidence: classifyUnusedConfidence({ fuzzyRefsCount: fuzzyCount, telemetryAvailable }),
-    };
-    unused.push(detail);
-    warnings.push(`${name}: unused (confidence=${detail.confidence})`);
+      samples: details.slice(0, 5),
+    });
   }
-  if (telemetryAvailable && direct > 0 && exposures < options.minExposures) {
-    const detail = {
-      name,
-      references: direct,
-      exposures,
-      threshold: options.minExposures,
-      confidence: classifyStaleConfidence({ exposures, telemetryAvailable }),
-    };
-    stale.push(detail);
-    warnings.push(`${name}: stale (exposures=${exposures}, confidence=${detail.confidence})`);
+
+  unused.sort((a, b) => a.name.localeCompare(b.name));
+  stale.sort((a, b) => a.name.localeCompare(b.name));
+  fuzzyOnly.sort((a, b) => a.name.localeCompare(b.name));
+  unknownDetails.sort(
+    (a, b) =>
+      a.name.localeCompare(b.name) ||
+      a.file.localeCompare(b.file) ||
+      (a.line ?? 0) - (b.line ?? 0) ||
+      (a.col ?? 0) - (b.col ?? 0),
+  );
+  telemetryUnknown.sort((a, b) => a.name.localeCompare(b.name));
+
+  const exposuresObject = Object.fromEntries(exposuresKnown);
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    options: { days: options.days, minExposures: options.minExposures },
+    files: files.length,
+    telemetry: {
+      available: telemetryReport.available,
+      files: telemetryReport.files,
+      events: telemetryReport.events,
+      range: telemetryReport.range,
+      unknown: telemetryUnknown,
+    },
+    refs: Object.fromEntries(refs),
+    fuzzyRefs: Object.fromEntries(fuzzyRefs),
+    exposures: exposuresObject,
+    unused,
+    stale,
+    fuzzyOnly,
+    unknown: unknownDetails,
+    warnings,
+    errors,
+  };
+  if (diagnostics.length) {
+    payload.diagnostics = diagnostics;
   }
+
+  return { payload, files, telemetryFiles };
 }
 
-for (const [name, details] of fuzzyByName.entries()) {
-  const direct = refs.get(name) || 0;
-  if (direct > 0) continue;
-  const exposures = exposuresKnown.get(name) || 0;
-  fuzzyOnly.push({
-    name,
-    fuzzyRefs: fuzzyRefs.get(name) || details.length,
-    exposures,
-    samples: details.slice(0, 5),
-  });
-}
-
-unused.sort((a, b) => a.name.localeCompare(b.name));
-stale.sort((a, b) => a.name.localeCompare(b.name));
-fuzzyOnly.sort((a, b) => a.name.localeCompare(b.name));
-unknownDetails.sort(
-  (a, b) =>
-    a.name.localeCompare(b.name) ||
-    a.file.localeCompare(b.file) ||
-    (a.line ?? 0) - (b.line ?? 0) ||
-    (a.col ?? 0) - (b.col ?? 0),
-);
-telemetryUnknown.sort((a, b) => a.name.localeCompare(b.name));
-
-const exposuresObject = Object.fromEntries(exposuresKnown);
-const payload = {
-  generatedAt: new Date().toISOString(),
-  options: { days: options.days, minExposures: options.minExposures },
-  files: files.length,
-  telemetry: {
-    available: telemetryReport.available,
-    files: telemetryReport.files,
-    events: telemetryReport.events,
-    range: telemetryReport.range,
-    unknown: telemetryUnknown,
-  },
-  refs: Object.fromEntries(refs),
-  fuzzyRefs: Object.fromEntries(fuzzyRefs),
-  exposures: exposuresObject,
-  unused,
-  stale,
-  fuzzyOnly,
-  unknown: unknownDetails,
-  warnings,
-  errors,
-};
-
-if (options.out) {
-  const outPath = path.isAbsolute(options.out) ? options.out : path.join(ROOT, options.out);
-  const outDir = path.dirname(outPath);
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  if (!JSON_MODE) {
-    console.log(`[ff-doctor] report saved to ${path.relative(ROOT, outPath)}`);
+async function runOnce({ options, hasAst, outPath }) {
+  let result;
+  try {
+    result = await performScan({ options, hasAst });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    process.exit(2);
+    return;
   }
-}
+  const { payload, telemetryFiles } = result;
+  if (outPath) {
+    writeOutputFile(payload, outPath);
+    if (!options.jsonMode) {
+      console.log(`[ff-doctor] report saved to ${path.relative(ROOT, outPath)}`);
+    }
+  }
 
-if (JSON_MODE) {
-  console.log(JSON.stringify(payload, null, 2));
-  process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
-} else {
-  console.log(`[ff-doctor] files scanned: ${files.length}`);
-  if (telemetryReport.available) {
-    const range = telemetryReport.range
-      ? `${telemetryReport.range.from} .. ${telemetryReport.range.to}`
+  if (options.jsonMode) {
+    console.log(JSON.stringify(payload, null, 2));
+    process.exit(payload.errors.length ? 1 : payload.warnings.length ? 2 : 0);
+    return;
+  }
+
+  const diagnostics = payload.diagnostics ?? [];
+  diagnostics.forEach((msg) => console.warn(msg));
+
+  console.log(`[ff-doctor] files scanned: ${payload.files}`);
+  if (payload.telemetry?.available) {
+    const range = payload.telemetry.range
+      ? `${payload.telemetry.range.from} .. ${payload.telemetry.range.to}`
       : "range: n/a";
     console.log(
-      `[ff-doctor] telemetry: ${telemetryReport.events} exposures from ${telemetryFiles.length} file(s) (last ${options.days}d, min ${options.minExposures}) ${range ? `| ${range}` : ""}`,
+      `[ff-doctor] telemetry: ${payload.telemetry.events} exposures from ${payload.telemetry.files} file(s) (last ${options.days}d, min ${options.minExposures}) ${range ? `| ${range}` : ""}`,
     );
   } else {
+    const telemetryFilesCount = payload.telemetry?.files ?? telemetryFiles.length;
     console.log(
-      telemetryFiles.length
+      telemetryFilesCount
         ? `[ff-doctor] telemetry: no exposure events in last ${options.days}d`
         : "[ff-doctor] telemetry: no data (pass --telemetry <path> to include)",
     );
   }
-  console.log(`[ff-doctor] unused flags: ${unused.length}`);
-  unused.forEach((detail) => {
+  console.log(`[ff-doctor] unused flags: ${payload.unused.length}`);
+  payload.unused.forEach((detail) => {
     const telemetryTag = detail.telemetryAvailable ? "telemetry" : "no-telemetry";
     const fuzzyTag = detail.fuzzyReferences > 0 ? `, fuzzy=${detail.fuzzyReferences}` : "";
     console.log(
       `  - ${detail.name} (confidence=${detail.confidence}, refs=${detail.references}, exposures=${detail.exposures}, ${telemetryTag}${fuzzyTag})`,
     );
   });
-  console.log(`[ff-doctor] stale flags: ${stale.length}`);
-  stale.forEach((detail) => {
+  console.log(`[ff-doctor] stale flags: ${payload.stale.length}`);
+  payload.stale.forEach((detail) => {
     console.log(
       `  - ${detail.name} (confidence=${detail.confidence}, refs=${detail.references}, exposures=${detail.exposures}, threshold=${detail.threshold})`,
     );
   });
-  console.log(`[ff-doctor] fuzzy-only references: ${fuzzyOnly.length}`);
-  fuzzyOnly.forEach((entry) => {
+  console.log(`[ff-doctor] fuzzy-only references: ${payload.fuzzyOnly.length}`);
+  payload.fuzzyOnly.forEach((entry) => {
     const sample = entry.samples[0];
     const location = sample ? `${sample.file}:${sample.line}:${sample.col}` : "n/a";
     console.log(
       `  - ${entry.name} (fuzzy=${entry.fuzzyRefs}, exposures=${entry.exposures}, sample=${location})`,
     );
   });
-  console.log(`[ff-doctor] errors: ${errors.length}`);
-  errors.forEach((e) => console.log(`  - ${e}`));
+  console.log(`[ff-doctor] errors: ${payload.errors.length}`);
+  payload.errors.forEach((e) => console.log(`  - ${e}`));
 
-  if (HINT && unknown.size) {
+  if (options.hint && payload.unknown.length) {
     console.log("\n[ff-doctor] hints for allow-list:");
-    for (const [name] of unknown.entries()) {
-      console.log(`  allow-unknown: ${name}`);
+    const printed = new Set();
+    for (const entry of payload.unknown) {
+      if (printed.has(entry.name)) continue;
+      printed.add(entry.name);
+      console.log(`  allow-unknown: ${entry.name}`);
     }
   }
-  process.exit(errors.length ? 1 : warnings.length ? 2 : 0);
+
+  process.exit(payload.errors.length ? 1 : payload.warnings.length ? 2 : 0);
+}
+
+async function runWatchMode({ options, hasAst, outPath }) {
+  const { watch } = await import("chokidar");
+  const watchTargets = computeWatchTargets(options);
+  const watcher = watch(watchTargets, {
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
+  });
+
+  const emit = (event) => {
+    process.stdout.write(`${JSON.stringify(event)}\n`);
+  };
+
+  const normalizedOutPath = outPath ? path.resolve(outPath) : null;
+  let sequence = 0;
+
+  const runAnalysis = async (reason) => {
+    const startedAt = Date.now();
+    try {
+      const result = await performScan({ options, hasAst });
+      if (outPath) {
+        writeOutputFile(result.payload, outPath);
+      }
+      sequence += 1;
+      emit({
+        type: "run",
+        sequence,
+        startedAt: new Date(startedAt).toISOString(),
+        durationMs: Date.now() - startedAt,
+        reason,
+        warnings: result.payload.warnings,
+        errors: result.payload.errors,
+        diagnostics: result.payload.diagnostics ?? [],
+        result: result.payload,
+      });
+    } catch (error) {
+      sequence += 1;
+      emit({
+        type: "run-error",
+        sequence,
+        startedAt: new Date(startedAt).toISOString(),
+        durationMs: Date.now() - startedAt,
+        reason,
+        error: serializeError(error),
+      });
+    }
+  };
+
+  let running = false;
+  let pending = false;
+  let pendingReason = null;
+
+  const scheduleRun = (reason) => {
+    if (running) {
+      pending = true;
+      pendingReason = reason;
+      return;
+    }
+    running = true;
+    pendingReason = null;
+    runAnalysis(reason).finally(() => {
+      running = false;
+      if (pending) {
+        pending = false;
+        const nextReason = pendingReason ?? { type: "fs-event" };
+        pendingReason = null;
+        scheduleRun(nextReason);
+      }
+    });
+  };
+
+  watcher.on("all", (event, changedPath) => {
+    if (normalizedOutPath && changedPath && path.resolve(changedPath) === normalizedOutPath) {
+      return;
+    }
+    scheduleRun({ type: "fs-event", event, path: path.relative(ROOT, changedPath ?? "") });
+  });
+
+  watcher.on("error", (error) => {
+    emit({
+      type: "watch-error",
+      timestamp: new Date().toISOString(),
+      error: serializeError(error),
+    });
+  });
+
+  let readyEmitted = false;
+  watcher.on("ready", () => {
+    if (readyEmitted) return;
+    readyEmitted = true;
+    emit({
+      type: "watch-ready",
+      timestamp: new Date().toISOString(),
+      targets: watchTargets.map((target) => path.relative(ROOT, target)),
+    });
+  });
+
+  const shutdown = (signal) => {
+    emit({ type: "watch-stop", signal, timestamp: new Date().toISOString() });
+    watcher.close().finally(() => {
+      process.exit(0);
+    });
+  };
+
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+
+  emit({
+    type: "watch-start",
+    timestamp: new Date().toISOString(),
+    options: { days: options.days, minExposures: options.minExposures },
+    targets: watchTargets.map((target) => path.relative(ROOT, target)),
+  });
+
+  scheduleRun({ type: "initial" });
 }
