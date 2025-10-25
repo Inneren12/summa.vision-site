@@ -1,0 +1,7 @@
+{
+  "name": "eslint-plugin-ff-safe",
+  "version": "0.1.0",
+  "description": "ESLint rules enforcing safe feature flag usage",
+  "main": "index.cjs",
+  "type": "commonjs"
+}
