@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { withCorrelationDefaults, type RequestCorrelation } from "../../metrics/correlation";
+import { isErasedSync, loadErasureMatcherSync } from "../../privacy/erasure";
 
 function now(): number {
   return Date.now();
@@ -92,6 +93,9 @@ export class SelfMetricsProvider {
       navigationType?: string;
       attribution?: Record<string, unknown>;
       context?: RequestCorrelation;
+      url?: string;
+      sid?: string;
+      aid?: string;
     },
   ) {
     const correlation = withCorrelationDefaults(details?.context);
@@ -114,6 +118,15 @@ export class SelfMetricsProvider {
       sessionId: correlation.sessionId,
       namespace: correlation.namespace,
     };
+    if (
+      isErasedSync({
+        sid: event.sid ?? event.sessionId ?? undefined,
+        aid: event.aid,
+        sessionId: event.sessionId,
+      })
+    ) {
+      return;
+    }
     this.vitals.push(event);
     if (this.vitalsFile) {
       this.enqueue(async () => {
@@ -123,17 +136,41 @@ export class SelfMetricsProvider {
     this.prune();
   }
 
-  recordError(snapshotId: string, message: string, stack?: string, context?: RequestCorrelation) {
-    const correlation = withCorrelationDefaults(context);
+  recordError(
+    snapshotId: string,
+    message: string | undefined,
+    stack?: string,
+    details?: {
+      url?: string;
+      filename?: string;
+      sid?: string;
+      aid?: string;
+      context?: RequestCorrelation;
+    },
+  ) {
+    const correlation = withCorrelationDefaults(details?.context);
     const event: ErrorEvent = {
       snapshotId,
       message,
       stack,
+      url: details?.url,
+      filename: details?.filename,
+      sid: details?.sid,
+      aid: details?.aid,
       ts: now(),
       requestId: correlation.requestId,
       sessionId: correlation.sessionId,
       namespace: correlation.namespace,
     };
+    if (
+      isErasedSync({
+        sid: event.sid ?? event.sessionId ?? undefined,
+        aid: event.aid,
+        sessionId: event.sessionId,
+      })
+    ) {
+      return;
+    }
     this.errors.push(event);
     if (this.errorsFile) {
       this.enqueue(async () => {
@@ -158,7 +195,17 @@ export class SelfMetricsProvider {
     const sampleMap = new Map<string, Map<string, number[]>>();
     const errorCount = new Map<string, number>();
 
+    const matcher = loadErasureMatcherSync();
     for (const event of this.vitals) {
+      if (
+        matcher.isErased({
+          sid: event.sid ?? event.sessionId ?? undefined,
+          aid: event.aid,
+          sessionId: event.sessionId,
+        })
+      ) {
+        continue;
+      }
       if (snapshotId && event.snapshotId !== snapshotId) continue;
       if (!sampleMap.has(event.snapshotId)) {
         sampleMap.set(event.snapshotId, new Map());
@@ -171,6 +218,15 @@ export class SelfMetricsProvider {
     }
 
     for (const event of this.errors) {
+      if (
+        matcher.isErased({
+          sid: event.sid ?? event.sessionId ?? undefined,
+          aid: event.aid,
+          sessionId: event.sessionId,
+        })
+      ) {
+        continue;
+      }
       if (snapshotId && event.snapshotId !== snapshotId) continue;
       errorCount.set(event.snapshotId, (errorCount.get(event.snapshotId) ?? 0) + 1);
     }
@@ -201,6 +257,15 @@ export class SelfMetricsProvider {
 
   hasData(snapshotId: string): boolean {
     this.prune();
-    return this.vitals.some((event) => event.snapshotId === snapshotId);
+    const matcher = loadErasureMatcherSync();
+    return this.vitals.some(
+      (event) =>
+        event.snapshotId === snapshotId &&
+        !matcher.isErased({
+          sid: event.sid ?? event.sessionId ?? undefined,
+          aid: event.aid,
+          sessionId: event.sessionId,
+        }),
+    );
   }
 }

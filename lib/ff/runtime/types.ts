@@ -116,6 +116,7 @@ export type FlagStore = {
   listOverrides(flag: string): Promise<OverrideEntry[]>;
   putOverride(entry: OverrideEntry): Promise<OverrideEntry>;
   removeOverride(flag: string, scope: OverrideScope): Promise<void>;
+  deleteOverridesByUser(userId: string): Promise<number>;
   evaluate(key: string, ctx: FlagEvaluationContext): Promise<FlagEvaluationResult | undefined>;
   snapshot(): Promise<FlagSnapshot>;
 };
