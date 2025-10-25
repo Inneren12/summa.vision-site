@@ -1,10 +1,62 @@
-// Опциональный AST-сканер. Работает, если доступны "acorn" и "acorn-jsx".
-// Поддерживает .js/.jsx. Для .ts/.tsx автоматически используйте regex-режим.
+import path from "node:path";
+
+// Опциональный AST-сканер на базе ts-morph. Поддерживает TS/TSX/JS/JSX.
+
+let tsMorphModulePromise;
+let projectPromise;
+let virtualId = 0;
+
+async function loadTsMorph() {
+  if (!tsMorphModulePromise) {
+    tsMorphModulePromise = import("ts-morph");
+  }
+  return tsMorphModulePromise;
+}
+
+async function getProject() {
+  if (!projectPromise) {
+    projectPromise = (async () => {
+      const tsMorph = await loadTsMorph();
+      const { Project, ts } = tsMorph;
+      return new Project({
+        useInMemoryFileSystem: true,
+        skipFileDependencyResolution: true,
+        compilerOptions: {
+          allowJs: true,
+          allowSyntheticDefaultImports: true,
+          jsx: ts.JsxEmit.Preserve,
+          target: ts.ScriptTarget.ES2020,
+        },
+      });
+    })();
+  }
+  return projectPromise;
+}
+
+function getScriptKind(tsMorph, filename) {
+  const ext = path.extname(filename ?? "").toLowerCase();
+  const { ts } = tsMorph;
+  switch (ext) {
+    case ".ts":
+    case ".mts":
+    case ".cts":
+      return ts.ScriptKind.TS;
+    case ".tsx":
+      return ts.ScriptKind.TSX;
+    case ".jsx":
+      return ts.ScriptKind.JSX;
+    case ".js":
+    case ".mjs":
+    case ".cjs":
+      return ts.ScriptKind.JS;
+    default:
+      return ts.ScriptKind.TS;
+  }
+}
 
 export async function astAvailable() {
   try {
-    await import("acorn");
-    await import("acorn-jsx");
+    await loadTsMorph();
     return true;
   } catch {
     return false;
@@ -13,92 +65,116 @@ export async function astAvailable() {
 
 export async function scanTextForFlagsAST(text, filename, flagNames) {
   const ok = await astAvailable();
-  if (!ok) return { refs: new Map(), unknown: new Map(), occurrences: [] };
-  let acorn, jsx;
+  if (!ok) return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
+
+  const tsMorph = await loadTsMorph();
+  let project;
   try {
-    acorn = (await import("acorn")).Parser;
-    jsx = (await import("acorn-jsx")).default;
+    project = await getProject();
   } catch {
-    return { refs: new Map(), unknown: new Map(), occurrences: [] };
+    return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
   }
-  const Parser = acorn.extend(jsx());
-  let ast;
-  try {
-    ast = Parser.parse(text, { ecmaVersion: "latest", sourceType: "module" });
-  } catch {
-    // Не смогли распарсить (возможно TS/TSX) — пустой результат (regex подстрахует).
-    return { refs: new Map(), unknown: new Map(), occurrences: [] };
-  }
-  const known = new Set(flagNames);
+
   const refs = new Map(flagNames.map((n) => [n, 0]));
   const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
   const unknown = new Map();
   const occurrences = [];
+  const known = new Set(flagNames);
 
-  function addHit(name, index) {
-    if (!name) return;
-    // Посчитаем line/col из индекса
-    const before = text.slice(0, index);
-    const line = (before.match(/\n/g)?.length ?? 0) + 1;
-    const col = index - (before.lastIndexOf("\n") + 1) + 1;
-    occurrences.push({ name, index, line, col, kind: "ast", fuzzy: false });
-    if (known.has(name)) refs.set(name, (refs.get(name) || 0) + 1);
-    else unknown.set(name, (unknown.get(name) || 0) + 1);
+  const ext = path.extname(filename ?? "");
+  const virtualPath = `/ff-doctor/${virtualId++}${ext || ".ts"}`;
+  let sourceFile;
+
+  try {
+    sourceFile = project.createSourceFile(virtualPath, text, {
+      overwrite: true,
+      scriptKind: getScriptKind(tsMorph, filename),
+    });
+  } catch {
+    return { refs, fuzzyRefs, unknown, occurrences };
   }
 
-  function isIdent(node, name) {
-    return node && node.type === "Identifier" && node.name === name;
-  }
+  const gateNames = new Set([
+    "FlagGate",
+    "FlagGateServer",
+    "FlagGateClient",
+    "PercentGate",
+    "PercentGateServer",
+    "PercentGateClient",
+    "VariantGate",
+    "VariantGateServer",
+    "VariantGateClient",
+  ]);
 
-  function walk(node) {
-    if (!node || typeof node.type !== "string") return;
-    // Ищем useFlag('name')
-    if (node.type === "CallExpression" && isIdent(node.callee, "useFlag")) {
-      const arg = node.arguments?.[0];
-      if (
-        arg &&
-        (arg.type === "Literal" || arg.type === "StringLiteral") &&
-        typeof arg.value === "string"
-      ) {
-        addHit(arg.value, arg.start ?? node.start ?? 0);
+  const { Node } = tsMorph;
+
+  const record = (name, node, kind, fuzzy = false) => {
+    if (!name || !node) return;
+    const pos = node.getStart(false);
+    const { line, column } = sourceFile.getLineAndColumnAtPos(pos);
+    occurrences.push({ name, index: pos, line, col: column, kind, fuzzy });
+    if (known.has(name)) {
+      if (fuzzy) {
+        fuzzyRefs.set(name, (fuzzyRefs.get(name) || 0) + 1);
+      } else {
+        refs.set(name, (refs.get(name) || 0) + 1);
       }
+    } else {
+      unknown.set(name, (unknown.get(name) || 0) + 1);
     }
-    // Ищем JSX: <FlagGate ... name="x" />, <PercentGate ... name="x" />, <VariantGate ... />
-    if (node.type === "JSXOpeningElement") {
-      const n = node.name;
-      const isGate =
-        n.type === "JSXIdentifier" &&
-        (n.name === "FlagGate" ||
-          n.name === "FlagGateServer" ||
-          n.name === "FlagGateClient" ||
-          n.name === "PercentGate" ||
-          n.name === "PercentGateServer" ||
-          n.name === "PercentGateClient" ||
-          n.name === "VariantGate" ||
-          n.name === "VariantGateServer" ||
-          n.name === "VariantGateClient");
-      if (isGate) {
-        const nameAttr = node.attributes?.find(
-          (a) => a.type === "JSXAttribute" && a.name?.name === "name",
-        );
-        if (
-          nameAttr &&
-          nameAttr.value &&
-          nameAttr.value.type === "Literal" &&
-          typeof nameAttr.value.value === "string"
-        ) {
-          addHit(nameAttr.value.value, nameAttr.value.start ?? node.start ?? 0);
+  };
+
+  const extractLiteral = (node) => {
+    if (!node) return { value: null, target: null };
+    if (Node.isStringLiteral(node)) {
+      return { value: node.getLiteralValue(), target: node };
+    }
+    if (Node.isNoSubstitutionTemplateLiteral(node)) {
+      return { value: node.getLiteralText(), target: node };
+    }
+    return { value: null, target: null };
+  };
+
+  try {
+    sourceFile.forEachDescendant((desc) => {
+      if (Node.isCallExpression(desc)) {
+        const expr = desc.getExpression();
+        if (Node.isIdentifier(expr) && expr.getText() === "useFlag") {
+          const arg = desc.getArguments()[0];
+          const { value, target } = extractLiteral(arg);
+          if (typeof value === "string") {
+            record(value, target ?? desc, "hook");
+          }
         }
       }
-    }
-    for (const key of Object.keys(node)) {
-      const v = node[key];
-      if (v && typeof v === "object") {
-        if (Array.isArray(v)) v.forEach((child) => walk(child));
-        else walk(v);
+
+      if (Node.isJsxOpeningElement(desc) || Node.isJsxSelfClosingElement(desc)) {
+        const tag = desc.getTagNameNode();
+        const tagName = tag?.getText();
+        if (tagName && gateNames.has(tagName)) {
+          for (const attr of desc.getAttributes()) {
+            if (!Node.isJsxAttribute(attr)) continue;
+            const attrName = attr.getNameNode()?.getText();
+            if (attrName !== "name") continue;
+            const initializer = attr.getInitializer();
+            if (!initializer) continue;
+            if (Node.isStringLiteral(initializer)) {
+              const { value, target } = extractLiteral(initializer);
+              if (typeof value === "string") record(value, target ?? initializer, "jsx");
+            } else if (Node.isJsxExpression(initializer)) {
+              const expr = initializer.getExpression();
+              const { value, target } = extractLiteral(expr);
+              if (typeof value === "string") record(value, target ?? expr ?? initializer, "jsx");
+            }
+          }
+        }
       }
-    }
+    });
+  } catch {
+    // ignore parsing issues, fallback произойдет через regex
+  } finally {
+    sourceFile?.forget();
   }
-  walk(ast);
+
   return { refs, fuzzyRefs, unknown, occurrences };
 }
