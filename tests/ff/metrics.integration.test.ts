@@ -24,12 +24,12 @@ describe("Metrics counters", () => {
     __resetMetrics();
   });
 
-  it("increments 429 on rate limiting", () => {
+  it("increments 429 on rate limiting", async () => {
     process.env.FF_OVERRIDE_RPM = "1";
-    const first = guardOverrideRequest(
+    const first = await guardOverrideRequest(
       makeRequest("http://localhost/api/ff-override?ff=a:true", { "x-forwarded-for": "1.1.1.1" }),
     );
-    const second = guardOverrideRequest(
+    const second = await guardOverrideRequest(
       makeRequest("http://localhost/api/ff-override?ff=a:true", { "x-forwarded-for": "1.1.1.1" }),
     );
     expect(first.allow).toBe(true);
@@ -38,7 +38,7 @@ describe("Metrics counters", () => {
     expect(counters["override.429"]).toBe(1);
   });
 
-  it("increments 403 metrics in guard", () => {
+  it("increments 403 metrics in guard", async () => {
     process.env.NODE_ENV = "production";
     process.env.FF_TESTER_TOKEN = "secret";
     process.env.ORIGIN = "http://localhost";
@@ -46,19 +46,19 @@ describe("Metrics counters", () => {
       origin: "http://localhost",
       referer: "http://localhost/dev",
     });
-    const denied = guardOverrideRequest(req);
+    const denied = await guardOverrideRequest(req);
     expect(denied.allow).toBe(false);
     const counters = snapshot();
     expect(counters["override.403"]).toBe(1);
   });
 
-  it("increments 403 cross-site metrics", () => {
+  it("increments 403 cross-site metrics", async () => {
     process.env.NODE_ENV = "production";
     process.env.ORIGIN = "http://localhost";
     const req = makeRequest("http://localhost/api/ff-override?ff=a:true", {
       origin: "https://evil.example",
     });
-    const denied = guardOverrideRequest(req);
+    const denied = await guardOverrideRequest(req);
     expect(denied.allow).toBe(false);
     const counters = snapshot();
     expect(counters["override.403.crossSite"]).toBe(1);

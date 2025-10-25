@@ -235,6 +235,7 @@ export function roleFromHeaders(headers: Headers): Role | null {
 export type ApiAuthSuccess = {
   ok: true;
   role: Role;
+  session: string;
   apply<T extends NextResponse>(res: T): T;
 };
 
@@ -276,6 +277,7 @@ export function authorizeApi(req: Request, required: Role): ApiAuthResult {
   return {
     ok: true,
     role: result.role,
+    session: result.sessionValue,
     apply<T extends NextResponse>(res: T) {
       res.cookies.set(ADMIN_SESSION_COOKIE, result.sessionValue, ADMIN_SESSION_COOKIE_OPTIONS);
       return res;

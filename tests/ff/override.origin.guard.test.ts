@@ -6,13 +6,13 @@ import { __resetRateLimit } from "@/lib/ff/ratelimit";
 describe("Origin/Referer guard (production)", () => {
   const savedEnv = { ...process.env };
 
-  beforeEach(() => {
-    __resetRateLimit();
+  beforeEach(async () => {
+    await __resetRateLimit();
     process.env = { ...savedEnv, NODE_ENV: "production", FF_TESTER_TOKEN: "secret" };
   });
 
-  afterEach(() => {
-    __resetRateLimit();
+  afterEach(async () => {
+    await __resetRateLimit();
     process.env = { ...savedEnv };
   });
 
@@ -20,25 +20,25 @@ describe("Origin/Referer guard (production)", () => {
     return new Request(url, { headers });
   }
 
-  it("allows same-origin requests", () => {
+  it("allows same-origin requests", async () => {
     const req = mk("https://example.com/api/ff-override?ff=a:true", {
       origin: "https://example.com",
       referer: "https://example.com/page",
       "x-forwarded-for": "1.1.1.1",
       "x-ff-tester": "secret",
     });
-    const gate = guardOverrideRequest(req);
+    const gate = await guardOverrideRequest(req);
     expect(gate.allow).toBe(true);
   });
 
-  it("blocks cross-site requests with foreign origin", () => {
+  it("blocks cross-site requests with foreign origin", async () => {
     const req = mk("https://example.com/api/ff-override?ff=a:true", {
       origin: "https://evil.com",
       referer: "https://evil.com/hack",
       "x-forwarded-for": "2.2.2.2",
       "x-ff-tester": "secret",
     });
-    const gate = guardOverrideRequest(req);
+    const gate = await guardOverrideRequest(req);
     expect(gate.allow).toBe(false);
     if (!gate.allow) expect(gate.code).toBe(403);
   });
