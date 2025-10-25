@@ -88,7 +88,7 @@ describe("rollout step controller", () => {
         {
           id: "seg-default",
           priority: 0,
-          conditions: [],
+          where: [],
         },
       ],
       rollout: { percent: 0, steps: [{ pct: 0, at: Date.now() - 60_000 }] },

@@ -4,11 +4,15 @@
 
 ## Предикаты
 
-Поддерживаются предикаты по полям:
+`SegmentRule.where` — массив условий, объединённых по `AND`. Сложные `OR`-комбинации пока не поддерживаются.
 
-- `tenant`/`namespace` — сравнивается с `ctx.namespace` (см. `lib/ff/runtime/types.ts#FlagEvaluationContext`).
-- `locale`/`path`/`ua` — пишутся через поле `conditions` с `field`=`namespace`/`cookie`/`ua` и оператором `eq`.
-- `tag` — проверяет `ctx.tags`.
+| Тип | Поля | Операторы | Примечание |
+| --- | --- | --- | --- |
+| Строки | `namespace`, `user`, `cookie`, `ip`, произвольные атрибуты из `ctx.attributes` | `eq`, `startsWith`, `contains`, `in`, `notIn` | `in`/`notIn` принимают массив строк |
+| Теги | `tag` | `eq`, `in`, `notIn`, `contains`, `startsWith` | Сравнение идёт по `ctx.tags` |
+| User-Agent | `ua` | `contains` | Проверяется `ctx.userAgent` |
+| Путь | `path` | `glob` | Поддерживаются маски `*` и `?`, совпадение идёт по `ctx.path` |
+| Числа | произвольные числовые атрибуты (`ctx.attributes`) | `eq`, `gt`, `lt`, `between` | `between` включает границы |
 
 Примеры:
 
@@ -16,7 +20,7 @@
 {
   "id": "tenant:summa",
   "priority": 500,
-  "conditions": [{ "field": "namespace", "op": "eq", "value": "summa" }],
+  "where": [{ "field": "namespace", "op": "eq", "value": "summa" }],
   "rollout": { "percent": 100 }
 }
 ```
@@ -25,19 +29,24 @@
 {
   "id": "ua:safari",
   "priority": 200,
-  "conditions": [{ "field": "ua", "op": "eq", "value": "Safari" }],
+  "where": [
+    { "field": "ua", "op": "contains", "value": "Safari" },
+    { "field": "path", "op": "glob", "value": "/checkout/*" }
+  ],
   "override": false
 }
 ```
 
 ## Приоритеты
 
-Сегменты применяются в порядке убывания `priority`. При равных значениях выигрывает первый по порядку в массиве.
+Сегменты сортируются по возрастанию `priority`, далее выполняется стратегия «первый матч» — как только условие выполнено, остальные сегменты не проверяются. При равных значениях сохраняется порядок элементов в массиве.
 
-- `priority >= 1000` — ручные overrides, которые должны перекрывать всё.
-- `priority 500` — основные бизнес-сегменты (тенанты, партнёры).
-- `priority 100` — поведенческие дорожки, локализация.
-- `priority 0` — fallback (по умолчанию).
+| Диапазон `priority` | Назначение |
+| --- | --- |
+| `>= 1000` | Ручные overrides, которые должны перекрывать всё |
+| `500–999` | Основные бизнес-сегменты (тенанты, партнёры) |
+| `100–499` | Поведенческие дорожки, локализация |
+| `0–99` | Fallback и эксперименты по умолчанию |
 
 ## Rollout внутри сегмента
 
@@ -52,7 +61,8 @@
 ## Namespace/locale/path/UA
 
 - Namespace (tenant) приходит из `FFContext.namespace`. Для Next.js SSR см. `lib/ff/server.ts#getFeatureFlagsFromHeaders`.
-- Locale/path передаются как теги на уровне middleware или приложения; используйте `ctx.tags`.
+- Путь (`path`) прокидывается в `FFContext.path`. Для сложных шаблонов используйте `op: "glob"`.
+- Locale и другие признаки можно передавать через `ctx.tags` или `ctx.attributes` и обрабатывать через `tag`/произвольные поля.
 - User-Agent (`ua`) доступен только на сервере — для client-side нужно прокидывать признак отдельно.
 
 ## SeedBy best practices

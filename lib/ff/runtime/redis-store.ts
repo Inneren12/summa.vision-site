@@ -5,6 +5,7 @@ import type { Redis } from "ioredis";
 import { pctHit, seedFor } from "../bucketing";
 
 import { MemoryFlagStore } from "./memory-store";
+import { matchesSegment } from "./segment-match";
 import {
   type FlagConfig,
   type FlagEvaluationContext,
@@ -16,7 +17,6 @@ import {
   type OverrideValue,
   type RolloutStrategy,
   type SeedBy,
-  type SegmentConfig,
 } from "./types";
 
 const FLAG_KEY_PREFIX = "ff:flag:";
@@ -43,28 +43,6 @@ function cloneOverride(entry: OverrideEntry): OverrideEntry {
 function isExpired(entry: OverrideEntry, now = Date.now()): boolean {
   if (!entry.expiresAt) return false;
   return entry.expiresAt <= now;
-}
-
-function matchesSegment(segment: SegmentConfig, ctx: FlagEvaluationContext): boolean {
-  if (!segment.conditions || segment.conditions.length === 0) return true;
-  return segment.conditions.every((condition) => {
-    switch (condition.field) {
-      case "user":
-        return ctx.userId === condition.value;
-      case "namespace":
-        return ctx.namespace === condition.value;
-      case "cookie":
-        return ctx.cookieId === condition.value;
-      case "ip":
-        return ctx.ip === condition.value;
-      case "ua":
-        return ctx.userAgent === condition.value;
-      case "tag":
-        return ctx.tags?.includes(condition.value) ?? false;
-      default:
-        return false;
-    }
-  });
 }
 
 function flagKey(key: string): string {

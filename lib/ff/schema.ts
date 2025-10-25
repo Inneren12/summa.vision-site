@@ -91,7 +91,64 @@ export const RolloutPlanSchema = z
 
 export type RolloutPlanInput = z.infer<typeof RolloutPlanSchema>;
 
-const SegmentConditionSchema = z.union([
+const SegmentWhereStringSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["eq", "startsWith", "contains"]),
+    value: z.string(),
+  })
+  .strict();
+
+const SegmentWhereNumberSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["eq", "gt", "lt"]),
+    value: z.number({ invalid_type_error: "value must be a number" }).finite(),
+  })
+  .strict();
+
+const SegmentWhereBetweenSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.literal("between"),
+    min: z.number({ invalid_type_error: "min must be a number" }).finite(),
+    max: z.number({ invalid_type_error: "max must be a number" }).finite(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.min > value.max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "between.min must be <= between.max",
+      });
+    }
+  });
+
+const SegmentWhereListSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["in", "notIn"]),
+    values: z.array(z.string()).min(1, { message: "values must not be empty" }),
+  })
+  .strict();
+
+const SegmentWhereGlobSchema = z
+  .object({
+    field: z.literal("path"),
+    op: z.literal("glob"),
+    value: z.string(),
+  })
+  .strict();
+
+const SegmentWhereSchema = z.union([
+  SegmentWhereStringSchema,
+  SegmentWhereNumberSchema,
+  SegmentWhereBetweenSchema,
+  SegmentWhereListSchema,
+  SegmentWhereGlobSchema,
+]);
+
+const LegacySegmentConditionSchema = z.union([
   z
     .object({
       field: z.enum(["user", "namespace", "cookie", "ip", "ua"]),
@@ -102,15 +159,20 @@ const SegmentConditionSchema = z.union([
   z.object({ field: z.literal("tag"), op: z.literal("eq"), value: z.string() }).strict(),
 ]);
 
-export type SegmentConditionInput = z.infer<typeof SegmentConditionSchema>;
+export type SegmentConditionInput = z.infer<typeof LegacySegmentConditionSchema>;
 
 export const SegmentRuleSchema = z
   .object({
     id: z.string().min(1, { message: "segment id is required" }),
     name: z.string().optional(),
     priority: z.number({ invalid_type_error: "priority must be a number" }).finite(),
+    where: z
+      .array(SegmentWhereSchema, {
+        invalid_type_error: "where must be an array of predicates",
+      })
+      .optional(),
     conditions: z
-      .array(SegmentConditionSchema, {
+      .array(LegacySegmentConditionSchema, {
         invalid_type_error: "conditions must be an array of predicates",
       })
       .optional(),

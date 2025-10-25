@@ -29,13 +29,13 @@ describe("evaluateFlag", () => {
         {
           id: "seg-override",
           priority: 10,
-          conditions: [{ field: "tag", op: "eq", value: "beta" }],
+          where: [{ field: "tag", op: "eq", value: "beta" }],
           override: false,
         },
         {
           id: "seg-rollout",
           priority: 20,
-          conditions: [{ field: "tag", op: "eq", value: "beta" }],
+          where: [{ field: "tag", op: "eq", value: "beta" }],
           rollout: { percent: 100 },
         },
       ],

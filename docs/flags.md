@@ -56,7 +56,7 @@
       {
         "id": "tenant:summa",
         "priority": 500,
-        "conditions": [{ "field": "namespace", "op": "eq", "value": "summa" }],
+        "where": [{ "field": "namespace", "op": "eq", "value": "summa" }],
         "override": true
       }
     ]

@@ -1,14 +1,15 @@
+import { legacyConditionToWhere, normalizeSegmentWhere } from "../runtime/segment-match";
 import type {
   FlagConfig,
   RolloutHysteresis,
   RolloutStep,
   RolloutStopConditions,
   SeedBy,
-  SegmentCondition,
   SegmentConfig,
+  SegmentWhere,
 } from "../runtime/types";
 
-const FIELD_TO_API_KEY: Record<SegmentCondition["field"], string> = {
+const FIELD_TO_API_KEY: Record<string, string> = {
   user: "userId",
   namespace: "namespace",
   cookie: "cookie",
@@ -17,7 +18,7 @@ const FIELD_TO_API_KEY: Record<SegmentCondition["field"], string> = {
   tag: "tag",
 };
 
-const API_KEY_TO_FIELD: Record<string, SegmentCondition["field"]> = {
+const API_KEY_TO_FIELD: Record<string, string> = {
   userId: "user",
   namespace: "namespace",
   cookie: "cookie",
@@ -45,6 +46,7 @@ export type ApiRollout = {
 
 export type ApiSegment = {
   if?: Record<string, string | string[]>;
+  where?: SegmentWhere[];
   rollout?: { pct: number; seedBy?: ApiSeedBy };
   override?: boolean;
 };
@@ -108,35 +110,35 @@ function fromApiSeed(seed?: ApiSeedBy): SeedBy | undefined {
   }
 }
 
-function conditionsToRecord(
-  conditions?: SegmentCondition[],
-): Record<string, string | string[]> | undefined {
-  if (!conditions || conditions.length === 0) return undefined;
+function whereToRecord(where?: SegmentWhere[]): Record<string, string | string[]> | undefined {
+  if (!where || where.length === 0) return undefined;
   const record: Record<string, Set<string>> = {};
-  for (const condition of conditions) {
-    const key = FIELD_TO_API_KEY[condition.field];
+  for (const clause of where) {
+    const key = FIELD_TO_API_KEY[clause.field];
     if (!key) continue;
-    if (!record[key]) {
-      record[key] = new Set();
+    if (clause.op === "eq" && typeof clause.value === "string") {
+      record[key] ??= new Set();
+      record[key]!.add(clause.value);
+    } else if (clause.op === "in") {
+      record[key] ??= new Set();
+      for (const value of clause.values) {
+        if (typeof value === "string" && value.trim()) {
+          record[key]!.add(value);
+        }
+      }
     }
-    record[key].add(condition.value);
   }
+  if (Object.keys(record).length === 0) return undefined;
   const output: Record<string, string | string[]> = {};
-  for (const [key, values] of Object.entries(record)) {
-    if (values.size === 1) {
-      output[key] = [...values][0];
-    } else {
-      output[key] = [...values];
-    }
+  for (const [apiKey, values] of Object.entries(record)) {
+    output[apiKey] = values.size === 1 ? [...values][0] : [...values];
   }
   return Object.keys(output).length ? output : undefined;
 }
 
-function recordToConditions(
-  record?: Record<string, string | string[]>,
-): SegmentCondition[] | undefined {
+function recordToWhere(record?: Record<string, string | string[]>): SegmentWhere[] | undefined {
   if (!record) return undefined;
-  const out: SegmentCondition[] = [];
+  const out: SegmentWhere[] = [];
   for (const [rawKey, rawValue] of Object.entries(record)) {
     const field = API_KEY_TO_FIELD[rawKey];
     if (!field) continue;
@@ -150,10 +152,12 @@ function recordToConditions(
 }
 
 function toApiSegment(segment: SegmentConfig): ApiSegment {
+  const where = normalizeSegmentWhere(segment);
   const override = typeof segment.override === "boolean" ? segment.override : undefined;
   const rolloutPct = segment.rollout ? clampPercent(segment.rollout.percent) : undefined;
   return {
-    if: conditionsToRecord(segment.conditions),
+    if: whereToRecord(where),
+    where: where && where.length ? where : undefined,
     override,
     rollout:
       rolloutPct !== undefined
@@ -206,7 +210,15 @@ export function flagToApi(flag: FlagConfig): ApiFlagConfig {
 
 function mergeSegment(segment: ApiSegment, index: number, existing?: SegmentConfig): SegmentConfig {
   const priority = existing?.priority ?? index;
-  const conditions = recordToConditions(segment.if);
+  const existingWhere =
+    existing?.where ??
+    (existing?.conditions
+      ? existing.conditions.map((condition) => legacyConditionToWhere(condition))
+      : undefined);
+  const where =
+    segment.where && segment.where.length
+      ? segment.where
+      : (recordToWhere(segment.if) ?? existingWhere);
   const override = typeof segment.override === "boolean" ? segment.override : existing?.override;
   const rollout = segment.rollout
     ? {
@@ -218,7 +230,7 @@ function mergeSegment(segment: ApiSegment, index: number, existing?: SegmentConf
   return {
     id: existing?.id ?? "",
     priority,
-    conditions,
+    where,
     override,
     rollout,
     namespace: existing?.namespace,

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { pctHit, seedFor } from "../bucketing";
 
+import { matchesSegment } from "./segment-match";
 import type {
   FlagConfig,
   FlagEvaluationContext,
@@ -11,7 +12,6 @@ import type {
   OverrideEntry,
   OverrideScope,
   OverrideValue,
-  SegmentConfig,
 } from "./types";
 
 function cloneConfig(config: FlagConfig): FlagConfig {
@@ -34,28 +34,6 @@ function ensurePercent(percent: number): number {
 
 function stableSalt(): string {
   return crypto.randomBytes(8).toString("hex");
-}
-
-function matchesSegment(segment: SegmentConfig, ctx: FlagEvaluationContext): boolean {
-  if (!segment.conditions || segment.conditions.length === 0) return true;
-  return segment.conditions.every((condition) => {
-    switch (condition.field) {
-      case "user":
-        return ctx.userId === condition.value;
-      case "namespace":
-        return ctx.namespace === condition.value;
-      case "cookie":
-        return ctx.cookieId === condition.value;
-      case "ip":
-        return ctx.ip === condition.value;
-      case "ua":
-        return ctx.userAgent === condition.value;
-      case "tag":
-        return ctx.tags?.includes(condition.value) ?? false;
-      default:
-        return false;
-    }
-  });
 }
 
 type OverrideMap = {

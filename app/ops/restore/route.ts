@@ -52,7 +52,60 @@ const RolloutSchema = z
   .partial({ percent: true })
   .strip();
 
-const SegmentConditionSchema = z.union([
+const SegmentWhereStringSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["eq", "startsWith", "contains"]),
+    value: z.string(),
+  })
+  .strict();
+
+const SegmentWhereNumberSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["eq", "gt", "lt"]),
+    value: z.number().finite(),
+  })
+  .strict();
+
+const SegmentWhereBetweenSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.literal("between"),
+    min: z.number().finite(),
+    max: z.number().finite(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.min > value.max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "between.min must be <= between.max",
+      });
+    }
+  });
+
+const SegmentWhereListSchema = z
+  .object({
+    field: z.string().min(1),
+    op: z.enum(["in", "notIn"]),
+    values: z.array(z.string()).min(1),
+  })
+  .strict();
+
+const SegmentWhereGlobSchema = z
+  .object({ field: z.literal("path"), op: z.literal("glob"), value: z.string() })
+  .strict();
+
+const SegmentWhereSchema = z.union([
+  SegmentWhereStringSchema,
+  SegmentWhereNumberSchema,
+  SegmentWhereBetweenSchema,
+  SegmentWhereListSchema,
+  SegmentWhereGlobSchema,
+]);
+
+const LegacySegmentConditionSchema = z.union([
   z.object({
     field: z.enum(["user", "namespace", "cookie", "ip", "ua"]),
     op: z.literal("eq"),
@@ -65,7 +118,8 @@ const SegmentSchema = z.object({
   id: z.string().min(1),
   name: z.string().optional(),
   priority: z.number().finite(),
-  conditions: z.array(SegmentConditionSchema).optional(),
+  where: z.array(SegmentWhereSchema).optional(),
+  conditions: z.array(LegacySegmentConditionSchema).optional(),
   override: z.union([z.boolean(), z.string(), z.number()]).optional(),
   rollout: RolloutSchema.optional(),
   namespace: z.string().optional(),

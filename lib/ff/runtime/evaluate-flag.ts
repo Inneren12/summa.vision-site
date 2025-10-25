@@ -1,6 +1,7 @@
 import { percentFor, seedFor } from "../bucketing";
 
-import type { FlagConfig, FlagValue, OverrideValue, SegmentConfig } from "./types";
+import { matchesSegment } from "./segment-match";
+import type { FlagConfig, FlagValue, OverrideValue } from "./types";
 
 export type EvaluateFlagSeeds = {
   stableId?: string;
@@ -21,6 +22,9 @@ export type EvaluateFlagContext = {
   ip?: string;
   userAgent?: string;
   tags?: string[];
+  path?: string;
+  attributes?: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 export type EvaluateFlagOverrides = {
@@ -69,7 +73,9 @@ type EffectiveContext = {
   ip?: string;
   userAgent?: string;
   tags?: string[];
-};
+  path?: string;
+  attributes?: Record<string, unknown>;
+} & Record<string, unknown>;
 
 function ensurePercent(percent: number | undefined): number {
   if (!Number.isFinite(percent)) return 0;
@@ -86,6 +92,7 @@ function buildEffectiveContext(
 ): EffectiveContext {
   const stableId = seeds?.stableId ?? seeds?.anonId ?? ctx?.stableId ?? "anon";
   return {
+    ...(ctx ?? {}),
     stableId,
     userId: ctx?.userId ?? seeds?.userId,
     namespace: ctx?.namespace ?? seeds?.namespace,
@@ -93,31 +100,9 @@ function buildEffectiveContext(
     ip: ctx?.ip ?? seeds?.ip,
     userAgent: ctx?.userAgent ?? seeds?.userAgent,
     tags: ctx?.tags,
+    path: ctx?.path,
+    attributes: ctx?.attributes,
   } satisfies EffectiveContext;
-}
-
-function matchesSegment(segment: SegmentConfig, ctx: EffectiveContext): boolean {
-  if (!segment.conditions || segment.conditions.length === 0) {
-    return true;
-  }
-  return segment.conditions.every((condition) => {
-    switch (condition.field) {
-      case "user":
-        return ctx.userId === condition.value;
-      case "namespace":
-        return ctx.namespace === condition.value;
-      case "cookie":
-        return ctx.cookieId === condition.value;
-      case "ip":
-        return ctx.ip === condition.value;
-      case "ua":
-        return ctx.userAgent === condition.value;
-      case "tag":
-        return ctx.tags?.includes(condition.value) ?? false;
-      default:
-        return false;
-    }
-  });
 }
 
 function hasOverrideValue(
