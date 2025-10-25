@@ -1,6 +1,6 @@
-import murmur from "imurmurhash";
+import { percentFor, seedFor } from "../bucketing";
 
-import type { FlagConfig, FlagValue, OverrideValue, SeedBy, SegmentConfig } from "./types";
+import type { FlagConfig, FlagValue, OverrideValue, SegmentConfig } from "./types";
 
 export type EvaluateFlagSeeds = {
   anonId?: string;
@@ -60,8 +60,6 @@ export type EvaluateFlagOptions = {
   rolloutPct?: RolloutPercentFn;
 };
 
-type NormalizedSeedBy = "anonId" | "userId" | "namespace" | "cookie" | "ipUa";
-
 type EffectiveContext = {
   stableId: string;
   userId?: string;
@@ -72,35 +70,13 @@ type EffectiveContext = {
   tags?: string[];
 };
 
-const DEFAULT_SEED: NormalizedSeedBy = "anonId";
-
-function normalizeSeedBy(seedBy: SeedBy | undefined): NormalizedSeedBy {
-  switch (seedBy) {
-    case "user":
-    case "userId":
-      return "userId";
-    case "namespace":
-      return "namespace";
-    case "cookie":
-      return "cookie";
-    case "ipUa":
-      return "ipUa";
-    case "anonId":
-    case "stableId":
-    default:
-      return DEFAULT_SEED;
-  }
-}
-
 function ensurePercent(percent: number | undefined): number {
   if (!Number.isFinite(percent)) return 0;
   return Math.min(100, Math.max(0, percent ?? 0));
 }
 
 function defaultRolloutPercent({ seed, salt }: RolloutComputationInput): number {
-  const hash = murmur(`${seed}:${salt}`).result();
-  const unsigned = hash >>> 0;
-  return (unsigned / 0xffffffff) * 100;
+  return percentFor(`${seed}:${salt}`);
 }
 
 function buildEffectiveContext(
@@ -118,31 +94,6 @@ function buildEffectiveContext(
     userAgent: ctx?.userAgent ?? seeds?.userAgent,
     tags: ctx?.tags,
   } satisfies EffectiveContext;
-}
-
-function resolveSeed(
-  seedBy: NormalizedSeedBy,
-  ctx: EffectiveContext,
-  seeds: EvaluateFlagSeeds | undefined,
-): string {
-  const fallback = ctx.stableId || seeds?.anonId || seeds?.userId || seeds?.cookie || "anon";
-  switch (seedBy) {
-    case "userId":
-      return ctx.userId ?? seeds?.userId ?? fallback;
-    case "namespace":
-      return ctx.namespace ?? seeds?.namespace ?? fallback;
-    case "cookie":
-      return ctx.cookieId ?? seeds?.cookie ?? fallback;
-    case "ipUa": {
-      if (seeds?.ipUa) return seeds.ipUa;
-      const ip = seeds?.ip ?? ctx.ip ?? "0.0.0.0";
-      const ua = seeds?.userAgent ?? ctx.userAgent ?? "unknown";
-      return `${ip}::${ua}`;
-    }
-    case "anonId":
-    default:
-      return seeds?.anonId ?? ctx.stableId ?? fallback;
-  }
 }
 
 function matchesSegment(segment: SegmentConfig, ctx: EffectiveContext): boolean {
@@ -181,7 +132,7 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
   const { cfg, seeds, ctx, overrides, rolloutPct } = options;
   const percentFn = rolloutPct ?? defaultRolloutPercent;
   const effectiveCtx = buildEffectiveContext(ctx, seeds);
-  const seedByDefault = normalizeSeedBy(cfg.seedByDefault);
+  const seedByDefault = cfg.seedByDefault ?? "stableId";
 
   const killSwitchActive = (cfg as { killSwitch?: boolean }).killSwitch ?? cfg.kill ?? false;
   if (killSwitchActive) {
@@ -226,8 +177,7 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
           segmentId: segment.id,
         } satisfies EvaluateFlagResult;
       }
-      const seedBy = normalizeSeedBy(segment.rollout.seedBy ?? seedByDefault);
-      const seed = resolveSeed(seedBy, effectiveCtx, seeds);
+      const seed = seedFor(cfg.key, effectiveCtx, seeds, segment.rollout.seedBy ?? seedByDefault);
       const salt = segment.rollout.salt || `${cfg.key}:segment:${segment.id}`;
       const bucket = percentFn({
         seed,
@@ -252,8 +202,7 @@ export function evaluateFlag(options: EvaluateFlagOptions): EvaluateFlagResult {
       return { value: cfg.defaultValue, reason: "globalRollout" };
     }
     if (percent > 0) {
-      const seedBy = normalizeSeedBy(cfg.rollout.seedBy ?? seedByDefault);
-      const seed = resolveSeed(seedBy, effectiveCtx, seeds);
+      const seed = seedFor(cfg.key, effectiveCtx, seeds, cfg.rollout.seedBy ?? seedByDefault);
       const salt = cfg.rollout.salt || `${cfg.key}:global`;
       const bucket = percentFn({
         seed,

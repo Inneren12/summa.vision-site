@@ -49,6 +49,7 @@ export const EnvSchema = z.object({
   ROLLOUT_LOCK_TTL_MS: numberish,
   METRICS_WINDOW_MS: numberish,
   NEXT_PUBLIC_DEV_TOOLS: booleanish,
+  FF_BUCKET_STRATEGY: optionalString,
 });
 
 export type EnvSchemaShape = z.infer<typeof EnvSchema>;

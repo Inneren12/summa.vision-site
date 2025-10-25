@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import murmur from "imurmurhash";
+import { pctHit, seedFor } from "../bucketing";
 
 import type {
   FlagConfig,
@@ -11,7 +11,6 @@ import type {
   OverrideEntry,
   OverrideScope,
   OverrideValue,
-  SeedBy,
   SegmentConfig,
 } from "./types";
 
@@ -35,33 +34,6 @@ function ensurePercent(percent: number): number {
 
 function stableSalt(): string {
   return crypto.randomBytes(8).toString("hex");
-}
-
-function hashToUnit(seed: string): number {
-  const h = murmur(seed).result();
-  const unsigned = h >>> 0;
-  return unsigned / 0xffffffff;
-}
-
-function buildSeed(ctx: FlagEvaluationContext, seedBy: SeedBy | undefined): string {
-  switch (seedBy) {
-    case "user":
-    case "userId":
-      return ctx.userId || ctx.stableId;
-    case "namespace":
-      return ctx.namespace || ctx.stableId;
-    case "cookie":
-      return ctx.cookieId || ctx.stableId;
-    case "ipUa": {
-      const ip = ctx.ip || "0.0.0.0";
-      const ua = ctx.userAgent || "unknown";
-      return `${ip}::${ua}`;
-    }
-    case "anonId":
-    case "stableId":
-    default:
-      return ctx.stableId;
-  }
 }
 
 function matchesSegment(segment: SegmentConfig, ctx: FlagEvaluationContext): boolean {
@@ -274,10 +246,9 @@ export class MemoryFlagStore implements FlagStore {
         if (percent >= 100) {
           return { value: flag.defaultValue, reason: "segment-rollout", segmentId: segment.id };
         }
-        const seedKey = buildSeed(ctx, segment.rollout.seedBy ?? seedByDefault);
+        const seedKey = seedFor(flag.key, ctx, undefined, segment.rollout.seedBy ?? seedByDefault);
         const salt = segment.rollout.salt || `${key}:seg:${segment.id}`;
-        const unit = hashToUnit(`${seedKey}:${salt}`);
-        if (unit * 100 < percent) {
+        if (pctHit(`${seedKey}:${salt}`, percent)) {
           return { value: flag.defaultValue, reason: "segment-rollout", segmentId: segment.id };
         }
       }
@@ -300,10 +271,9 @@ export class MemoryFlagStore implements FlagStore {
         return { value: flag.defaultValue, reason: "global-rollout" };
       }
       if (percent > 0) {
-        const seedKey = buildSeed(ctx, flag.rollout.seedBy ?? seedByDefault);
+        const seedKey = seedFor(flag.key, ctx, undefined, flag.rollout.seedBy ?? seedByDefault);
         const salt = flag.rollout.salt || `${key}:global`;
-        const unit = hashToUnit(`${seedKey}:${salt}`);
-        if (unit * 100 < percent) {
+        if (pctHit(`${seedKey}:${salt}`, percent)) {
           return { value: flag.defaultValue, reason: "global-rollout" };
         }
       }
