@@ -4,10 +4,11 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
 
+import type { RequestCorrelation } from "../../../lib/metrics/correlation";
+
 import { getClientEventBuffer } from "./telemetry/client-buffer";
 
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
-import type { RequestCorrelation } from "@/lib/metrics/correlation";
 
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
