@@ -4,60 +4,29 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
+import { getClientEventBuffer } from "./telemetry/client-buffer";
+
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
   return document.body?.dataset.ffSnapshot || undefined;
-}
-
-function postBeacon(url: string, payload: Record<string, unknown>, snapshot: string) {
-  try {
-    const body = JSON.stringify(payload);
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      return;
-    }
-    if (typeof fetch === "undefined") return;
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      "x-ff-snapshot": snapshot,
-    };
-    fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      keepalive: true,
-    }).catch(() => {
-      /* ignore */
-    });
-  } catch {
-    /* noop */
-  }
 }
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     const snapshotId = readSnapshotId();
     if (!snapshotId) return;
+    const buffer = getClientEventBuffer({ url: "/api/js-error", snapshotId });
     const onError = (event: ErrorEvent) => {
-      postBeacon(
-        "/api/js-error",
-        {
-          message: event.message,
-          stack: event.error?.stack,
-        },
-        snapshotId,
-      );
+      buffer.enqueue({
+        message: event.message,
+        stack: event.error?.stack,
+      });
     };
     const onRejection = (event: PromiseRejectionEvent) => {
-      postBeacon(
-        "/api/js-error",
-        {
-          message: event.reason instanceof Error ? event.reason.message : String(event.reason),
-          stack: event.reason instanceof Error ? event.reason.stack : undefined,
-        },
-        snapshotId,
-      );
+      buffer.enqueue({
+        message: event.reason instanceof Error ? event.reason.message : String(event.reason),
+        stack: event.reason instanceof Error ? event.reason.stack : undefined,
+      });
     };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
