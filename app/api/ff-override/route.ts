@@ -17,7 +17,7 @@ import {
   validateOverrideTypes,
 } from "../../../lib/ff/overrides";
 
-import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+import { stableCookieOptions } from "@/lib/ff/cookies";
 
 function removeFFParam(url: string): string {
   const u = new URL(url);
@@ -84,14 +84,11 @@ export async function GET(req: Request) {
     const clientIp = parseXForwardedFor(rawIp);
     void clientIp; // (при необходимости можно логировать clientIp)
     const res = NextResponse.redirect(removeFFParam(req.url), { status: 302 });
-    res.cookies.set("sv_flags_override", json, {
-      httpOnly: false,
-      sameSite: "lax",
-      maxAge: 60 * 60,
-      secure: FF_COOKIE_SECURE,
-      path: FF_COOKIE_PATH,
-      domain: FF_COOKIE_DOMAIN,
-    });
+    res.cookies.set(
+      "sv_flags_override",
+      json,
+      stableCookieOptions({ httpOnly: false, maxAge: 60 * 60 }),
+    );
     return res;
   } catch (err) {
     const isDev = process.env.NODE_ENV !== "production";
