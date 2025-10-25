@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { logAdminAction } from "@/lib/ff/audit";
+import { stableCookieOptions } from "@/lib/ff/cookies";
 import { FF } from "@/lib/ff/runtime";
 import { sanitizeUserId } from "@/lib/ff/stable-id";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
@@ -90,6 +91,15 @@ function deriveIdentifiers(payload: Record<string, unknown>): {
   return { ids };
 }
 
+const AID_COOKIE_NAMES = ["ff_aid", "sv_aid", "aid"] as const;
+
+function clearAidCookies(response: NextResponse) {
+  const removalOptions = stableCookieOptions({ httpOnly: false, maxAge: 0 });
+  for (const name of AID_COOKIE_NAMES) {
+    response.cookies.set(name, "", removalOptions);
+  }
+}
+
 async function selfErase(req: Request) {
   const { sid, aid } = readIdentifiers(req.headers);
   if (!sid && !aid) {
@@ -97,7 +107,9 @@ async function selfErase(req: Request) {
   }
   await appendErasure({ sid, aid }, "self");
   await purgeNdjsonFiles(metricsFiles(), { sid, aid });
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  clearAidCookies(response);
+  return response;
 }
 
 export async function POST(req: Request) {
@@ -140,5 +152,7 @@ export async function POST(req: Request) {
     requestNamespace: correlation.namespace,
   });
 
-  return NextResponse.json({ ok: true, removedOverrides, purge: purgeReport });
+  const response = NextResponse.json({ ok: true, removedOverrides, purge: purgeReport });
+  clearAidCookies(response);
+  return response;
 }
