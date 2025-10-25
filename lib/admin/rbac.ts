@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { FF_PRIVATE_COOKIE_OPTIONS } from "@/lib/ff/cookies";
+import {
+  FF_COOKIE_DOMAIN,
+  FF_COOKIE_PATH,
+  FF_COOKIE_SECURE,
+  stableCookieOptions,
+} from "@/lib/ff/cookies";
 import { tscmp } from "@/lib/ff/tscmp";
 
 export type Role = "viewer" | "ops" | "admin";
@@ -44,6 +49,7 @@ const ROLE_PRIORITY: Record<Role, number> = {
 
 export const ADMIN_SESSION_COOKIE = "sv_admin_session";
 export const ADMIN_SESSION_MAX_AGE = 60 * 15; // 15 minutes
+export const ADMIN_AID_COOKIE = "ff_aid";
 
 export const ADMIN_SESSION_COOKIE_OPTIONS = {
   ...FF_PRIVATE_COOKIE_OPTIONS,
@@ -127,14 +133,14 @@ function extractHeaderToken(headers: Headers): string | null {
   return null;
 }
 
-function parseCookieHeader(cookieHeader: string | null | undefined): string | null {
+function parseCookieValue(cookieHeader: string | null | undefined, name: string): string | null {
   if (!cookieHeader) return null;
   const cookies = cookieHeader.split(";").map((item) => item.trim());
   for (const cookie of cookies) {
     if (!cookie) continue;
-    const [name, ...rest] = cookie.split("=");
-    if (!name) continue;
-    if (name.trim() === ADMIN_SESSION_COOKIE) {
+    const [cookieName, ...rest] = cookie.split("=");
+    if (!cookieName) continue;
+    if (cookieName.trim() === name) {
       return rest.join("=").trim();
     }
   }
@@ -200,7 +206,7 @@ export function authorizeContext(context: AuthorizeContext, required: Role): Aut
     };
   }
 
-  const sessionCookie = parseSession(parseCookieHeader(context.cookieHeader));
+  const sessionCookie = parseSession(parseCookieValue(context.cookieHeader, ADMIN_SESSION_COOKIE));
   if (sessionCookie) {
     const match = findByHash(entries, sessionCookie.hash);
     if (!match) {
@@ -254,6 +260,7 @@ export function buildErrorResponse(
   res.headers.set("cache-control", "no-store");
   if (clear) {
     res.cookies.set(ADMIN_SESSION_COOKIE, "", ADMIN_SESSION_COOKIE_CLEAR_OPTIONS);
+    res.cookies.set(ADMIN_AID_COOKIE, "", stableCookieOptions({ httpOnly: false, maxAge: 0 }));
   }
   return res;
 }
@@ -270,12 +277,18 @@ export function authorizeApi(req: Request, required: Role): ApiAuthResult {
       response: buildErrorResponse(result.status, result.reason, result.clearSession),
     };
   }
+  const sessionValue = result.sessionValue;
   return {
     ok: true,
     role: result.role,
-    session: result.sessionValue,
+    session: sessionValue,
     apply<T extends NextResponse>(res: T) {
-      res.cookies.set(ADMIN_SESSION_COOKIE, result.sessionValue, ADMIN_SESSION_COOKIE_OPTIONS);
+      res.cookies.set(ADMIN_SESSION_COOKIE, sessionValue, ADMIN_SESSION_COOKIE_OPTIONS);
+      res.cookies.set(
+        ADMIN_AID_COOKIE,
+        sessionValue,
+        stableCookieOptions({ httpOnly: false, maxAge: ADMIN_SESSION_MAX_AGE }),
+      );
       return res;
     },
   };

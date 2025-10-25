@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 
-import { FF_PUBLIC_COOKIE_OPTIONS, ONE_YEAR_SECONDS } from "@/lib/ff/cookies";
+import { stableCookieOptions } from "@/lib/ff/cookies";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const id = url.searchParams.get("id"); // 'random' | 'clear' | <custom>
   const res = NextResponse.json({ ok: true });
   if (id === "clear") {
-    res.cookies.set("sv_id", "", { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: 0 });
+    res.cookies.set("sv_id", "", stableCookieOptions({ httpOnly: false, maxAge: 0 }));
     return res;
   }
   let value = id;
@@ -25,9 +25,10 @@ export async function GET(req: Request) {
       value = `sv_${Date.now().toString(36)}`;
     }
   }
-  res.cookies.set("sv_id", String(value), {
-    ...FF_PUBLIC_COOKIE_OPTIONS,
-    maxAge: ONE_YEAR_SECONDS,
-  });
+  res.cookies.set(
+    "sv_id",
+    String(value),
+    stableCookieOptions({ httpOnly: false, maxAge: 365 * 24 * 60 * 60 }),
+  );
   return res;
 }
