@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       STORYBOOK_BUILD: "0"   # S0: Storybook disabled by default. Enable later with "1".
+      NODE_VERSION: "20.17.0"
+      NODE_MAJOR: "20"
+      PNPM_VERSION: "9.12.3"
 
     steps:
       - name: "Checkout"
@@ -47,32 +50,36 @@ jobs:
               core.setFailed("S0 (code-only): PR содержит бинарники:\n" + bin.map(b => ` - ${b.filename}`).join('\n'));
             }
 
-      - name: "Setup Node (no cache yet)"
+      - name: "Setup Node"
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: "Enable Corepack + PNPM"
         run: |
           set -e
           corepack enable
-          corepack prepare pnpm@9.12.3 --activate
+          corepack prepare pnpm@${PNPM_VERSION} --activate
           pnpm -v
 
-      - name: "Setup Node cache for pnpm (only if pnpm-lock.yaml exists)"
-        if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
-        uses: actions/setup-node@v4
+      - name: "Restore node_modules cache"
+        uses: actions/cache@v4
         with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          path: |
+            node_modules
+            apps/web/node_modules
+          key: ${{ runner.os }}-node${{ env.NODE_MAJOR }}-pnpm-modules-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_MAJOR }}-pnpm-modules-
 
       - name: "Install deps (pnpm if lockfile, otherwise npm; skip if no package.json)"
         run: |
           set -e
           if [ -f pnpm-lock.yaml ]; then
             echo "Using pnpm (lockfile found)"
-            pnpm i --frozen-lockfile
+            pnpm install --frozen-lockfile --ignore-scripts
           elif [ -f package-lock.json ]; then
             echo "Using npm ci (package-lock.json found)"
             npm ci
@@ -82,6 +89,9 @@ jobs:
           else
             echo "No package.json found; skipping install."
           fi
+
+      - name: "Print CI environment fingerprint"
+        run: pnpm run ci:env
 
       - name: "Verify token source exists"
         run: |

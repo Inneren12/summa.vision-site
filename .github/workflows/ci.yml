@@ -27,19 +27,39 @@ jobs:
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+      NODE_VERSION: "20.17.0"
+      NODE_MAJOR: "20"
+      PNPM_VERSION: "9.12.3"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: package-lock.json
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Sync lockfile (no scripts)
-        run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
+      - name: Activate pnpm ${{ env.PNPM_VERSION }}
+        run: |
+          corepack enable
+          corepack prepare pnpm@${PNPM_VERSION} --activate
+          pnpm --version
 
-      - name: Install (ignore scripts)
-        run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/web/node_modules
+          key: ${{ runner.os }}-node${{ env.NODE_MAJOR }}-pnpm-modules-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_MAJOR }}-pnpm-modules-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Print CI environment fingerprint
+        run: pnpm run ci:env
 
       - name: Postinstall (manual Next patch)
         run: |
@@ -54,20 +74,29 @@ jobs:
           NEXT_PUBLIC_SITE_URL=http://localhost:3000
           EOENV
 
+      - name: Restore Next.js cache
+        id: cache-next
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-node${{ env.NODE_MAJOR }}-next-${{ hashFiles('pnpm-lock.yaml', 'apps/web/next.config.js') }}
+          restore-keys: |
+            ${{ runner.os }}-node${{ env.NODE_MAJOR }}-next-
+
       - name: Lint
-        run: npm run lint || true
+        run: pnpm run lint || true
 
       - name: Typecheck
-        run: npm run typecheck || true
+        run: pnpm run typecheck || true
 
       - name: Validate rollout policies
-        run: npm run policy:validate
+        run: pnpm run policy:validate
 
       - name: Unit / Coverage
-        run: npm run test:ci || npm test
+        run: pnpm run test:ci || pnpm test
 
       - name: Static analysis (knip + madge)
-        run: npm run quality:check || true
+        run: pnpm run quality:check || true
 
       - name: Build web
-        run: npm run web:build
+        run: pnpm run web:build
