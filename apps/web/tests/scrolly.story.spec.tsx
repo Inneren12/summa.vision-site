@@ -2,19 +2,59 @@
 if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function () {};
 }
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMemo } from "react";
 
 import Step from "../../../components/scrolly/Step";
 import StickyPanel from "../../../components/scrolly/StickyPanel";
 import Story, {
   type StoryVisualizationController,
+  STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
   useStoryVisualization,
 } from "../../../components/scrolly/Story";
 
+type ObserverRecord = {
+  callback: IntersectionObserverCallback;
+  options?: IntersectionObserverInit;
+};
+
+let observerRecords: ObserverRecord[] = [];
+
+function triggerVisualizationIntersection() {
+  const record = observerRecords.find(
+    (entry) => entry.options?.rootMargin === STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
+  );
+
+  if (!record) {
+    throw new Error("Visualization sentinel observer was not registered");
+  }
+
+  act(() => {
+    record.callback(
+      [
+        {
+          isIntersecting: true,
+          target: document.createElement("div"),
+        } as IntersectionObserverEntry,
+      ],
+      {} as IntersectionObserver,
+    );
+  });
+}
+
 describe("Scrollytelling Story", () => {
   beforeEach(() => {
+    observerRecords = [];
     class MockIntersectionObserver {
+      public readonly callback: IntersectionObserverCallback;
+      public readonly options?: IntersectionObserverInit;
+
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        this.callback = callback;
+        this.options = options;
+        observerRecords.push({ callback, options });
+      }
+
       observe() {}
       unobserve() {}
       disconnect() {}
@@ -68,6 +108,59 @@ describe("Scrollytelling Story", () => {
     expect(steps[0]).not.toHaveAttribute("aria-current");
   });
 
+  it("lazily mounts the visualization when the sentinel intersects", async () => {
+    const { container } = render(
+      <Story>
+        <StickyPanel>
+          <div data-testid="viz" />
+        </StickyPanel>
+        <Step id="alpha" title="Alpha">
+          <p>Первый шаг</p>
+        </Step>
+      </Story>,
+    );
+
+    const stickyPanel = container.querySelector("[data-scrolly-sticky]") as HTMLElement;
+    expect(stickyPanel).toHaveAttribute("data-scrolly-sticky-state", "pending");
+    expect(screen.queryByTestId("viz")).not.toBeInTheDocument();
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("viz")).toBeInTheDocument();
+    });
+
+    expect(stickyPanel).toHaveAttribute("data-scrolly-sticky-state", "mounted");
+  });
+
+  it("prefetches visualization data with abort handling", async () => {
+    const prefetch = vi.fn<[AbortSignal], Promise<void>>(() => new Promise(() => {}));
+    const { unmount } = render(
+      <Story onVisualizationPrefetch={prefetch}>
+        <StickyPanel>
+          <div data-testid="viz" />
+        </StickyPanel>
+        <Step id="alpha" title="Alpha">
+          <p>Первый шаг</p>
+        </Step>
+      </Story>,
+    );
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(prefetch).toHaveBeenCalledTimes(1);
+    });
+
+    const signal = prefetch.mock.calls[0]?.[0];
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+
+    unmount();
+
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("notifies visualization controller with smooth transitions by default", async () => {
     vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
       matches: false,
@@ -107,6 +200,12 @@ describe("Scrollytelling Story", () => {
         </Step>
       </Story>,
     );
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("viz")).toBeInTheDocument();
+    });
 
     const steps = screen.getAllByRole("article");
     fireEvent.focus(steps[0]);
@@ -158,6 +257,12 @@ describe("Scrollytelling Story", () => {
         </Step>
       </Story>,
     );
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("viz")).toBeInTheDocument();
+    });
 
     const step = screen.getByRole("article");
     fireEvent.focus(step);

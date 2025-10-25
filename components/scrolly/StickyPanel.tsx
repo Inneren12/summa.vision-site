@@ -1,25 +1,30 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type React from "react";
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 
-function classNames(...values: Array<string | undefined | false>): string {
-  return values.filter(Boolean).join(" ");
-}
+type HTMLTag = keyof React.ReactHTML;
 
-export type StickyPanelProps = {
-  children: ReactNode;
+type StickyPanelProps<T extends HTMLTag = "div"> = {
+  as?: T;
   className?: string;
-  as?: keyof JSX.IntrinsicElements;
-};
+  children?: ReactNode;
+} & Omit<ComponentPropsWithoutRef<T>, "className" | "children">;
 
-const StickyPanel = ({ children, className, as: Component = "div" }: StickyPanelProps) => {
+export default function StickyPanel<T extends HTMLTag = "div">({
+  as,
+  className,
+  children,
+  ...rest
+}: StickyPanelProps<T>) {
+  const Component = (as ?? "div") as ElementType;
   return (
-    <Component className={classNames("scrolly-sticky", className)} data-scrolly-sticky>
+    <Component
+      className={["scrolly-sticky", className].filter(Boolean).join(" ")}
+      data-scrolly-sticky
+      {...(rest as ComponentPropsWithoutRef<T>)}
+    >
       {children}
     </Component>
   );
-};
-
-StickyPanel.displayName = "StickyPanel";
-
-export default StickyPanel;
+}
