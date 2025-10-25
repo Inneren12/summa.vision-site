@@ -2,6 +2,7 @@ import path from "node:path";
 
 // Опциональный AST-сканер на базе ts-morph. Поддерживает TS/TSX/JS/JSX.
 
+const FALLBACK_ENABLED = true;
 let tsMorphModulePromise;
 let projectPromise;
 let fallbackToRegex = false;
@@ -12,15 +13,7 @@ async function loadTsMorph() {
     return null;
   }
   if (!tsMorphModulePromise) {
-    tsMorphModulePromise = import("ts-morph").catch(() => {
-      fallbackToRegex = true;
-      return null;
-    });
-  }
-  const tsMorphModule = await tsMorphModulePromise;
-  if (!tsMorphModule) {
-    fallbackToRegex = true;
-    return null;
+    tsMorphModulePromise = import("ts-morph").catch(() => null);
   }
   return tsMorphModule;
 }
@@ -71,14 +64,11 @@ function getScriptKind(tsMorph, filename) {
 }
 
 export async function astAvailable() {
-  const tsMorphModule = await loadTsMorph();
-  return Boolean(tsMorphModule) || fallbackToRegex;
+  const tsMorph = await loadTsMorph();
+  return tsMorph !== null || FALLBACK_ENABLED;
 }
 
 export async function scanTextForFlagsAST(text, filename, flagNames) {
-  const ok = await astAvailable();
-  if (!ok) return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
-
   const tsMorph = await loadTsMorph();
   if (!tsMorph) {
     return scanWithFallback(text, flagNames);
@@ -197,59 +187,48 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
   return { refs, fuzzyRefs, unknown, occurrences };
 }
 
+function createEmptyResult(flagNames) {
+  const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
+  return { refs, fuzzyRefs, unknown: new Map(), occurrences: [] };
+}
+
 function positionFromIndex(text, index) {
-  let line = 1;
-  let col = 0;
-  for (let i = 0; i < index; i += 1) {
-    if (text[i] === "\n") {
-      line += 1;
-      col = 0;
-    } else {
-      col += 1;
-    }
-  }
-  return { line, col };
+  const slice = text.slice(0, index);
+  const lines = slice.split(/\r?\n/);
+  const line = lines.length === 0 ? 1 : lines.length;
+  const column = lines.length === 0 ? 1 : lines[lines.length - 1].length + 1;
+  return { line, column };
 }
 
 function scanWithFallback(text, flagNames) {
-  const refs = new Map(flagNames.map((n) => [n, 0]));
-  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
-  const unknown = new Map();
-  const occurrences = [];
+  const result = createEmptyResult(flagNames);
   const known = new Set(flagNames);
-
   const record = (name, index, kind) => {
     if (!name) return;
-    const { line, col } = positionFromIndex(text, index);
-    occurrences.push({ name, index, line, col, kind, fuzzy: false });
+    const { line, column } = positionFromIndex(text, index);
+    result.occurrences.push({ name, index, line, col: column, kind, fuzzy: false });
     if (known.has(name)) {
-      refs.set(name, (refs.get(name) || 0) + 1);
+      result.refs.set(name, (result.refs.get(name) || 0) + 1);
     } else {
-      unknown.set(name, (unknown.get(name) || 0) + 1);
+      result.unknown.set(name, (result.unknown.get(name) || 0) + 1);
     }
   };
 
-  const hookPattern = /useFlag\s*\(\s*(["'`])([^"'`\s)]+)\1/g;
-  let hookMatch;
-  while ((hookMatch = hookPattern.exec(text))) {
-    const [, , value] = hookMatch;
-    if (!value) continue;
-    const offset = hookMatch.index + hookMatch[0].indexOf(value);
-    record(value, offset, "hook");
+  const useFlagPattern = /useFlag\s*\(\s*(["'`])([^"'`\r\n]+?)\1/dg;
+  let match;
+  while ((match = useFlagPattern.exec(text)) !== null) {
+    const literalIndex = match.indices?.[2]?.[0] ?? match.index;
+    record(match[2], literalIndex, "hook");
   }
 
   const gatePattern =
-    /<(FlagGate|FlagGateServer|FlagGateClient|PercentGate|PercentGateServer|PercentGateClient|VariantGate|VariantGateServer|VariantGateClient)\b([^>]*)>/g;
-  let gateMatch;
-  while ((gateMatch = gatePattern.exec(text))) {
-    const [, , attrs] = gateMatch;
-    const nameMatch = attrs.match(/name\s*=\s*(?:"([^"]+)"|'([^']+)'|\{\s*['"]([^'"}]+)['"]\s*\})/);
-    if (!nameMatch) continue;
-    const value = nameMatch[1] ?? nameMatch[2] ?? nameMatch[3];
-    if (!value) continue;
-    const nameIndex = gateMatch.index + gateMatch[0].indexOf(nameMatch[0]);
-    record(value, nameIndex, "jsx");
+    /<(FlagGate(?:Server|Client)?|PercentGate(?:Server|Client)?|VariantGate(?:Server|Client)?)\b[^>]*?\bname\s*=\s*(?:(["'])([^"'`\r\n]+?)\2|\{\s*(["'])([^"'`\r\n]+?)\4\s*\})/dg;
+  while ((match = gatePattern.exec(text)) !== null) {
+    const value = match[3] ?? match[5];
+    const literalIndex = match.indices?.[3]?.[0] ?? match.indices?.[5]?.[0] ?? match.index;
+    record(value, literalIndex, "jsx");
   }
 
-  return { refs, fuzzyRefs, unknown, occurrences };
+  return result;
 }

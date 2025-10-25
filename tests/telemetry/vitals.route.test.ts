@@ -32,8 +32,9 @@ describe("POST /api/vitals", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ skipped: true });
+    expect(response.status).toBe(204);
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("sv-telemetry-status")).toBe("ok:true, skipped:true");
     expect(recordVital).not.toHaveBeenCalled();
   });
 
@@ -53,7 +54,10 @@ describe("POST /api/vitals", () => {
         value: 42,
         attribution: {
           eventTarget: "button",
-          url: "https://example.com/private",
+          eventType: "click",
+          navigationType: "navigate",
+          timeToFirstByte: 123,
+          resourceLoadDelay: 0.2,
           nested: {
             message: "secret",
             count: 5,
@@ -69,10 +73,10 @@ describe("POST /api/vitals", () => {
     expect(recordVital).toHaveBeenCalledTimes(1);
     const [, , , details] = recordVital.mock.calls[0];
     expect(details?.attribution).toEqual({
-      eventTarget: "button",
-      nested: {
-        count: 5,
-      },
+      eventType: "click",
+      navigationType: "navigate",
+      timeToFirstByte: 123,
+      resourceLoadDelay: 0.2,
     });
     expect(details?.context).toEqual({
       requestId: "req-vitals-1",

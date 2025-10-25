@@ -111,6 +111,31 @@ SQL
 - `snapshotId` соответствует заголовку `x-ff-snapshot` (см. middleware и `docs/rollouts.md`).
 - Если DuckDB недоступен, используйте `rg 'snapshotId' .runtime/*.ndjson | sort` для грубой оценки.
 
+### Корреляция по `x-request-id`
+
+- Каждый HTTP-запрос получает заголовок `x-request-id` (ULID). Проверить легко:
+
+  ```bash
+  curl -i https://<host>/ | grep -i x-request-id
+  ```
+
+- Для сквозной трассировки передайте свой идентификатор — он вернётся в ответ и попадёт во все события telemetry/metrics:
+
+  ```bash
+  curl -i https://<host>/api/flags \
+    -H 'x-request-id: demo-123'
+  ```
+
+- Искомый идентификатор присутствует в `.runtime/*.ndjson` (telemetry, vitals, errors). Для поиска используйте `rg` или `jq`:
+
+  ```bash
+  rg '"requestId":"demo-123"' .runtime/*.ndjson
+  # либо
+  jq -r 'select(.requestId == "demo-123")' .runtime/telemetry.ndjson
+  ```
+
+- Поля `sessionId` и `namespace` добавляются рядом, поэтому корреляцию можно расширять до конкретной сессии/тенанта.
+
 ---
 
 ## 3. Dry-run / apply rollout-политик

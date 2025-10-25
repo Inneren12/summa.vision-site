@@ -32,8 +32,9 @@ describe("POST /api/js-error", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ skipped: true });
+    expect(response.status).toBe(204);
+    expect(response.ok).toBe(true);
+    expect(response.headers.get("sv-telemetry-status")).toBe("ok:true, skipped:true");
     expect(recordError).not.toHaveBeenCalled();
   });
 
