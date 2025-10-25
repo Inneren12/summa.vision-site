@@ -40,6 +40,16 @@ describe("GET /api/privacy/export", () => {
     } else {
       delete process.env.TELEMETRY_FILE;
     }
+    if (originalEnv.PRIVACY_EXPORT_MAX_RECORDS) {
+      process.env.PRIVACY_EXPORT_MAX_RECORDS = originalEnv.PRIVACY_EXPORT_MAX_RECORDS;
+    } else {
+      delete process.env.PRIVACY_EXPORT_MAX_RECORDS;
+    }
+    if (originalEnv.PRIVACY_EXPORT_MAX_BYTES) {
+      process.env.PRIVACY_EXPORT_MAX_BYTES = originalEnv.PRIVACY_EXPORT_MAX_BYTES;
+    } else {
+      delete process.env.PRIVACY_EXPORT_MAX_BYTES;
+    }
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   });
 
@@ -146,5 +156,28 @@ describe("GET /api/privacy/export", () => {
         recordCount: 0,
       }),
     );
+  });
+
+  it("respects configurable export limits", async () => {
+    process.env.PRIVACY_EXPORT_MAX_RECORDS = "1";
+    await fs.writeFile(
+      process.env.METRICS_VITALS_FILE!,
+      `${JSON.stringify({ sid: "sid-limit", ts: Date.now() })}\n${JSON.stringify({ sid: "sid-limit", ts: Date.now() })}\n`,
+      "utf8",
+    );
+    await fs.writeFile(process.env.METRICS_ERRORS_FILE!, "", "utf8");
+    await fs.writeFile(process.env.TELEMETRY_FILE!, "", "utf8");
+
+    const { GET } = await import("@/app/api/privacy/export/route");
+    const request = new Request("http://localhost/api/privacy/export?sid=sid-limit", {
+      headers: {
+        "x-ff-console-role": "admin",
+      },
+    });
+
+    const response = await GET(request);
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "Too many records" });
+    expect(logAdminAction).not.toHaveBeenCalled();
   });
 });

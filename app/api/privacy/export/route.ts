@@ -20,8 +20,8 @@ const DEFAULT_VITALS_FILE = "./.runtime/vitals.ndjson";
 const DEFAULT_ERRORS_FILE = "./.runtime/errors.ndjson";
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 const ROLE_HEADER = "x-ff-console-role";
-const MAX_EXPORT_RECORDS = 100_000;
-const MAX_EXPORT_BYTES = 25 * 1024 * 1024; // 25MB pre-compression
+const DEFAULT_MAX_EXPORT_RECORDS = 100_000;
+const DEFAULT_MAX_EXPORT_BYTES = 25 * 1024 * 1024; // 25MB pre-compression
 
 const DATASETS = [
   { name: "vitals", env: "METRICS_VITALS_FILE", defaultPath: DEFAULT_VITALS_FILE },
@@ -40,6 +40,16 @@ type IdentifierFilter = {
   sid: Set<string>;
   aid: Set<string>;
   userId: Set<string>;
+};
+
+type ExportLimits = {
+  maxRecords: number;
+  maxBytes: number;
+};
+
+type ExportTotals = {
+  records: number;
+  bytes: number;
 };
 
 class ExportLimitError extends Error {
@@ -67,6 +77,24 @@ function normalizeRole(role: string | null): "admin" | "ops" | null {
 function anonymize(value: string | undefined): string | null {
   if (!value) return null;
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function parseLimit(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function resolveExportLimits(): ExportLimits {
+  return {
+    maxRecords: parseLimit(process.env.PRIVACY_EXPORT_MAX_RECORDS, DEFAULT_MAX_EXPORT_RECORDS),
+    maxBytes: parseLimit(process.env.PRIVACY_EXPORT_MAX_BYTES, DEFAULT_MAX_EXPORT_BYTES),
+  } satisfies ExportLimits;
 }
 
 function buildFilter(ids: IdentifierQuery): IdentifierFilter {
@@ -153,6 +181,8 @@ async function* readLines(filePath: string): AsyncIterable<string> {
 async function collectDataset(
   filePaths: readonly string[],
   filter: IdentifierFilter,
+  limits: ExportLimits,
+  totals: ExportTotals,
 ): Promise<{ lines: string[]; records: number; bytes: number }> {
   const lines: string[] = [];
   let records = 0;
@@ -172,10 +202,10 @@ async function collectDataset(
       lines.push(line);
       records += 1;
       bytes += Buffer.byteLength(line, "utf8") + 1;
-      if (records > MAX_EXPORT_RECORDS) {
+      if (records + totals.records > limits.maxRecords) {
         throw new ExportLimitError("Too many records");
       }
-      if (bytes > MAX_EXPORT_BYTES) {
+      if (bytes + totals.bytes > limits.maxBytes) {
         throw new ExportLimitError("Export exceeds size limit");
       }
     }
@@ -185,14 +215,18 @@ async function collectDataset(
 
 async function gatherDatasets(ids: IdentifierQuery) {
   const filter = buildFilter(ids);
+  const limits = resolveExportLimits();
+  const totals: ExportTotals = { records: 0, bytes: 0 };
   const summaries = [] as Array<{ name: string; lines: string[]; records: number; bytes: number }>;
   for (const dataset of DATASETS) {
     const baseFile = process.env[dataset.env] || dataset.defaultPath;
     const files = await listNdjsonFiles(baseFile, { maxChunkCount: 0, maxChunkDays: 0 });
-    const summary = await collectDataset(files, filter);
+    const summary = await collectDataset(files, filter, limits, totals);
+    totals.records += summary.records;
+    totals.bytes += summary.bytes;
     summaries.push({ name: dataset.name, ...summary });
   }
-  return summaries;
+  return { summaries, totals };
 }
 
 function deriveQueryIdentifiers(
@@ -272,8 +306,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const datasets = await gatherDatasets(ids);
-    const totalRecords = datasets.reduce((sum, entry) => sum + entry.records, 0);
+    const { summaries: datasets, totals } = await gatherDatasets(ids);
+    const totalRecords = totals.records;
 
     const zip = new JSZip();
     for (const dataset of datasets) {
