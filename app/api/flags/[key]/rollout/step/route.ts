@@ -3,6 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { enforceAdminCsrf } from "@/lib/admin/csrf";
+import { beginIdempotentRequest } from "@/lib/admin/idempotency";
 import { enforceAdminRateLimit, resolveRolloutStepRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
 import { flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
@@ -273,6 +275,22 @@ function evaluateRollout(params: {
 export async function POST(req: Request, { params }: { params: { key: string } }) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
+  const csrf = enforceAdminCsrf(req, auth.source);
+  if (!csrf.ok) {
+    return auth.apply(csrf.response);
+  }
+  const idempotency = beginIdempotentRequest(req);
+  if (idempotency.kind === "error") {
+    return auth.apply(idempotency.response);
+  }
+  if (idempotency.kind === "hit") {
+    return auth.apply(idempotency.response);
+  }
+  const finalize = async (res: NextResponse) => {
+    const applied = auth.apply(res);
+    await idempotency.store(applied);
+    return applied;
+  };
   const correlation = correlationFromRequest(req);
   const limit = resolveRolloutStepRpm();
   const gate = await enforceAdminRateLimit({
@@ -282,12 +300,12 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     actor: { role: auth.role, session: auth.session },
   });
   if (!gate.ok) {
-    return auth.apply(gate.response);
+    return finalize(gate.response);
   }
   const json = await req.json().catch(() => null);
   const parsed = StepSchema.safeParse(json ?? {});
   if (!parsed.success) {
-    return auth.apply(
+    return finalize(
       NextResponse.json(
         { error: "Validation failed", details: parsed.error.flatten() },
         { status: 400 },
@@ -309,12 +327,12 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const { store, lock, metrics } = FF();
   const existing = await store.getFlag(key);
   if (!existing) {
-    return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
+    return finalize(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
   }
   if (nsInput) {
     const ns = normalizeNamespace(nsInput);
     if (normalizeNamespace(existing.namespace) !== ns) {
-      return auth.apply(
+      return finalize(
         NextResponse.json({ error: `Flag ${key} not found in namespace ${ns}` }, { status: 404 }),
       );
     }
@@ -324,7 +342,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const requiresMetrics = (process.env.METRICS_PROVIDER || "self").toLowerCase() === "self";
   const hasData = metrics.hasData(snapshot.id);
   if (requiresMetrics && !hasData) {
-    return auth.apply(metricsUnavailable());
+    return finalize(metricsUnavailable());
   }
   const summaries = metrics.summarize(snapshot.id);
   const summary = summaries.find((item) => item.snapshotId === snapshot.id);
@@ -363,7 +381,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const metricsSnapshot = buildMetrics(summaryForEval);
 
   if (dryRun) {
-    return auth.apply(
+    return finalize(
       NextResponse.json(
         {
           ok: !evaluation.blocked,
@@ -388,7 +406,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
 
   if (evaluation.blocked) {
     if (evaluation.reason === "metrics_unavailable") {
-      return auth.apply(metricsUnavailable());
+      return finalize(metricsUnavailable());
     }
     const status = evaluation.status ?? 409;
     logAdminAction({
@@ -407,7 +425,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
       sessionId: correlation.sessionId,
       requestNamespace: correlation.namespace,
     });
-    return auth.apply(
+    return finalize(
       NextResponse.json(
         {
           error: "Rollout blocked",
@@ -474,7 +492,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   });
 
   if (!updated.ok) {
-    return auth.apply(
+    return finalize(
       NextResponse.json(
         { error: "Flag config invalid", details: updated.error.flatten() },
         { status: 400 },
@@ -484,7 +502,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
 
   const apiFlag = flagToApi(updated.flag);
   if (!updated.changed) {
-    return auth.apply(
+    return finalize(
       NextResponse.json({
         ok: true,
         rollout: apiFlag.rollout,
@@ -505,7 +523,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,
   });
-  return auth.apply(
+  return finalize(
     NextResponse.json({ ok: true, rollout: apiFlag.rollout, metrics: metricsSnapshot }),
   );
 }

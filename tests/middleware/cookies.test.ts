@@ -84,4 +84,24 @@ describe("middleware cookie handling", () => {
     expect(sessionCookie?.value).toBe("viewer:hash");
     expect(sessionCookie?.maxAge).toBe(ADMIN_SESSION_COOKIE_OPTIONS.maxAge);
   });
+
+  it("issues ff_csrf cookie when admin session comes from cookies", async () => {
+    authorizeContextMock.mockReturnValueOnce({
+      ok: true,
+      role: "viewer",
+      source: "cookie",
+      sessionValue: "viewer:hash",
+    });
+
+    const request = new NextRequest("https://example.com/admin/flags", {
+      headers: { cookie: "sv_admin_session=viewer:hash" },
+    });
+
+    const response = await middleware(request);
+
+    const csrf = response.cookies.get("ff_csrf");
+    expect(csrf?.value).toBeTruthy();
+    expect(csrf?.httpOnly).toBe(false);
+    expect(csrf?.maxAge).toBe(ADMIN_SESSION_COOKIE_OPTIONS.maxAge);
+  });
 });
