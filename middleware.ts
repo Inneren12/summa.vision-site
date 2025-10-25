@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ulid } from "ulid";
 
+import { ADMIN_CSRF_COOKIE } from "@/lib/admin/csrf";
 import {
   ADMIN_AID_COOKIE,
   ADMIN_SESSION_COOKIE,
@@ -173,6 +174,19 @@ export async function middleware(req: NextRequest) {
       requestCookies.set(ADMIN_AID_COOKIE, result.sessionValue);
       ffAidValue = result.sessionValue;
       syncForwardedCookies();
+    }
+    if (result.source === "cookie") {
+      const before = cookieUpdates.length;
+      ensureCookie(
+        cookieJar,
+        ADMIN_CSRF_COOKIE,
+        () => crypto.randomBytes(16).toString("hex"),
+        { httpOnly: false, maxAge: ADMIN_SESSION_MAX_AGE },
+        cookieUpdates,
+      );
+      if (cookieUpdates.length !== before) {
+        forwardedHeaders.set("cookie", serializeCookieJar(cookieJar));
+      }
     }
     refreshAid = true;
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
