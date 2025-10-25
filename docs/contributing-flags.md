@@ -12,7 +12,7 @@
 
 ## 2. Теги (`tags[]`)
 
-Теги помогают фильтровать флаги и сегменты (см. `FlagConfig.tags` и `SegmentCondition` с `field:"tag"`). Рекомендуемые префиксы:
+Теги помогают фильтровать флаги и сегменты (см. `FlagConfig.tags` и `SegmentRule.where` с `field:"tag"`). Рекомендуемые префиксы:
 
 | Префикс | Назначение | Пример |
 | --- | --- | --- |
@@ -22,7 +22,7 @@
 | `env:` | ограничения окружения | `env:edge-only` |
 
 - Используйте минимум один тег `team:*` для автоматизации ответственности.
-- Теги наследуются сегментами через `conditions` (`{ "field": "tag", "op": "eq", "value": "risk:high" }`).
+- Теги наследуются сегментами через `where` (`{ "field": "tag", "op": "eq", "value": "risk:high" }`).
 - В отчётах (`FF().metrics.summarize`) теги помогают строить срезы по командам.
 
 ## 3. Семантика `seedBy` и `seedByDefault`
@@ -48,12 +48,12 @@
 Сегменты (`SegmentConfig`) задают таргетинг (см. `docs/segments.md`).
 
 - `id`: уникальный, человекочитаемый (`tenant:summa`, `locale:pt-BR`).
-- `priority`: чем выше, тем раньше применяется. Рекомендуемая шкала:
+- `priority`: чем меньше значение, тем раньше применяется (см. таблицу в `docs/segments.md`). Рекомендуемая шкала:
   - `1000+` — аварийные overrides (SRE/Sec).
   - `500` — продуктовые сегменты (тенанты, партнёры).
   - `100` — локализация/UX дорожки.
   - `0` — fallback.
-- `conditions`: массив предикатов. Для tenant'ов используйте `field:"namespace"`, для UA — `field:"ua"`. Для комбинаций используйте несколько условий (AND).
+- `where`: массив предикатов. Для tenant'ов используйте `field:"namespace"`, для UA — `field:"ua"`, для путей — `field:"path", op:"glob"`. Комбинации работают как `AND`.
 - `override`: булево/значение. Если указано, rollout внутри сегмента игнорируется.
 - `rollout`: локальная стратегия (percent/salt/seedBy/steps). При указании `percent<100` обязательно документируйте в policy (см. `docs/rollouts.md`).
 - `ttlSec`: не поддерживается на сегментах (используйте overrides).
@@ -65,7 +65,7 @@
   "id": "tenant:summa",
   "name": "Summa beta",
   "priority": 500,
-  "conditions": [{ "field": "namespace", "op": "eq", "value": "summa" }],
+  "where": [{ "field": "namespace", "op": "eq", "value": "summa" }],
   "rollout": { "percent": 100, "seedBy": "stableId" }
 }
 ```
@@ -76,7 +76,7 @@
 {
   "id": "risk:high",
   "priority": 1200,
-  "conditions": [{ "field": "tag", "op": "eq", "value": "risk:high" }],
+  "where": [{ "field": "tag", "op": "eq", "value": "risk:high" }],
   "override": false,
   "name": "Emergency shutdown"
 }

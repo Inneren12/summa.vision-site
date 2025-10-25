@@ -24,7 +24,7 @@ describe("FlagConfig schema", () => {
           {
             id: "namespace:summa",
             priority: 500,
-            conditions: [{ field: "namespace", op: "eq", value: "summa" }],
+            where: [{ field: "namespace", op: "eq", value: "summa" }],
             rollout: { percent: 100, seedBy: "stableId" },
           },
         ],

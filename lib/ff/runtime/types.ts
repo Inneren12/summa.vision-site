@@ -31,7 +31,18 @@ export type RolloutStrategy = {
   shadow?: boolean;
 };
 
-export type SegmentCondition =
+export type SegmentWhere =
+  | { field: string; op: "eq"; value: string | number }
+  | { field: string; op: "startsWith"; value: string }
+  | { field: string; op: "contains"; value: string }
+  | { field: string; op: "in"; values: string[] }
+  | { field: string; op: "notIn"; values: string[] }
+  | { field: string; op: "gt"; value: number }
+  | { field: string; op: "lt"; value: number }
+  | { field: string; op: "between"; min: number; max: number }
+  | { field: "path"; op: "glob"; value: string };
+
+export type LegacySegmentCondition =
   | { field: "user" | "namespace" | "cookie" | "ip" | "ua"; op: "eq"; value: string }
   | { field: "tag"; op: "eq"; value: string };
 
@@ -39,7 +50,9 @@ export type SegmentConfig = {
   id: string;
   name?: string;
   priority: number;
-  conditions?: SegmentCondition[];
+  where?: SegmentWhere[];
+  /** @deprecated Use `where` instead. */
+  conditions?: LegacySegmentCondition[];
   override?: boolean | string | number;
   rollout?: RolloutStrategy;
   namespace?: string;
@@ -89,6 +102,9 @@ export type FlagEvaluationContext = {
   ip?: string;
   userAgent?: string;
   tags?: string[];
+  path?: string;
+  attributes?: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 export type FlagEvaluationResult = {
