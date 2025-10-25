@@ -7,6 +7,7 @@
     grid-template-columns: minmax(0, 1fr);
     padding-block: var(--space-7);
     padding-inline: var(--space-4);
+    position: relative;
   }
 
   @media (min-width: calc(var(--space-8) * 24)) {
@@ -37,6 +38,16 @@
     border: 1px solid var(--color-border-subtle);
     box-shadow: var(--shadow-z1);
     overflow: hidden;
+  }
+
+  .scrolly-visualization-sentinel {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    inline-size: 1px;
+    block-size: 1px;
+    pointer-events: none;
+    opacity: 0;
   }
 
   .scrolly-sticky figure {
@@ -99,6 +110,8 @@
       border-color var(--motion-duration-base) var(--motion-easing-standard),
       background-color var(--motion-duration-base) var(--motion-easing-standard),
       box-shadow var(--motion-duration-base) var(--motion-easing-standard);
+    content-visibility: auto;
+    contain-intrinsic-size: auto calc(var(--space-8) * 10);
   }
 
   .scrolly-step[aria-current="step"] {

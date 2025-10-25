@@ -2,6 +2,7 @@
 
 import {
   Children,
+  cloneElement,
   createContext,
   type ReactElement,
   type ReactNode,
@@ -67,14 +68,53 @@ export type StoryProps = {
   storyId?: string;
   children: ReactNode;
   className?: string;
+  onVisualizationPrefetch?: (signal: AbortSignal) => void | Promise<void>;
 };
 
 function classNames(...values: Array<string | undefined | false>): string {
   return values.filter(Boolean).join(" ");
 }
 
-export default function Story({ children, stickyTop, className, storyId }: StoryProps) {
+export const STORY_VISUALIZATION_LAZY_ROOT_MARGIN = "25% 0px 0px 0px";
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
+function scheduleAfterIdle(callback: () => void): () => void {
+  if (typeof window === "undefined") {
+    callback();
+    return () => {};
+  }
+
+  const idleWindow = window as IdleWindow;
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    const handle = idleWindow.requestIdleCallback(() => {
+      callback();
+    });
+
+    return () => {
+      idleWindow.cancelIdleCallback?.(handle);
+    };
+  }
+
+  const timeout = window.setTimeout(callback, 0);
+  return () => {
+    window.clearTimeout(timeout);
+  };
+}
+
+export default function Story({
+  children,
+  stickyTop,
+  className,
+  storyId,
+  onVisualizationPrefetch,
+}: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
   const prefersReducedMotion = usePrefersReducedMotion();
   const visualizationRef = useRef<StoryVisualizationController | null>(null);
@@ -86,6 +126,9 @@ export default function Story({ children, stickyTop, className, storyId }: Story
   const stepChildren = childArray.filter((child) => !isStickyPanel(child));
   const resolvedStepCount = stepChildren.length;
   const [stepCount, setStepCount] = useState(resolvedStepCount);
+  const [shouldRenderSticky, setShouldRenderSticky] = useState(() => !stickyChild);
+  const lazyMountTriggeredRef = useRef<boolean>(!stickyChild);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
   const { trackStoryView, handleStepChange, flush, trackShareClick } = useStoryAnalytics({
     storyId,
     stepCount,
@@ -344,10 +387,134 @@ export default function Story({ children, stickyTop, className, storyId }: Story
     setStepCount(resolvedStepCount);
   }, [resolvedStepCount]);
 
+  useEffect(() => {
+    if (!stickyChild) {
+      setShouldRenderSticky(true);
+      lazyMountTriggeredRef.current = true;
+    }
+  }, [stickyChild]);
+
+  useEffect(() => {
+    return () => {
+      prefetchAbortRef.current?.abort();
+      prefetchAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!stickyChild || shouldRenderSticky) {
+      return;
+    }
+
+    let cancelPrefetchIdle: (() => void) | null = null;
+    let cancelMountIdle: (() => void) | null = null;
+
+    const beginPrefetch = () => {
+      if (!onVisualizationPrefetch || prefetchAbortRef.current) {
+        return;
+      }
+
+      try {
+        const controller = new AbortController();
+        prefetchAbortRef.current = controller;
+        const result = onVisualizationPrefetch(controller.signal);
+        if (typeof (result as Promise<unknown>)?.then === "function") {
+          (result as Promise<unknown>).finally(() => {
+            if (prefetchAbortRef.current === controller) {
+              prefetchAbortRef.current = null;
+            }
+          });
+        } else if (prefetchAbortRef.current === controller) {
+          prefetchAbortRef.current = null;
+        }
+      } catch {
+        prefetchAbortRef.current = null;
+      }
+    };
+
+    const triggerLazyMount = () => {
+      if (lazyMountTriggeredRef.current) {
+        return;
+      }
+
+      lazyMountTriggeredRef.current = true;
+
+      if (onVisualizationPrefetch) {
+        cancelPrefetchIdle?.();
+        cancelPrefetchIdle = scheduleAfterIdle(beginPrefetch);
+      }
+
+      cancelMountIdle?.();
+      cancelMountIdle = scheduleAfterIdle(() => {
+        setShouldRenderSticky(true);
+      });
+    };
+
+    if (typeof window === "undefined") {
+      triggerLazyMount();
+      return () => {
+        cancelPrefetchIdle?.();
+        cancelMountIdle?.();
+      };
+    }
+
+    const sentinel = sentinelRef.current ?? containerRef.current;
+    if (!sentinel) {
+      triggerLazyMount();
+      return () => {
+        cancelPrefetchIdle?.();
+        cancelMountIdle?.();
+      };
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      triggerLazyMount();
+      return () => {
+        cancelPrefetchIdle?.();
+        cancelMountIdle?.();
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            triggerLazyMount();
+          }
+        });
+      },
+      {
+        rootMargin: STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
+        threshold: 0,
+      },
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+      cancelPrefetchIdle?.();
+      cancelMountIdle?.();
+    };
+  }, [shouldRenderSticky, stickyChild, onVisualizationPrefetch]);
+
   return (
     <section ref={containerRef} className={classNames("scrolly", className)} data-scrolly>
       <StoryContext.Provider value={contextValue}>
-        {stickyChild ?? <div className="scrolly-sticky" aria-hidden="true" />}
+        {stickyChild ? (
+          <>
+            <div ref={sentinelRef} aria-hidden="true" className="scrolly-visualization-sentinel" />
+            {cloneElement(stickyChild as ReactElement<{ children?: ReactNode }>, {
+              children: shouldRenderSticky
+                ? (stickyChild.props as { children?: ReactNode }).children
+                : null,
+              "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
+            })}
+          </>
+        ) : (
+          <div className="scrolly-sticky" aria-hidden="true" />
+        )}
         <div className="scrolly-steps">{stepChildren}</div>
       </StoryContext.Provider>
     </section>
