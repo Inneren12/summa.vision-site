@@ -3,6 +3,7 @@ import path from "node:path";
 // Опциональный AST-сканер на базе ts-morph. Поддерживает TS/TSX/JS/JSX.
 
 const FALLBACK_ENABLED = true;
+let tsMorphModule;
 let tsMorphModulePromise;
 let projectPromise;
 let fallbackToRegex = false;
@@ -14,6 +15,9 @@ async function loadTsMorph() {
   }
   if (!tsMorphModulePromise) {
     tsMorphModulePromise = import("ts-morph").catch(() => null);
+  }
+  if (tsMorphModule === undefined) {
+    tsMorphModule = await tsMorphModulePromise;
   }
   return tsMorphModule;
 }
