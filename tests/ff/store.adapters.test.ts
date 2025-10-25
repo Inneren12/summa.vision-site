@@ -2,6 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import type { Redis } from "ioredis";
+import RedisMock from "ioredis-mock";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FF, composeFFRuntime, resetFFRuntime } from "@/lib/ff/runtime";
@@ -12,6 +14,8 @@ import {
   createOverride,
   MemoryFlagStore,
 } from "@/lib/ff/runtime/memory-store";
+import { RedisRuntimeLock } from "@/lib/ff/runtime/redis-lock";
+import { RedisFlagStore } from "@/lib/ff/runtime/redis-store";
 import {
   readSnapshotFromFile,
   restoreSnapshot,
@@ -43,18 +47,18 @@ describe("file store adapter", () => {
     }
   });
 
-  it("persists flags to disk and reloads", () => {
+  it("persists flags to disk and reloads", async () => {
     const storePath = path.join(tempDir, "flags.json");
     const store = new FileFlagStore(storePath, tempDir);
-    const created = store.putFlag({ ...createInitialConfig("beta"), defaultValue: true });
+    const created = await store.putFlag({ ...createInitialConfig("beta"), defaultValue: true });
     expect(created.key).toBe("beta");
     const override = createOverride("beta", { type: "global" }, false, "tester");
-    store.putOverride(override);
+    await store.putOverride(override);
 
     const nextStore = new FileFlagStore(storePath, tempDir);
-    const reloaded = nextStore.getFlag("beta");
+    const reloaded = await nextStore.getFlag("beta");
     expect(reloaded?.defaultValue).toBe(true);
-    const overrides = nextStore.listOverrides("beta");
+    const overrides = await nextStore.listOverrides("beta");
     expect(overrides).toHaveLength(1);
     expect(overrides[0].author).toBe("tester");
   });
@@ -64,7 +68,7 @@ describe("file store adapter", () => {
     const lockDir = path.join(tempDir, "locks");
     const store = new FileFlagStore(storePath, tempDir);
     const lock = new FileRuntimeLock(lockDir, { ttlMs: 5_000, retryDelayMs: 5 });
-    store.putFlag({ ...createInitialConfig("exp"), rollout: { percent: 0 } });
+    await store.putFlag({ ...createInitialConfig("exp"), rollout: { percent: 0 } });
 
     let concurrent = 0;
     let maxConcurrent = 0;
@@ -73,11 +77,11 @@ describe("file store adapter", () => {
       lock.withLock("exp", async () => {
         concurrent += 1;
         maxConcurrent = Math.max(maxConcurrent, concurrent);
-        const flag = store.getFlag("exp");
+        const flag = await store.getFlag("exp");
         if (!flag) throw new Error("flag missing");
         await new Promise((resolve) => setTimeout(resolve, 20));
         const base = flag.rollout?.percent ?? 0;
-        store.putFlag({
+        await store.putFlag({
           ...flag,
           rollout: { ...(flag.rollout ?? { percent: 0 }), percent: Math.min(100, base + 10) },
         });
@@ -86,31 +90,31 @@ describe("file store adapter", () => {
 
     await Promise.all([step(), step(), step()]);
 
-    const result = store.getFlag("exp");
+    const result = await store.getFlag("exp");
     expect(result?.rollout?.percent).toBe(30);
     expect(maxConcurrent).toBe(1);
   });
 
-  it("restores snapshot into a fresh store", () => {
+  it("restores snapshot into a fresh store", async () => {
     const memory = new MemoryFlagStore();
-    memory.putFlag({ ...createInitialConfig("gamma"), defaultValue: "A" });
-    memory.putOverride(createOverride("gamma", { type: "global" }, "B", "tester"));
-    const snapshot = memory.snapshot();
+    await memory.putFlag({ ...createInitialConfig("gamma"), defaultValue: "A" });
+    await memory.putOverride(createOverride("gamma", { type: "global" }, "B", "tester"));
+    const snapshot = await memory.snapshot();
     const file = path.join(tempDir, "snapshot.json");
     writeSnapshotToFile(snapshot, file);
 
     const fresh = new MemoryFlagStore();
     const parsed = readSnapshotFromFile(file);
-    restoreSnapshot(fresh, parsed);
+    await restoreSnapshot(fresh, parsed);
 
-    const flag = fresh.getFlag("gamma");
+    const flag = await fresh.getFlag("gamma");
     expect(flag?.defaultValue).toBe("A");
-    const overrides = fresh.listOverrides("gamma");
+    const overrides = await fresh.listOverrides("gamma");
     expect(overrides).toHaveLength(1);
     expect(overrides[0].value).toBe("B");
   });
 
-  it("configures file adapter via runtime env", () => {
+  it("configures file adapter via runtime env", async () => {
     const storePath = path.join(tempDir, "runtime.json");
     mutableEnv.FF_STORE_ADAPTER = "file";
     mutableEnv.FF_STORE_FILE = storePath;
@@ -118,10 +122,11 @@ describe("file store adapter", () => {
     mutableEnv.FF_STORE_LOCK_DIR = path.join(tempDir, "locks");
     resetFFRuntime();
     const { store, lock } = FF();
-    expect(store.snapshot().flags).toHaveLength(0);
+    const snapshot = await store.snapshot();
+    expect(snapshot.flags).toHaveLength(0);
     expect(lock).toBeInstanceOf(FileRuntimeLock);
 
-    store.putFlag({ ...createInitialConfig("delta"), defaultValue: false });
+    await store.putFlag({ ...createInitialConfig("delta"), defaultValue: false });
     expect(fs.existsSync(storePath)).toBe(true);
   });
 
@@ -132,5 +137,86 @@ describe("file store adapter", () => {
     const runtime = FF();
     expect(runtime.store).toBe(store);
     expect(runtime.lock).toBe(lock);
+  });
+});
+
+describe("redis store adapter", () => {
+  let redis: Redis;
+  let store: RedisFlagStore;
+  let lock: RedisRuntimeLock;
+
+  beforeEach(() => {
+    const raw = RedisMock as unknown as { new (): Redis } & {
+      default?: { new (): Redis };
+    };
+    const Ctor = raw.default ?? raw;
+    redis = new Ctor();
+    store = new RedisFlagStore(redis);
+    lock = new RedisRuntimeLock(redis, { ttlMs: 5_000, retryDelayMs: 5 });
+  });
+
+  afterEach(async () => {
+    const mock = redis as Redis & {
+      flushall?: () => Promise<void>;
+      quit?: () => Promise<void>;
+      disconnect?: () => void;
+    };
+    if (typeof mock.flushall === "function") {
+      await mock.flushall();
+    }
+    if (typeof mock.quit === "function") {
+      await mock.quit();
+    } else if (typeof mock.disconnect === "function") {
+      mock.disconnect();
+    }
+  });
+
+  it("persists flags and overrides", async () => {
+    const created = await store.putFlag({
+      ...createInitialConfig("redis-flag"),
+      defaultValue: true,
+    });
+    expect(created.key).toBe("redis-flag");
+    await store.putOverride(
+      createOverride("redis-flag", { type: "global" }, false, "tester", "redis"),
+    );
+
+    const flags = await store.listFlags();
+    expect(flags).toHaveLength(1);
+    expect(flags[0].defaultValue).toBe(true);
+    const overrides = await store.listOverrides("redis-flag");
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0].author).toBe("tester");
+  });
+
+  it("serializes concurrent rollout steps with redis lock", async () => {
+    await store.putFlag({ ...createInitialConfig("rollout"), rollout: { percent: 0 } });
+
+    let firstFinished = false;
+    let overlapDetected = false;
+
+    const step = (label: string) =>
+      lock.withLock("rollout", async () => {
+        const current = await store.getFlag("rollout");
+        if (!current) throw new Error("flag missing");
+        if (label !== "first" && !firstFinished) {
+          overlapDetected = true;
+        }
+        const base = current.rollout?.percent ?? 0;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        await store.putFlag({
+          ...current,
+          rollout: { ...(current.rollout ?? { percent: 0 }), percent: Math.min(100, base + 10) },
+        });
+        if (label === "first") {
+          firstFinished = true;
+        }
+      });
+
+    await Promise.all([step("first"), step("second"), step("third")]);
+
+    const result = await store.getFlag("rollout");
+    expect(result?.rollout?.percent).toBe(30);
+    expect(overlapDetected).toBe(false);
   });
 });

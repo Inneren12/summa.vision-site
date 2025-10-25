@@ -1,16 +1,24 @@
 datasets:
   - id: municipal-budgets-2023
     title: "Municipal Budget Allocations 2023"
-    source: "Northbridge and Southport Open Data Portal"
-    license: "CC-BY 4.0"
+    source:
+      name: "Northbridge and Southport Open Data Portal"
+      url: "https://data.northbridge.gov/datasets/municipal-budgets-2023"
+    license:
+      id: "CC-BY-4.0"
+      url: "https://creativecommons.org/licenses/by/4.0/"
     freshness: annual
     sla_days: 400
     quality:
       expectation_suite: tools/data/ge/expectations_municipal_budgets_2023.json
   - id: population-census-2021
     title: "Regional Population Census 2021"
-    source: "Regional Statistics Bureau"
-    license: "CC0 1.0"
+    source:
+      name: "Regional Statistics Bureau"
+      url: "https://stats.region.gov/datasets/population-census-2021"
+    license:
+      id: "CC0-1.0"
+      url: "https://creativecommons.org/publicdomain/zero/1.0/"
     freshness: quinquennial
     sla_days: 2000
     quality:

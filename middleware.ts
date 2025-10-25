@@ -33,8 +33,8 @@ function requiredRoleFor(pathname: string, method: string): Role | null {
   return null;
 }
 
-export function middleware(req: NextRequest) {
-  const snapshot = FF().snapshot();
+export async function middleware(req: NextRequest) {
+  const snapshot = await FF().snapshot();
   const has = req.cookies.get("sv_id")?.value;
   const required = requiredRoleFor(req.nextUrl.pathname, req.method);
   let res: NextResponse;

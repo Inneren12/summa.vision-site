@@ -23,15 +23,15 @@ export function readSnapshotFromFile(file: string): FlagSnapshot {
   } satisfies FlagSnapshot;
 }
 
-export function restoreSnapshot(store: FlagStore, snapshot: FlagSnapshot) {
-  const existing = store.listFlags();
+export async function restoreSnapshot(store: FlagStore, snapshot: FlagSnapshot) {
+  const existing = await store.listFlags();
   for (const flag of existing) {
-    store.removeFlag(flag.key);
+    await store.removeFlag(flag.key);
   }
   for (const flag of snapshot.flags) {
-    store.putFlag(flag);
+    await store.putFlag(flag);
   }
   for (const entry of snapshot.overrides) {
-    store.putOverride(entry);
+    await store.putOverride(entry);
   }
 }

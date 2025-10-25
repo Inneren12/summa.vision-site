@@ -6,6 +6,12 @@ export type RolloutStopConditions = {
   maxINP?: number;
 };
 
+export type RolloutHysteresis = {
+  errorRate?: number;
+  CLS?: number;
+  INP?: number;
+};
+
 export type RolloutStep = {
   pct: number;
   note?: string;
@@ -19,6 +25,7 @@ export type RolloutStrategy = {
   seedByDefault?: SeedBy;
   steps?: RolloutStep[];
   stop?: RolloutStopConditions;
+  hysteresis?: RolloutHysteresis;
 };
 
 export type SegmentCondition =
@@ -101,13 +108,13 @@ export type FlagSnapshot = {
 };
 
 export type FlagStore = {
-  listFlags(): FlagConfig[];
-  getFlag(key: string): FlagConfig | undefined;
-  putFlag(config: FlagConfig): FlagConfig;
-  removeFlag(key: string): void;
-  listOverrides(flag: string): OverrideEntry[];
-  putOverride(entry: OverrideEntry): OverrideEntry;
-  removeOverride(flag: string, scope: OverrideScope): void;
-  evaluate(key: string, ctx: FlagEvaluationContext): FlagEvaluationResult | undefined;
-  snapshot(): FlagSnapshot;
+  listFlags(): Promise<FlagConfig[]>;
+  getFlag(key: string): Promise<FlagConfig | undefined>;
+  putFlag(config: FlagConfig): Promise<FlagConfig>;
+  removeFlag(key: string): Promise<void>;
+  listOverrides(flag: string): Promise<OverrideEntry[]>;
+  putOverride(entry: OverrideEntry): Promise<OverrideEntry>;
+  removeOverride(flag: string, scope: OverrideScope): Promise<void>;
+  evaluate(key: string, ctx: FlagEvaluationContext): Promise<FlagEvaluationResult | undefined>;
+  snapshot(): Promise<FlagSnapshot>;
 };

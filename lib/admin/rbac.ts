@@ -74,7 +74,10 @@ function hashToken(token: string): string {
 function tokens(): TokenEntry[] {
   const entries: TokenEntry[] = [];
   const viewerTokens = parseTokenList(process.env.FF_CONSOLE_VIEWER_TOKENS);
-  const opsTokens = parseTokenList(process.env.FF_CONSOLE_OPS_TOKENS);
+  const opsTokens = [
+    ...parseTokenList(process.env.FF_CONSOLE_OPS_TOKENS),
+    ...parseTokenList(process.env.ADMIN_TOKEN_OPS),
+  ];
   const adminTokens = [
     ...parseTokenList(process.env.FF_CONSOLE_ADMIN_TOKENS),
     ...parseTokenList(process.env.FF_ADMIN_TOKEN),

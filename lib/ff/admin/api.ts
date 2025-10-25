@@ -1,5 +1,6 @@
 import type {
   FlagConfig,
+  RolloutHysteresis,
   RolloutStep,
   RolloutStopConditions,
   SeedBy,
@@ -38,6 +39,7 @@ export type ApiRollout = {
   steps?: ApiRolloutStep[];
   seedByDefault?: ApiSeedBy;
   stop?: RolloutStopConditions;
+  hysteresis?: RolloutHysteresis;
 };
 
 export type ApiSegment = {
@@ -174,6 +176,7 @@ export function flagToApi(flag: FlagConfig): ApiFlagConfig {
         steps: toRolloutSteps(flag.rollout.steps),
         seedByDefault: toApiSeed(flag.rollout.seedByDefault ?? flag.seedByDefault),
         stop: flag.rollout.stop,
+        hysteresis: flag.rollout.hysteresis,
       }
     : undefined;
   const segments = flag.segments?.length ? flag.segments.map(toApiSegment) : undefined;
@@ -251,6 +254,7 @@ export function apiToFlag(payload: ApiFlagConfig, existing?: FlagConfig): FlagCo
           existing?.seedByDefault,
         steps: normalizeSteps(payload.rollout.steps, existing?.rollout?.steps),
         stop: payload.rollout.stop ?? existing?.rollout?.stop,
+        hysteresis: payload.rollout.hysteresis ?? existing?.rollout?.hysteresis,
       }
     : existing?.rollout;
 

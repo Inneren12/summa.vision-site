@@ -128,16 +128,16 @@ export class MemoryFlagStore implements FlagStore {
     overrides: new Map(),
   };
 
-  listFlags(): FlagConfig[] {
+  async listFlags(): Promise<FlagConfig[]> {
     return Array.from(this.state.flags.values()).map((flag) => cloneConfig(flag));
   }
 
-  getFlag(key: string): FlagConfig | undefined {
+  async getFlag(key: string): Promise<FlagConfig | undefined> {
     const config = this.state.flags.get(key);
     return config ? cloneConfig(config) : undefined;
   }
 
-  putFlag(config: FlagConfig): FlagConfig {
+  async putFlag(config: FlagConfig): Promise<FlagConfig> {
     const existing = this.state.flags.get(config.key);
     const next: FlagConfig = {
       ...config,
@@ -151,12 +151,12 @@ export class MemoryFlagStore implements FlagStore {
     return cloneConfig(next);
   }
 
-  removeFlag(key: string): void {
+  async removeFlag(key: string): Promise<void> {
     this.state.flags.delete(key);
     this.state.overrides.delete(key);
   }
 
-  listOverrides(flag: string): OverrideEntry[] {
+  async listOverrides(flag: string): Promise<OverrideEntry[]> {
     const map = this.state.overrides.get(flag);
     if (!map) return [];
     pruneExpired(map);
@@ -167,7 +167,7 @@ export class MemoryFlagStore implements FlagStore {
     return entries;
   }
 
-  putOverride(entry: OverrideEntry): OverrideEntry {
+  async putOverride(entry: OverrideEntry): Promise<OverrideEntry> {
     const map = getOverrideMap(this.state, entry.flag);
     const now = Date.now();
     const expiresAt =
@@ -179,7 +179,7 @@ export class MemoryFlagStore implements FlagStore {
     } satisfies OverrideEntry;
 
     if (expiresAt && expiresAt <= now) {
-      this.removeOverride(entry.flag, entry.scope);
+      await this.removeOverride(entry.flag, entry.scope);
       return cloneOverride(stored);
     }
     if (entry.scope.type === "user") {
@@ -192,7 +192,7 @@ export class MemoryFlagStore implements FlagStore {
     return cloneOverride(stored);
   }
 
-  removeOverride(flag: string, scope: OverrideScope): void {
+  async removeOverride(flag: string, scope: OverrideScope): Promise<void> {
     const map = this.state.overrides.get(flag);
     if (!map) return;
     if (scope.type === "user") {
@@ -204,7 +204,10 @@ export class MemoryFlagStore implements FlagStore {
     }
   }
 
-  evaluate(key: string, ctx: FlagEvaluationContext): FlagEvaluationResult | undefined {
+  async evaluate(
+    key: string,
+    ctx: FlagEvaluationContext,
+  ): Promise<FlagEvaluationResult | undefined> {
     const flag = this.state.flags.get(key);
     if (!flag || !flag.enabled) return undefined;
 
@@ -284,18 +287,16 @@ export class MemoryFlagStore implements FlagStore {
     return { value: flag.defaultValue, reason: "default" };
   }
 
-  snapshot(): FlagSnapshot {
-    return {
-      flags: this.listFlags(),
-      overrides: Array.from(this.state.overrides.entries()).flatMap(([flag, map]) => {
-        pruneExpired(map);
-        const entries: OverrideEntry[] = [];
-        for (const entry of map.user.values()) entries.push(cloneOverride(entry));
-        for (const entry of map.namespace.values()) entries.push(cloneOverride(entry));
-        if (map.global) entries.push(cloneOverride(map.global));
-        return entries.map((entry) => ({ ...entry, flag }));
-      }),
-    };
+  async snapshot(): Promise<FlagSnapshot> {
+    const flags = await this.listFlags();
+    const overrides: OverrideEntry[] = [];
+    for (const map of this.state.overrides.values()) {
+      pruneExpired(map);
+      for (const entry of map.user.values()) overrides.push(cloneOverride(entry));
+      for (const entry of map.namespace.values()) overrides.push(cloneOverride(entry));
+      if (map.global) overrides.push(cloneOverride(map.global));
+    }
+    return { flags, overrides } satisfies FlagSnapshot;
   }
 
   replaceSnapshot(snapshot: FlagSnapshot): void {

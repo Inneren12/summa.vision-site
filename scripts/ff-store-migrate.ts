@@ -27,7 +27,7 @@ async function main() {
     console.warn("FF_STORE_ADAPTER is set. Migration expects the in-memory store.");
   }
   const { file } = parseArgs();
-  const snapshot = FF().snapshot();
+  const snapshot = await FF().snapshot();
   writeSnapshotToFile(snapshot.data, file);
   console.log(`Snapshot written to ${file}`);
 }

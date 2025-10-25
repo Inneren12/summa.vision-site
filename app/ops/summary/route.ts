@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
   const { store, metrics } = FF();
-  const snapshot = store.snapshot();
+  const snapshot = await store.snapshot();
   const metricsProvider = (process.env.METRICS_PROVIDER || "self").toLowerCase();
   const namespaces = new Set(snapshot.flags.map((flag) => flag.namespace || "default"));
   const summary = {

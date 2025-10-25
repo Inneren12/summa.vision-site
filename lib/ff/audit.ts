@@ -43,6 +43,10 @@ export type AuditRecord =
       reason?: string;
       limit?: number;
       actual?: number;
+      errorRate?: number;
+      cls?: number;
+      inp?: number;
+      denom?: number;
     }
   | {
       timestamp: number;
@@ -52,6 +56,13 @@ export type AuditRecord =
       flags?: string[];
       namespace?: string;
       reason?: string;
+    }
+  | {
+      timestamp: number;
+      actor: string;
+      action: "snapshot_restore";
+      flags: number;
+      overrides: number;
     };
 
 const MAX = 1000;
