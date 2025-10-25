@@ -3,13 +3,15 @@ import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  ADMIN_AID_COOKIE,
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_COOKIE_OPTIONS,
+  ADMIN_SESSION_MAX_AGE,
   authorizeContext,
   buildErrorResponse,
   type Role,
 } from "@/lib/admin/rbac";
-import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+import { stableCookieOptions } from "@/lib/ff/cookies";
 import { FF } from "@/lib/ff/runtime";
 
 function requiredRoleFor(pathname: string, method: string): Role | null {
@@ -34,15 +36,39 @@ function requiredRoleFor(pathname: string, method: string): Role | null {
   return null;
 }
 
+const YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
+
 export async function middleware(req: NextRequest) {
+  const forwardedHeaders = new Headers(req.headers);
+  const requestCookies = req.cookies;
+
+  let svId = requestCookies.get("sv_id")?.value;
+  let svCreated = false;
+  if (!svId) {
+    svId = crypto.randomUUID();
+    requestCookies.set("sv_id", svId);
+    svCreated = true;
+  }
+
+  const syncForwardedCookies = () => {
+    const headerValue = requestCookies.toString();
+    if (headerValue) {
+      forwardedHeaders.set("cookie", headerValue);
+    } else {
+      forwardedHeaders.delete("cookie");
+    }
+  };
+
+  syncForwardedCookies();
+
   const snapshot = await FF().snapshot();
-  const has = req.cookies.get("sv_id")?.value;
   const incomingRequestId = (req.headers.get("x-request-id") || "").trim();
   const requestId = incomingRequestId || crypto.randomUUID();
-  const forwardedHeaders = new Headers(req.headers);
   forwardedHeaders.set("x-request-id", requestId);
   const required = requiredRoleFor(req.nextUrl.pathname, req.method);
   let res: NextResponse;
+  let ffAidValue = requestCookies.get(ADMIN_AID_COOKIE)?.value;
+  let refreshAid = false;
 
   if (required) {
     const result = authorizeContext(
@@ -52,35 +78,43 @@ export async function middleware(req: NextRequest) {
     if (!result.ok) {
       const error = buildErrorResponse(result.status, result.reason, result.clearSession);
       error.headers.set("x-request-id", requestId);
-      if (!has) {
-        error.cookies.set("sv_id", crypto.randomUUID(), {
-          maxAge: 365 * 24 * 60 * 60,
-          httpOnly: false,
-          sameSite: "lax",
-          secure: FF_COOKIE_SECURE,
-          path: FF_COOKIE_PATH,
-          domain: FF_COOKIE_DOMAIN,
-        });
+      if (svCreated && svId) {
+        error.cookies.set(
+          "sv_id",
+          svId,
+          stableCookieOptions({ httpOnly: false, maxAge: YEAR_IN_SECONDS }),
+        );
       }
       error.headers.set("x-ff-snapshot", snapshot.id);
       return error;
     }
     forwardedHeaders.set("x-ff-console-role", result.role);
+    if (result.sessionValue && result.sessionValue !== ffAidValue) {
+      requestCookies.set(ADMIN_AID_COOKIE, result.sessionValue);
+      ffAidValue = result.sessionValue;
+      syncForwardedCookies();
+    }
+    refreshAid = true;
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
     res.cookies.set(ADMIN_SESSION_COOKIE, result.sessionValue, ADMIN_SESSION_COOKIE_OPTIONS);
   } else {
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
   }
 
-  if (!has) {
-    res.cookies.set("sv_id", crypto.randomUUID(), {
-      maxAge: 365 * 24 * 60 * 60,
-      httpOnly: false,
-      sameSite: "lax",
-      secure: FF_COOKIE_SECURE,
-      path: FF_COOKIE_PATH,
-      domain: FF_COOKIE_DOMAIN,
-    });
+  if (refreshAid && ffAidValue) {
+    res.cookies.set(
+      ADMIN_AID_COOKIE,
+      ffAidValue,
+      stableCookieOptions({ httpOnly: false, maxAge: ADMIN_SESSION_MAX_AGE }),
+    );
+  }
+
+  if (svCreated && svId) {
+    res.cookies.set(
+      "sv_id",
+      svId,
+      stableCookieOptions({ httpOnly: false, maxAge: YEAR_IN_SECONDS }),
+    );
   }
   res.headers.set("x-ff-snapshot", snapshot.id);
   res.headers.set("x-request-id", requestId);
