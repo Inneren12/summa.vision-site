@@ -78,25 +78,26 @@ export async function getStoryBySlug(slug: string): Promise<StoryModule | null> 
 }
 
 export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
-  let entries: string[] = [];
-  try {
-    entries = await fs.readdir(STORIES_DIR);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
-
+  const entries = await fs.readdir(STORIES_DIR);
   const stories: StoryFrontMatter[] = [];
   for (const entry of entries) {
-    if (!entry.endsWith(".mdx")) {
-      continue;
-    }
+    if (!entry.endsWith(".mdx")) continue;
     const filePath = path.join(STORIES_DIR, entry);
     const fileContents = await fs.readFile(filePath, "utf8");
     const { data } = matter(fileContents);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fm0 = normalizeStoryFrontMatter(data, path.relative(process.cwd(), filePath));
-    stories.push({ ...fm0, steps: fm0.steps.map(s => ({ ...s, hash: String(s.hash ?? s.id) })) });
+
+    const fm0 = normalizeStoryFrontMatter(
+      data,
+      path.relative(process.cwd(), filePath)
+    );
+
+    const fm: StoryFrontMatter = {
+      ...fm0,
+      // гарантируем строковый hash
+      steps: fm0.steps.map((s: any) => ({ ...s, hash: String((s as any).hash ?? s.id) })),
+    };
+
+    stories.push(fm);
+  }
+  return stories.sort((a, b) => a.title.localeCompare(b.title));
 }
