@@ -72,4 +72,52 @@ describe("metrics-compact script", () => {
     await expect(access(path.join(tempDir, "vitals-20240102-1.ndjson"))).rejects.toThrow();
     await expect(access(path.join(tempDir, "vitals-20231201.ndjson"))).rejects.toThrow();
   });
+
+  it("rewrites canonical chunks when erasure entries exist", async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), "metrics-compact-"));
+    const baseFile = path.join(tempDir, "vitals.ndjson");
+    await writeFile(baseFile, "", "utf8");
+
+    const keepLine = JSON.stringify({
+      snapshotId: "flag/ns",
+      metric: "CLS",
+      value: 0.1,
+      ts: NOW,
+      sid: "sid-keep",
+    });
+    const removeLine = JSON.stringify({
+      snapshotId: "flag/ns",
+      metric: "CLS",
+      value: 0.9,
+      ts: NOW,
+      sid: "sid-remove",
+    });
+
+    const canonicalPath = path.join(tempDir, "vitals-20240104.ndjson");
+    await writeFile(canonicalPath, `${keepLine}\n${removeLine}\n`, "utf8");
+
+    const matcher = {
+      hasAny: () => true,
+      isErased: (candidate: { sid?: string | null }) => candidate.sid === "sid-remove",
+    };
+
+    const result = await compactTarget(baseFile, {
+      retentionDays: 30,
+      matcher,
+      now: NOW,
+      alwaysRewrite: true,
+    });
+
+    expect(result.rewritten).toHaveLength(1);
+    expect(result.rewritten[0]).toMatchObject({ kept: 1, removed: 1 });
+
+    const mergedContent = await readFile(canonicalPath, "utf8");
+    const lines = mergedContent
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.sid).toBe("sid-keep");
+  });
 });
