@@ -4,6 +4,8 @@
  * Блокируемые сущности: getFlagsServer, getFlagServer, getFlagsServerWithMeta,
  * getFeatureFlags, getFeatureFlagsFromHeaders, getFeatureFlagsFromHeadersWithSources.
  */
+const { getModuleClassification } = require("../utils/module.cjs");
+
 const BLOCKED = new Set([
   "getFlagsServer",
   "getFlagServer",
@@ -23,33 +25,22 @@ module.exports = {
     },
   },
   create(context) {
-    let isClient = false;
+    const moduleInfo = getModuleClassification(context);
+    const shouldCheck = moduleInfo.isClient && !moduleInfo.isShared;
+
     return {
-      Program(node) {
-        const body = node.body || [];
-        for (const stmt of body) {
-          if (
-            stmt.type === "ExpressionStatement" &&
-            stmt.expression.type === "Literal" &&
-            stmt.expression.value === "use client"
-          ) {
-            isClient = true;
-            break;
-          }
-        }
-      },
       ImportSpecifier(node) {
-        if (!isClient) return;
+        if (!shouldCheck) return;
+        const imported = node.imported;
+        const importedName = imported && imported.type === "Identifier" ? imported.name : undefined;
         const localName = node.local?.name;
+
+        if (importedName && BLOCKED.has(importedName)) {
+          context.report({ node, messageId: "blocked", data: { name: importedName } });
+          return;
+        }
         if (localName && BLOCKED.has(localName)) {
           context.report({ node, messageId: "blocked", data: { name: localName } });
-        }
-      },
-      Identifier(node) {
-        if (!isClient) return;
-        const name = node.name;
-        if (BLOCKED.has(name)) {
-          context.report({ node, messageId: "blocked", data: { name } });
         }
       },
     };
