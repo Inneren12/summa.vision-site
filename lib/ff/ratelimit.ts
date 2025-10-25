@@ -138,12 +138,24 @@ async function resolveStore(): Promise<RateLimitStore> {
   if (!storePromise) {
     storePromise = (async () => {
       const adapterEnv = process.env.ADMIN_RATE_LIMIT_ADAPTER?.toLowerCase();
+      const envName = process.env.NODE_ENV ?? "development";
+      const isDevLike = envName === "development" || envName === "test";
       const prefix = process.env.ADMIN_RATE_LIMIT_REDIS_PREFIX ?? "ratelimit";
       const redisUrl =
         process.env.ADMIN_RATE_LIMIT_REDIS_URL ||
         process.env.RATE_LIMIT_REDIS_URL ||
         process.env.REDIS_URL ||
         process.env.FF_REDIS_URL;
+      if (adapterEnv === "memory") {
+        if (!isDevLike) {
+          console.warn(
+            `[RateLimit] ADMIN_RATE_LIMIT_ADAPTER=memory in ${envName} environment. This should be used only for development.`,
+          );
+        } else {
+          console.info(`[RateLimit] Using in-memory backend (${envName})`);
+        }
+        return new MemoryRateLimitStore();
+      }
       if (adapterEnv === "redis" || (!adapterEnv && redisUrl)) {
         if (!redisUrl) {
           console.warn(
@@ -156,7 +168,13 @@ async function resolveStore(): Promise<RateLimitStore> {
           }
         }
       }
-      console.info("[RateLimit] Using in-memory backend");
+      if (!isDevLike) {
+        console.warn(
+          `[RateLimit] Redis backend required but not configured (NODE_ENV=${envName}). Falling back to in-memory backend.`,
+        );
+      } else {
+        console.info(`[RateLimit] Using in-memory backend (${envName})`);
+      }
       return new MemoryRateLimitStore();
     })();
   }

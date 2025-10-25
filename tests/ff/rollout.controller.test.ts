@@ -75,6 +75,7 @@ describe("rollout step controller", () => {
     resetFFRuntime();
     Object.assign(process.env, originalEnv);
     process.env.ADMIN_TOKEN_OPS = "ops-token";
+    process.env.ADMIN_RATE_LIMIT_ROLLOUT_STEP_RPM = "0";
     process.env.METRICS_PROVIDER = "self";
     store = new MemoryFlagStore();
     metrics = new MockMetricsProvider();
@@ -83,6 +84,13 @@ describe("rollout step controller", () => {
     await store.putFlag({
       ...createInitialConfig("feature.newCheckout"),
       namespace: "tenant:acme",
+      segments: [
+        {
+          id: "seg-default",
+          priority: 0,
+          conditions: [],
+        },
+      ],
       rollout: { percent: 0, steps: [{ pct: 0, at: Date.now() - 60_000 }] },
     });
     snapshotId = (await FF().snapshot()).id;

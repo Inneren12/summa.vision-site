@@ -48,6 +48,7 @@ describe("enforceAdminRateLimit", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     __setRateLimitStore(null);
     await __resetRateLimit();
   });
@@ -65,5 +66,21 @@ describe("enforceAdminRateLimit", () => {
       expect(second.response.status).toBe(429);
       expect(second.response.headers.get("Retry-After")).toBeTruthy();
     }
+  });
+
+  it("allows again after ttl expires", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
+    const req = new Request("http://localhost/api/admin/test", {
+      headers: { "x-forwarded-for": "203.0.113.5" },
+    });
+    const actor = { role: "ops" as const, session: "ops:demo" };
+    const first = await enforceAdminRateLimit({ req, scope: "override", rpm: 1, actor });
+    expect(first.ok).toBe(true);
+    const denied = await enforceAdminRateLimit({ req, scope: "override", rpm: 1, actor });
+    expect(denied.ok).toBe(false);
+    vi.advanceTimersByTime(60_000);
+    const third = await enforceAdminRateLimit({ req, scope: "override", rpm: 1, actor });
+    expect(third.ok).toBe(true);
   });
 });

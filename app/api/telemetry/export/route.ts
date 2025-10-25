@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 
 import { NextResponse } from "next/server";
 
+import { enforceAdminRateLimit, resolveTelemetryExportRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
 
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
@@ -205,6 +206,16 @@ function parseTimeParam(value: string | null): TimeParamResult {
 export async function GET(req: Request) {
   const auth = authorizeApi(req, "viewer");
   if (!auth.ok) return auth.response;
+  const limit = resolveTelemetryExportRpm();
+  const gate = await enforceAdminRateLimit({
+    req,
+    scope: "telemetry-export",
+    rpm: limit,
+    actor: { role: auth.role, session: auth.session },
+  });
+  if (!gate.ok) {
+    return auth.apply(gate.response);
+  }
   const url = new URL(req.url);
   const fmtParam = (url.searchParams.get("fmt") || "ndjson").toLowerCase();
   if (fmtParam !== "ndjson" && fmtParam !== "csv") {
