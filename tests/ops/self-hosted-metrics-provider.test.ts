@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SelfHostedMetricsProvider } from "@/lib/ops/self-hosted-metrics-provider";
-import { appendErasureRecord } from "@/lib/privacy/erasure";
+import { appendErasure } from "@/lib/privacy/erasure";
 
 const BASE_TIME = new Date("2024-01-01T00:00:00.000Z");
 
@@ -93,6 +93,29 @@ describe("SelfHostedMetricsProvider", () => {
     expect(rate).toBeCloseTo(2 / 3, 5);
   });
 
+  it("returns null error rate when there are errors but no samples", async () => {
+    const snapshotId = "snapshot-errors-only";
+    const now = Date.now();
+    const errors = [
+      { snapshotId, ts: now - 1_000 },
+      { snapshotId, ts: now - 500 },
+    ];
+    await writeFile(
+      errorsFile,
+      `${errors.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8",
+    );
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 10 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+    });
+
+    const rate = await provider.getErrorRate("flag-errors", snapshotId);
+    expect(rate).toBeNull();
+  });
+
   it("returns null when there are no events in the window", async () => {
     const snapshotId = "snapshot-empty";
     const past = Date.now() - 60 * 60 * 1000;
@@ -143,10 +166,7 @@ describe("SelfHostedMetricsProvider", () => {
   it("filters erased identifiers from vitals and errors", async () => {
     const snapshotId = "snapshot-erasure";
     const now = Date.now();
-    await appendErasureRecord(
-      { sid: "session-remove", aid: "aid-remove" },
-      { filePath: process.env.PRIVACY_ERASURE_FILE, timestamp: now - 1_000, source: "test" },
-    );
+    await appendErasure({ sid: "session-remove", aid: "aid-remove" }, "system");
 
     const vitals = [
       { snapshotId, metric: "INP", value: 90, ts: now - 3_000, sid: "session-keep" },
@@ -178,5 +198,58 @@ describe("SelfHostedMetricsProvider", () => {
     const rate = await provider.getErrorRate("flag-E", snapshotId);
     expect(p75).toBe(90);
     expect(rate).toBeCloseTo(1 / 1, 5);
+  });
+
+  it("streams large vitals files without exhausting memory", async () => {
+    const snapshotId = "snapshot-large";
+    const now = Date.now();
+    const entries: string[] = [];
+    for (let i = 0; i < 5000; i += 1) {
+      entries.push(JSON.stringify({ snapshotId, metric: "INP", value: i, ts: now - (i % 1000) }));
+    }
+    await writeFile(vitalsFile, `${entries.join("\n")}\n`, "utf8");
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 15 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+    });
+
+    await expect(provider.getWebVital("INP", "flag-large", snapshotId)).resolves.toBe(3749);
+  });
+
+  it("reuses cached windows within the TTL", async () => {
+    const snapshotId = "snapshot-cache";
+    const now = Date.now();
+    const firstVitals = [{ snapshotId, metric: "INP", value: 120, ts: now - 4_000 }];
+    await writeFile(
+      vitalsFile,
+      `${firstVitals.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8",
+    );
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 10 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+    });
+
+    await expect(provider.getWebVital("INP", "flag-cache", snapshotId)).resolves.toBe(120);
+
+    const updatedVitals = [
+      ...firstVitals,
+      { snapshotId, metric: "INP", value: 480, ts: now - 3_000 },
+    ];
+    await writeFile(
+      vitalsFile,
+      `${updatedVitals.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8",
+    );
+
+    vi.advanceTimersByTime(29_000);
+    await expect(provider.getWebVital("INP", "flag-cache", snapshotId)).resolves.toBe(120);
+
+    vi.advanceTimersByTime(2_000);
+    await expect(provider.getWebVital("INP", "flag-cache", snapshotId)).resolves.toBe(480);
   });
 });

@@ -1,11 +1,13 @@
-import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 
 import { loadErasureMatcher } from "@/lib/privacy/erasure";
 
 const DEFAULT_RUNTIME_DIR = path.resolve(".runtime");
 const DEFAULT_VITALS_FILE = path.join(DEFAULT_RUNTIME_DIR, "vitals.ndjson");
 const DEFAULT_ERRORS_FILE = path.join(DEFAULT_RUNTIME_DIR, "errors.ndjson");
+const WINDOW_CACHE_TTL_MS = 30 * 1000;
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -19,25 +21,59 @@ function percentile(values: number[], p: number): number {
   return sorted[clamped];
 }
 
-async function readLines(filePath: string | undefined): Promise<string[]> {
-  if (!filePath) return [];
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return Boolean(error) && typeof error === "object" && "code" in error;
+}
+
+function logWindowIoError(error: unknown, vitalsFile?: string, errorsFile?: string) {
+  const files = [vitalsFile, errorsFile].filter((value): value is string => Boolean(value));
+  const target = files.length > 0 ? files.join(", ") : "self-metrics files";
+  console.warn(`[self-metrics] Failed to read ${target}`, error);
+}
+
+async function* readLines(filePath: string | undefined): AsyncIterable<string> {
+  if (!filePath) {
+    return;
+  }
+
+  let stream: ReturnType<typeof createReadStream> | undefined;
   try {
-    const content = await fs.readFile(filePath, "utf8");
-    return content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+    stream = createReadStream(filePath, { encoding: "utf8" });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return;
     }
     throw error;
+  }
+
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  try {
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0) {
+        yield trimmed;
+      }
+    }
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  } finally {
+    rl.close();
+    stream?.destroy();
   }
 }
 
 type MetricSamples = Map<string, number[]>;
 type SnapshotMetrics = Map<string, MetricSamples>;
 type SnapshotErrors = Map<string, number>;
+type WindowData = { metrics: SnapshotMetrics; errors: SnapshotErrors };
+type WindowCacheEntry = {
+  expiresAt: number;
+  promise?: Promise<WindowData>;
+  value?: WindowData;
+};
 
 type SnapshotResolver =
   | ((flag: string, namespace: string) => Promise<readonly string[] | string | null>)
@@ -65,8 +101,7 @@ async function parseVitals(
   matcher: ErasureMatcher,
 ): Promise<SnapshotMetrics> {
   const map: SnapshotMetrics = new Map();
-  const lines = await readLines(filePath);
-  for (const line of lines) {
+  for await (const line of readLines(filePath)) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -83,7 +118,6 @@ async function parseVitals(
     const aid = typeof event.aid === "string" ? event.aid : undefined;
     const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || !metric || value === undefined || ts === undefined) continue;
-    if (isIdentifierErased(erasures, extractIdentifiers(event))) continue;
     if (ts < cutoff) continue;
     if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     if (!map.has(snapshotId)) {
@@ -104,8 +138,7 @@ async function parseErrors(
   matcher: ErasureMatcher,
 ): Promise<SnapshotErrors> {
   const map: SnapshotErrors = new Map();
-  const lines = await readLines(filePath);
-  for (const line of lines) {
+  for await (const line of readLines(filePath)) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -120,7 +153,6 @@ async function parseErrors(
     const aid = typeof event.aid === "string" ? event.aid : undefined;
     const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || ts === undefined) continue;
-    if (isIdentifierErased(erasures, extractIdentifiers(event))) continue;
     if (ts < cutoff) continue;
     if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     map.set(snapshotId, (map.get(snapshotId) ?? 0) + 1);
@@ -148,6 +180,7 @@ export class SelfHostedMetricsProvider {
   private readonly vitalsFile?: string;
   private readonly errorsFile?: string;
   private readonly resolver?: SnapshotResolver;
+  private readonly windowCache = new Map<string, WindowCacheEntry>();
 
   constructor(options?: Options) {
     this.windowMs = Number.isFinite(options?.windowMs)
@@ -158,24 +191,61 @@ export class SelfHostedMetricsProvider {
     this.resolver = options?.resolveSnapshotIds;
   }
 
-  private async loadWindow(
-    windowMs?: number,
-  ): Promise<{ metrics: SnapshotMetrics; errors: SnapshotErrors }> {
+  private getWindowCacheKey(span: number): string {
+    const vitals = this.vitalsFile ?? DEFAULT_VITALS_FILE;
+    const errors = this.errorsFile ?? DEFAULT_ERRORS_FILE;
+    return `${span}:${vitals}:${errors}`;
+  }
+
+  private async loadWindow(windowMs?: number): Promise<WindowData> {
     const span =
       typeof windowMs === "number" && Number.isFinite(windowMs) && windowMs >= 0
         ? windowMs
         : this.windowMs;
     if (span === 0) {
-      return { metrics: new Map(), errors: new Map() };
+      return { metrics: new Map(), errors: new Map() } satisfies WindowData;
     }
+    const key = this.getWindowCacheKey(span);
     const now = Date.now();
-    const cutoff = now - span;
-    const matcher = await loadErasureMatcher();
-    const [metrics, errors] = await Promise.all([
-      parseVitals(this.vitalsFile, cutoff, matcher),
-      parseErrors(this.errorsFile, cutoff, matcher),
-    ]);
-    return { metrics, errors };
+    const cached = this.windowCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      if (cached.value) {
+        return cached.value;
+      }
+      if (cached.promise) {
+        return cached.promise;
+      }
+    }
+
+    const loadPromise: Promise<WindowData> = (async () => {
+      try {
+        const cutoff = Date.now() - span;
+        const matcher = await loadErasureMatcher();
+        const [metrics, errors] = await Promise.all([
+          parseVitals(this.vitalsFile, cutoff, matcher),
+          parseErrors(this.errorsFile, cutoff, matcher),
+        ]);
+        const result: WindowData = { metrics, errors };
+        this.windowCache.set(key, {
+          value: result,
+          expiresAt: Date.now() + WINDOW_CACHE_TTL_MS,
+        });
+        return result;
+      } catch (error) {
+        if (!isErrnoException(error) || error.code !== "ENOENT") {
+          logWindowIoError(error, this.vitalsFile, this.errorsFile);
+        }
+        const empty: WindowData = { metrics: new Map(), errors: new Map() };
+        this.windowCache.set(key, {
+          value: empty,
+          expiresAt: Date.now() + WINDOW_CACHE_TTL_MS,
+        });
+        return empty;
+      }
+    })();
+
+    this.windowCache.set(key, { promise: loadPromise, expiresAt: now + WINDOW_CACHE_TTL_MS });
+    return loadPromise;
   }
 
   private async lookupSnapshots(flag: string, namespace: string): Promise<string[]> {
@@ -238,7 +308,7 @@ export class SelfHostedMetricsProvider {
       return null;
     }
     if (sampleCount === 0) {
-      return errorCount > 0 ? 1 : 0;
+      return null;
     }
     return errorCount / sampleCount;
   }
