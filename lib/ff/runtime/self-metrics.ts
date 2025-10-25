@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { withCorrelationDefaults, type RequestCorrelation } from "../../metrics/correlation";
+
 function now(): number {
   return Date.now();
 }
@@ -17,6 +19,9 @@ type VitalEvent = {
   navigationType?: string;
   attribution?: Record<string, unknown>;
   ts: number;
+  requestId: string | null;
+  sessionId: string | null;
+  namespace: string;
 };
 
 type ErrorEvent = {
@@ -24,6 +29,9 @@ type ErrorEvent = {
   message: string;
   stack?: string;
   ts: number;
+  requestId: string | null;
+  sessionId: string | null;
+  namespace: string;
 };
 
 export type SummaryMetric = {
@@ -76,8 +84,10 @@ export class SelfMetricsProvider {
       delta?: number;
       navigationType?: string;
       attribution?: Record<string, unknown>;
+      context?: RequestCorrelation;
     },
   ) {
+    const correlation = withCorrelationDefaults(details?.context);
     const event: VitalEvent = {
       snapshotId,
       metric,
@@ -90,6 +100,9 @@ export class SelfMetricsProvider {
       navigationType: details?.navigationType,
       attribution: details?.attribution,
       ts: now(),
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      namespace: correlation.namespace,
     };
     this.vitals.push(event);
     if (this.vitalsFile) {
@@ -100,8 +113,17 @@ export class SelfMetricsProvider {
     this.prune();
   }
 
-  recordError(snapshotId: string, message: string, stack?: string) {
-    const event: ErrorEvent = { snapshotId, message, stack, ts: now() };
+  recordError(snapshotId: string, message: string, stack?: string, context?: RequestCorrelation) {
+    const correlation = withCorrelationDefaults(context);
+    const event: ErrorEvent = {
+      snapshotId,
+      message,
+      stack,
+      ts: now(),
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      namespace: correlation.namespace,
+    };
     this.errors.push(event);
     if (this.errorsFile) {
       this.enqueue(async () => {

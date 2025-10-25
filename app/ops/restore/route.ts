@@ -7,6 +7,7 @@ import { authorizeApi } from "@/lib/admin/rbac";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import { restoreSnapshot } from "@/lib/ff/runtime/snapshot";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -114,6 +115,7 @@ const SNAPSHOT_LOCK_KEY = "snapshot:restore";
 export async function POST(req: Request) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
+  const correlation = correlationFromRequest(req);
   const text = await req.text();
   if (!text) {
     return auth.apply(NextResponse.json({ error: "Empty body" }, { status: 400 }));
@@ -144,6 +146,9 @@ export async function POST(req: Request) {
     action: "snapshot_restore",
     flags: flags.length,
     overrides: overrides.length,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   return auth.apply(
     NextResponse.json(

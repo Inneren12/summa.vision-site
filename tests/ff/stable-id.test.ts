@@ -5,6 +5,7 @@ import * as stable from "../../lib/ff/stable-id";
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 describe("stableId()", () => {

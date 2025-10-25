@@ -37,16 +37,21 @@ function requiredRoleFor(pathname: string, method: string): Role | null {
 export async function middleware(req: NextRequest) {
   const snapshot = await FF().snapshot();
   const has = req.cookies.get("sv_id")?.value;
+  const incomingRequestId = (req.headers.get("x-request-id") || "").trim();
+  const requestId = incomingRequestId || crypto.randomUUID();
+  const forwardedHeaders = new Headers(req.headers);
+  forwardedHeaders.set("x-request-id", requestId);
   const required = requiredRoleFor(req.nextUrl.pathname, req.method);
   let res: NextResponse;
 
   if (required) {
     const result = authorizeContext(
-      { headers: req.headers, cookieHeader: req.headers.get("cookie") },
+      { headers: forwardedHeaders, cookieHeader: forwardedHeaders.get("cookie") },
       required,
     );
     if (!result.ok) {
       const error = buildErrorResponse(result.status, result.reason, result.clearSession);
+      error.headers.set("x-request-id", requestId);
       if (!has) {
         error.cookies.set("sv_id", crypto.randomUUID(), {
           maxAge: 365 * 24 * 60 * 60,
@@ -60,12 +65,11 @@ export async function middleware(req: NextRequest) {
       error.headers.set("x-ff-snapshot", snapshot.id);
       return error;
     }
-    const forwardedHeaders = new Headers(req.headers);
     forwardedHeaders.set("x-ff-console-role", result.role);
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
     res.cookies.set(ADMIN_SESSION_COOKIE, result.sessionValue, ADMIN_SESSION_COOKIE_OPTIONS);
   } else {
-    res = NextResponse.next();
+    res = NextResponse.next({ request: { headers: forwardedHeaders } });
   }
 
   if (!has) {
@@ -79,5 +83,6 @@ export async function middleware(req: NextRequest) {
     });
   }
   res.headers.set("x-ff-snapshot", snapshot.id);
+  res.headers.set("x-request-id", requestId);
   return res;
 }

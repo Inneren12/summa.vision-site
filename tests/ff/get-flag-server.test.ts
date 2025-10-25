@@ -10,6 +10,7 @@ vi.mock("next/headers", () => ({
     getAll: () => [],
     get: () => undefined,
   }),
+  headers: () => ({ get: () => null }),
 }));
 
 describe("getFlagServer (lazy single flag resolve)", () => {

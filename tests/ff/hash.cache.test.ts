@@ -38,6 +38,7 @@ vi.mock("next/headers", () => ({
     getAll: () => [],
     get: () => undefined,
   }),
+  headers: () => ({ get: () => null }),
 }));
 
 describe("Per-request rollout unit cache", () => {

@@ -5,6 +5,7 @@ import { sanitizeUserId, stableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 const mockedCookies = vi.mocked(cookies);

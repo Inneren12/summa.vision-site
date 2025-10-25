@@ -7,6 +7,7 @@ import type { ExposureSource } from "@/lib/ff/exposure";
 import { FLAG_REGISTRY } from "@/lib/ff/flags";
 import { FF } from "@/lib/ff/runtime";
 import { stableId as buildStableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-id";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
   const userId = stableId.startsWith(STABLEID_USER_PREFIX)
     ? stableId.slice(STABLEID_USER_PREFIX.length)
     : undefined;
+  const correlation = correlationFromRequest(req);
 
   try {
     const meta = FLAG_REGISTRY[flag as keyof typeof FLAG_REGISTRY];
@@ -75,6 +77,9 @@ export async function POST(req: Request) {
       source,
       stableId,
       userId,
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      namespace: correlation.namespace,
     });
   } catch {
     // ensure telemetry errors do not break response

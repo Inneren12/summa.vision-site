@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { headers } from "next/headers";
 
+import { correlationFromNextContext } from "../metrics/correlation";
+
 import { FLAG_REGISTRY } from "./flags";
 import { FF } from "./runtime";
 
@@ -39,6 +41,7 @@ export function trackExposure(params: {
     if (set.has(key)) return; // уже логировали на этом SSR
     set.add(key);
   }
+  const correlation = correlationFromNextContext();
   FF().telemetrySink.emit({
     ts: Date.now(),
     type: "exposure",
@@ -47,5 +50,8 @@ export function trackExposure(params: {
     source: params.source,
     stableId: params.stableId,
     userId: params.userId,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    namespace: correlation.namespace,
   });
 }
