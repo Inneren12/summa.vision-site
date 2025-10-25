@@ -31,6 +31,7 @@ module.exports = {
     "@next/next/no-html-link-for-pages": "off",
     "jsx-a11y/anchor-is-valid": "error",
     "jsx-a11y/no-redundant-roles": "warn",
+    "no-dynamic-ff-key": "error",
   },
   overrides: [
     {
