@@ -2,13 +2,14 @@ import path from "node:path";
 
 // Опциональный AST-сканер на базе ts-morph. Поддерживает TS/TSX/JS/JSX.
 
+const FALLBACK_ENABLED = true;
 let tsMorphModulePromise;
 let projectPromise;
 let virtualId = 0;
 
 async function loadTsMorph() {
   if (!tsMorphModulePromise) {
-    tsMorphModulePromise = import("ts-morph");
+    tsMorphModulePromise = import("ts-morph").catch(() => null);
   }
   return tsMorphModulePromise;
 }
@@ -55,19 +56,15 @@ function getScriptKind(tsMorph, filename) {
 }
 
 export async function astAvailable() {
-  try {
-    await loadTsMorph();
-    return true;
-  } catch {
-    return false;
-  }
+  const tsMorph = await loadTsMorph();
+  return tsMorph !== null || FALLBACK_ENABLED;
 }
 
 export async function scanTextForFlagsAST(text, filename, flagNames) {
-  const ok = await astAvailable();
-  if (!ok) return { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
-
   const tsMorph = await loadTsMorph();
+  if (!tsMorph) {
+    return scanWithFallback(text, flagNames);
+  }
   let project;
   try {
     project = await getProject();
@@ -177,4 +174,50 @@ export async function scanTextForFlagsAST(text, filename, flagNames) {
   }
 
   return { refs, fuzzyRefs, unknown, occurrences };
+}
+
+function createEmptyResult(flagNames) {
+  const refs = new Map(flagNames.map((n) => [n, 0]));
+  const fuzzyRefs = new Map(flagNames.map((n) => [n, 0]));
+  return { refs, fuzzyRefs, unknown: new Map(), occurrences: [] };
+}
+
+function positionFromIndex(text, index) {
+  const slice = text.slice(0, index);
+  const lines = slice.split(/\r?\n/);
+  const line = lines.length === 0 ? 1 : lines.length;
+  const column = lines.length === 0 ? 1 : lines[lines.length - 1].length + 1;
+  return { line, column };
+}
+
+function scanWithFallback(text, flagNames) {
+  const result = createEmptyResult(flagNames);
+  const known = new Set(flagNames);
+  const record = (name, index, kind) => {
+    if (!name) return;
+    const { line, column } = positionFromIndex(text, index);
+    result.occurrences.push({ name, index, line, col: column, kind, fuzzy: false });
+    if (known.has(name)) {
+      result.refs.set(name, (result.refs.get(name) || 0) + 1);
+    } else {
+      result.unknown.set(name, (result.unknown.get(name) || 0) + 1);
+    }
+  };
+
+  const useFlagPattern = /useFlag\s*\(\s*(["'`])([^"'`\r\n]+?)\1/dg;
+  let match;
+  while ((match = useFlagPattern.exec(text)) !== null) {
+    const literalIndex = match.indices?.[2]?.[0] ?? match.index;
+    record(match[2], literalIndex, "hook");
+  }
+
+  const gatePattern =
+    /<(FlagGate(?:Server|Client)?|PercentGate(?:Server|Client)?|VariantGate(?:Server|Client)?)\b[^>]*?\bname\s*=\s*(?:(["'])([^"'`\r\n]+?)\2|\{\s*(["'])([^"'`\r\n]+?)\4\s*\})/dg;
+  while ((match = gatePattern.exec(text)) !== null) {
+    const value = match[3] ?? match[5];
+    const literalIndex = match.indices?.[3]?.[0] ?? match.indices?.[5]?.[0] ?? match.index;
+    record(value, literalIndex, "jsx");
+  }
+
+  return result;
 }

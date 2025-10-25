@@ -46,7 +46,52 @@ export function hasDoNotTrackEnabled(headers: Headers): boolean {
   return false;
 }
 
-const SENSITIVE_KEYS = new Set(["url", "message", "stack", "filename"]);
+const NECESSARY_ATTRIBUTION_ALLOW_LIST = new Set(
+  [
+    "eventtype",
+    "navigationtype",
+    "loadstate",
+    "timetofirstbyte",
+    "firstbytetofcp",
+    "resourceloaddelay",
+    "resourceloadtime",
+    "elementrenderdelay",
+    "interactiontype",
+    "interactiontime",
+    "inputdelay",
+    "processingduration",
+    "presentationdelay",
+    "totalblockingtime",
+    "largestshiftvalue",
+    "largestshifttime",
+    "totalshiftvalue",
+    "largestinteractiontype",
+    "largestinteractiontime",
+    "rating",
+  ].map((key) => key.toLowerCase()),
+);
+
+function isPrimitive(value: unknown): value is string | number | boolean {
+  const type = typeof value;
+  return type === "string" || type === "number" || type === "boolean";
+}
+
+export function redact(attribution: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attribution)) {
+    const normalizedKey = key.trim().toLowerCase();
+    if (!NECESSARY_ATTRIBUTION_ALLOW_LIST.has(normalizedKey)) {
+      continue;
+    }
+    if (value === null || value === undefined) {
+      continue;
+    }
+    if (isPrimitive(value)) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
 
 export function readIdentifiers(headers: Headers): { sid?: string; aid?: string } {
   const cookies = parseCookies(headers);
@@ -64,29 +109,13 @@ export function readIdentifiers(headers: Headers): { sid?: string; aid?: string 
   };
 }
 
-function redactValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => redactValue(item));
-  }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    const sanitized: Record<string, unknown> = {};
-    for (const [key, val] of entries) {
-      if (SENSITIVE_KEYS.has(key.toLowerCase())) continue;
-      sanitized[key] = redactValue(val);
-    }
-    return sanitized;
-  }
-  return value;
-}
-
 export function sanitizeAttribution(
   consent: ConsentLevel,
   attribution: Record<string, unknown> | undefined,
 ): Record<string, unknown> | undefined {
   if (!attribution) return undefined;
   if (consent !== "necessary") return attribution;
-  const sanitized = redactValue(attribution) as Record<string, unknown>;
+  const sanitized = redact(attribution);
   return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 
