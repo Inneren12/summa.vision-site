@@ -4,6 +4,7 @@ import path from "node:path";
 
 const FALLBACK_ENABLED = true;
 let tsMorphModulePromise;
+let tsMorphModule;
 let projectPromise;
 let fallbackToRegex = false;
 let virtualId = 0;
