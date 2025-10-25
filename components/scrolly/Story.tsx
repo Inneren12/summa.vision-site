@@ -35,6 +35,10 @@ type StoryContextValue = {
   unregisterStep: (id: string) => void;
   registerVisualization: (controller: StoryVisualizationController | null) => void;
   prefersReducedMotion: boolean;
+  focusStep: (stepId: string) => boolean;
+  focusStepByOffset: (currentStepId: string, offset: number) => boolean;
+  focusFirstStep: () => boolean;
+  focusLastStep: () => boolean;
 };
 
 const StoryContext = createContext<StoryContextValue | null>(null);
@@ -67,6 +71,7 @@ function classNames(...values: Array<string | undefined | false>): string {
 export default function Story({ children, stickyTop, className }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
+  const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const initialHashHandled = useRef(false);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -89,16 +94,60 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
   const focusStep = useCallback(
     (stepId: string) => {
       const element = stepsRef.current.get(stepId);
-      if (!element) {
+      if (!element || !element.isConnected) {
         return false;
       }
 
-      element.focus({ preventScroll: true });
-      element.scrollIntoView({ block: "start", behavior: "auto" });
+      if (
+        typeof element.focus === "function" &&
+        (typeof document === "undefined" || document.activeElement !== element)
+      ) {
+        element.focus({ preventScroll: true });
+      }
+
       setActiveStep(stepId);
       return true;
     },
     [setActiveStep],
+  );
+
+  const focusStepByIndex = useCallback(
+    (index: number) => {
+      if (index < 0) {
+        return false;
+      }
+
+      const stepId = orderedStepIdsRef.current[index];
+      if (!stepId) {
+        return false;
+      }
+
+      return focusStep(stepId);
+    },
+    [focusStep],
+  );
+
+  const focusStepByOffset = useCallback(
+    (currentStepId: string, offset: number) => {
+      if (!currentStepId) {
+        return false;
+      }
+
+      const index = orderedStepIdsRef.current.indexOf(currentStepId);
+      if (index < 0) {
+        return false;
+      }
+
+      return focusStepByIndex(index + offset);
+    },
+    [focusStepByIndex],
+  );
+
+  const focusFirstStep = useCallback(() => focusStepByIndex(0), [focusStepByIndex]);
+
+  const focusLastStep = useCallback(
+    () => focusStepByIndex(orderedStepIdsRef.current.length - 1),
+    [focusStepByIndex],
   );
 
   const handleInitialHash = useCallback(() => {
@@ -120,6 +169,9 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
   const registerStep = useCallback(
     (id: string, element: HTMLElement) => {
       stepsRef.current.set(id, element);
+      if (!orderedStepIdsRef.current.includes(id)) {
+        orderedStepIdsRef.current.push(id);
+      }
       handleInitialHash();
     },
     [handleInitialHash],
@@ -127,7 +179,35 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
 
   const unregisterStep = useCallback((id: string) => {
     stepsRef.current.delete(id);
+    orderedStepIdsRef.current = orderedStepIdsRef.current.filter((stepId) => stepId !== id);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !activeStepId) {
+      return;
+    }
+
+    const element = stepsRef.current.get(activeStepId);
+    if (!element || !element.isConnected) {
+      return;
+    }
+
+    if (typeof document !== "undefined") {
+      const activeElement = document.activeElement;
+
+      if (activeElement && activeElement !== element && element.contains(activeElement)) {
+        return;
+      }
+
+      if (activeElement === element) {
+        return;
+      }
+    }
+
+    if (typeof document === "undefined" || document.activeElement !== element) {
+      element.focus({ preventScroll: true });
+    }
+  }, [activeStepId]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -209,6 +289,20 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
       unregisterStep,
       registerVisualization,
       prefersReducedMotion,
+      focusStep,
+      focusStepByOffset,
+      focusFirstStep,
+      focusLastStep,
+    }),
+    [
+      activeStepId,
+      focusFirstStep,
+      focusLastStep,
+      focusStep,
+      focusStepByOffset,
+      registerStep,
+      setActiveStep,
+      unregisterStep,
     ],
   );
 
