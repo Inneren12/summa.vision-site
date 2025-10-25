@@ -9,13 +9,29 @@ const TEMP_FILE = path.join(TEMP_DIR, "index.tsx");
 const TELEMETRY_DIR = path.join(process.cwd(), "reports", "__doctor_json__");
 const TELEMETRY_FILE = path.join(TELEMETRY_DIR, "telemetry.ndjson");
 
+type DoctorUnused = {
+  name: string;
+  confidence: "high" | "medium" | "low";
+  references: number;
+  exposures: number;
+  telemetryAvailable: boolean;
+};
+
+type DoctorStale = {
+  name: string;
+  confidence: "high" | "medium" | "low";
+  references: number;
+  exposures: number;
+  threshold: number;
+};
+
 type DoctorPayload = {
   files: number;
   refs: Record<string, number>;
   fuzzyRefs: Record<string, number>;
   exposures: Record<string, number>;
-  unused: string[];
-  stale: string[];
+  unused: DoctorUnused[];
+  stale: DoctorStale[];
   fuzzyOnly?: Array<{ name: string }>;
   unknown: Array<{ name: string; file: string; line: number; col: number }>;
   telemetry?: { available: boolean };
@@ -81,10 +97,16 @@ describe("ff-doctor --json output", () => {
     const names = new Set(payload.unknown.map((entry) => entry.name));
     expect(names.has("unknownFlag")).toBe(true);
     expect(Array.isArray(payload.unused)).toBe(true);
-    expect(payload.unused).toContain("bannerText");
+    const unusedNames = new Set(payload.unused.map((entry) => entry.name));
+    expect(unusedNames.has("bannerText")).toBe(true);
+    const bannerEntry = payload.unused.find((entry) => entry.name === "bannerText");
+    expect(bannerEntry?.confidence).toBeDefined();
     expect(Array.isArray(payload.stale)).toBe(true);
-    expect(payload.stale).toContain("newCheckout");
-    expect(payload.stale).not.toContain("betaUI");
+    const staleNames = new Set(payload.stale.map((entry) => entry.name));
+    expect(staleNames.has("newCheckout")).toBe(true);
+    expect(staleNames.has("betaUI")).toBe(false);
+    const staleEntry = payload.stale.find((entry) => entry.name === "newCheckout");
+    expect(staleEntry?.confidence).toMatch(/^(medium|low)$/);
     const fuzzy = new Set((payload.fuzzyOnly ?? []).map((entry) => entry.name));
     expect(fuzzy.has("bannerText")).toBe(true);
     expect(payload.telemetry?.available).toBe(true);

@@ -61,19 +61,42 @@ export class FileRuntimeLock implements RuntimeLock {
     this.retryDelayMs = options?.retryDelayMs ?? 50;
   }
 
+  private async writeLock(lockFile: string, token: string): Promise<void> {
+    const handle = await fs.open(lockFile, "wx");
+    const expiresAt = Date.now() + this.ttlMs;
+    const payload = JSON.stringify({ token, expiresAt });
+    await handle.writeFile(payload, "utf8");
+    await handle.close();
+  }
+
+  private async readLock(lockFile: string): Promise<{ token: string; expiresAt: number } | null> {
+    try {
+      const raw = await fs.readFile(lockFile, "utf8");
+      const parsed = JSON.parse(raw) as { token?: unknown; expiresAt?: unknown };
+      if (typeof parsed.token !== "string" || typeof parsed.expiresAt !== "number") {
+        return null;
+      }
+      return { token: parsed.token, expiresAt: parsed.expiresAt };
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") {
+        return null;
+      }
+      return null;
+    }
+  }
+
   private async acquire(lockFile: string, token: string): Promise<boolean> {
     try {
       await fs.mkdir(this.dir, { recursive: true });
-      const handle = await fs.open(lockFile, "wx");
-      await handle.writeFile(token, "utf8");
-      await handle.close();
+      await this.writeLock(lockFile, token);
       return true;
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if (err.code === "EEXIST") {
         try {
-          const stat = await fs.stat(lockFile);
-          if (Date.now() - stat.mtimeMs > this.ttlMs) {
+          const record = await this.readLock(lockFile);
+          if (!record || record.expiresAt <= Date.now()) {
             await fs.unlink(lockFile).catch(() => undefined);
           }
         } catch (statError) {
@@ -90,8 +113,8 @@ export class FileRuntimeLock implements RuntimeLock {
 
   private async release(lockFile: string, token: string) {
     try {
-      const current = await fs.readFile(lockFile, "utf8").catch(() => undefined);
-      if (current === token) {
+      const record = await this.readLock(lockFile);
+      if (record && record.token === token) {
         await fs.unlink(lockFile).catch(() => undefined);
       }
     } catch {

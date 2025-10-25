@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sanitizeUserId, stableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-id";
+import { sanitizeUserId, stableId } from "@/lib/ff/stable-id";
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
@@ -22,11 +22,15 @@ describe("stableId sanitize", () => {
     mockedCookies.mockReset();
   });
 
-  it("accepts safe userId and prefixes with u:", () => {
+  it("accepts safe userId and keeps stableId cookie value", () => {
     const uid = "john_doe-123";
     expect(sanitizeUserId(uid)).toBe(uid);
+    mockedCookies.mockReturnValueOnce({
+      get: (name: string) => (name === "ff_aid" ? { value: "aid-cookie" } : undefined),
+      getAll: () => [{ name: "ff_aid", value: "aid-cookie" }],
+    } as unknown as ReturnType<typeof cookies>);
     const id = stableId(uid);
-    expect(id).toBe(`${STABLEID_USER_PREFIX}${uid}`);
+    expect(id).toBe("aid-cookie");
   });
 
   it("rejects invalid userId in non-strict mode (fallback, no throw)", () => {

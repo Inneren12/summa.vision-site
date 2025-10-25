@@ -88,7 +88,7 @@ export default function DevFlagsClient({
         <h2>Stable ID</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input value={sid} onChange={(e) => setSid(e.target.value)} style={{ width: 360 }} />
-          <button onClick={() => setSvId(sid)}>Set sv_id</button>
+          <button onClick={() => setSvId(sid)}>Set stableId</button>
           <button onClick={() => setSvId("random")}>Random</button>
           <button onClick={() => setSvId("clear")}>Clear</button>
           <span style={{ opacity: 0.7 }}>

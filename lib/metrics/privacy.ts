@@ -50,7 +50,7 @@ const SENSITIVE_KEYS = new Set(["url", "message", "stack", "filename"]);
 
 export function readIdentifiers(headers: Headers): { sid?: string; aid?: string } {
   const cookies = parseCookies(headers);
-  const sid = (headers.get("x-sid") || cookies["sv_id"] || "").trim();
+  const sid = (headers.get("x-sid") || cookies["ff_aid"] || cookies["sv_id"] || "").trim();
   const aid = (
     headers.get("x-aid") ||
     cookies["ff_aid"] ||

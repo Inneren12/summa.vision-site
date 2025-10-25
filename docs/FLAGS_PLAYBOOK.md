@@ -121,8 +121,9 @@ Override не срабатывает:
 
 ## 5. Governance & Doctor
 
-- `npm run ff:doctor[:strict]` – ищет реальное использование флагов по паттернам (`useFlag('x')`, `<FlagGate name="x" />`, `?ff=x:`).
-- Ошибки: unknown usage; Варнинги: unused.
+- `npm run ff:doctor[:strict]` – ищет реальное использование флагов по паттернам (`useFlag('x')`, `<FlagGate name="x" />`, `?ff=x:`) и строит отчёт `reports/ff-doctor.json` с оценкой уверенности.
+- Ошибки: unknown usage; Варнинги: unused/stale + confidence.
+- Кандидаты с `confidence="high"` требуют ручного подтверждения перед удалением из реестра.
 - Allow‑лист: `scripts/ff-doctor.allow`.
 
 ## 6. Security & Privacy

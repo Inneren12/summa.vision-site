@@ -2,10 +2,12 @@ import type { ReactNode } from "react";
 
 import { getFlag } from "../../lib/ff/server";
 
+import type { FlagKey } from "@/types/flags";
+
 type Props = {
   children: ReactNode;
   fallback?: ReactNode;
-  requireFlag?: string;
+  requireFlag?: FlagKey;
   equals?: string | number | boolean;
 };
 

@@ -50,7 +50,7 @@ export function correlationFromNextContext(): RequestCorrelation {
     const namespace = resolveNamespace(hdrs);
     let sessionId: string | null = null;
     try {
-      sessionId = sanitize(nextCookies().get("sv_id")?.value ?? null);
+      sessionId = sanitize(nextCookies().get("ff_aid")?.value ?? null);
     } catch {
       sessionId = null;
     }

@@ -51,7 +51,7 @@ describe("telemetry integration via getFlagsServer()", () => {
   });
 
   it("records events with source=env when no overrides", async () => {
-    mockCookies([{ name: "sv_id", value: "sv_abc" }]);
+    mockCookies([{ name: "ff_aid", value: "aid_abc" }]);
     await getFlagsServer();
     const events = readRecent(50);
     const flags = events.map((e) => e.flag);
@@ -62,7 +62,7 @@ describe("telemetry integration via getFlagsServer()", () => {
 
   it("records source=override when cookie override present", async () => {
     mockCookies([
-      { name: "sv_id", value: "sv_abc" },
+      { name: "ff_aid", value: "aid_abc" },
       { name: "sv_flags_override", value: JSON.stringify({ betaUI: false }) },
     ]);
     await getFlagsServer();
@@ -74,7 +74,7 @@ describe("telemetry integration via getFlagsServer()", () => {
   });
 
   it("emits shadow exposures without changing served value", async () => {
-    mockCookies([{ name: "sv_id", value: "sv_shadow" }]);
+    mockCookies([{ name: "ff_aid", value: "aid_shadow" }]);
     process.env.FEATURE_FLAGS_JSON = JSON.stringify({
       newCheckout: { enabled: true, percent: 100, shadow: true },
     });

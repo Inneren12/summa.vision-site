@@ -38,7 +38,7 @@ export default async function PercentGateServer<N extends RolloutKey>({
   const val = flags[key]; // уже булево после серверного резолва
   if (val) {
     const effectiveUserId = userId ?? resolvedUserId;
-    const sid = stableId ?? buildStableId(effectiveUserId);
+    const sid = stableId ?? buildStableId();
     trackExposure({
       flag: key,
       value: val,

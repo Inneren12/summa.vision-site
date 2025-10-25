@@ -275,17 +275,20 @@ const knownSet = new Set(flagNames);
 for (const file of files) {
   const text = fs.readFileSync(file, "utf8");
   const ext = path.extname(file).toLowerCase();
-  let r = { refs: new Map(), fuzzyRefs: new Map(), unknown: new Map(), occurrences: [] };
-  const canAST = HAS_AST && (ext === ".js" || ext === ".jsx");
+  const regexResult = scanTextForFlags(text, flagNames);
+  let r = regexResult;
+  const canAST = HAS_AST && /\.(c|m)?(t|j)sx?$/.test(ext);
+  let usedAST = false;
   if (canAST) {
     try {
-      r = await scanTextForFlagsAST(text, file, flagNames);
+      const astResult = await scanTextForFlagsAST(text, file, flagNames);
+      if (astResult?.occurrences?.length) {
+        r = astResult;
+        usedAST = true;
+      }
     } catch {
       // no-op, fallback ниже
     }
-  }
-  if (!r?.occurrences?.length) {
-    r = scanTextForFlags(text, flagNames);
   }
   for (const [k, v] of r.refs ?? []) refs.set(k, (refs.get(k) || 0) + v);
   for (const [k, v] of r.fuzzyRefs ?? []) fuzzyRefs.set(k, (fuzzyRefs.get(k) || 0) + v);
@@ -304,6 +307,25 @@ for (const file of files) {
         kind: occ.kind,
         fuzzy: !!occ.fuzzy,
       });
+    }
+  }
+  if (usedAST) {
+    for (const occ of regexResult.occurrences ?? []) {
+      if (!occ.fuzzy) continue;
+      if (knownSet.has(occ.name)) {
+        fuzzyRefs.set(occ.name, (fuzzyRefs.get(occ.name) || 0) + 1);
+        fuzzyDetails.push({ name: occ.name, file, line: occ.line, col: occ.col, kind: occ.kind });
+      } else {
+        unknown.set(occ.name, (unknown.get(occ.name) || 0) + 1);
+        unknownDetails.push({
+          name: occ.name,
+          file,
+          line: occ.line,
+          col: occ.col,
+          kind: occ.kind,
+          fuzzy: true,
+        });
+      }
     }
   }
 }
@@ -347,16 +369,47 @@ for (const item of telemetryUnknown) {
   errors.push(`telemetry exposure for unknown flag "${item.name}" (${item.count})`);
 }
 
+const telemetryAvailable = telemetryReport.available;
+
+const classifyUnusedConfidence = ({ fuzzyRefsCount, telemetryAvailable: telemetry }) => {
+  if (telemetry) {
+    return fuzzyRefsCount > 0 ? "medium" : "high";
+  }
+  return fuzzyRefsCount > 0 ? "low" : "medium";
+};
+
+const classifyStaleConfidence = ({ exposures, telemetryAvailable: telemetry }) => {
+  if (!telemetry) return "low";
+  if (exposures === 0) return "medium";
+  return "low";
+};
+
 for (const name of flagNames) {
   const direct = refs.get(name) || 0;
   const exposures = exposuresKnown.get(name) || 0;
+  const fuzzyCount = fuzzyRefs.get(name) || 0;
   if (direct === 0 && exposures === 0) {
-    unused.push(name);
-    warnings.push(`${name}: unused`);
+    const detail = {
+      name,
+      references: direct,
+      fuzzyReferences: fuzzyCount,
+      exposures,
+      telemetryAvailable,
+      confidence: classifyUnusedConfidence({ fuzzyRefsCount: fuzzyCount, telemetryAvailable }),
+    };
+    unused.push(detail);
+    warnings.push(`${name}: unused (confidence=${detail.confidence})`);
   }
-  if (telemetryReport.available && direct > 0 && exposures < options.minExposures) {
-    stale.push(name);
-    warnings.push(`${name}: stale (exposures=${exposures})`);
+  if (telemetryAvailable && direct > 0 && exposures < options.minExposures) {
+    const detail = {
+      name,
+      references: direct,
+      exposures,
+      threshold: options.minExposures,
+      confidence: classifyStaleConfidence({ exposures, telemetryAvailable }),
+    };
+    stale.push(detail);
+    warnings.push(`${name}: stale (exposures=${exposures}, confidence=${detail.confidence})`);
   }
 }
 
@@ -372,8 +425,8 @@ for (const [name, details] of fuzzyByName.entries()) {
   });
 }
 
-unused.sort();
-stale.sort();
+unused.sort((a, b) => a.name.localeCompare(b.name));
+stale.sort((a, b) => a.name.localeCompare(b.name));
 fuzzyOnly.sort((a, b) => a.name.localeCompare(b.name));
 unknownDetails.sort(
   (a, b) =>
@@ -437,9 +490,19 @@ if (JSON_MODE) {
     );
   }
   console.log(`[ff-doctor] unused flags: ${unused.length}`);
-  unused.forEach((name) => console.log(`  - ${name}`));
+  unused.forEach((detail) => {
+    const telemetryTag = detail.telemetryAvailable ? "telemetry" : "no-telemetry";
+    const fuzzyTag = detail.fuzzyReferences > 0 ? `, fuzzy=${detail.fuzzyReferences}` : "";
+    console.log(
+      `  - ${detail.name} (confidence=${detail.confidence}, refs=${detail.references}, exposures=${detail.exposures}, ${telemetryTag}${fuzzyTag})`,
+    );
+  });
   console.log(`[ff-doctor] stale flags: ${stale.length}`);
-  stale.forEach((name) => console.log(`  - ${name} (exposures=${exposuresObject[name] ?? 0})`));
+  stale.forEach((detail) => {
+    console.log(
+      `  - ${detail.name} (confidence=${detail.confidence}, refs=${detail.references}, exposures=${detail.exposures}, threshold=${detail.threshold})`,
+    );
+  });
   console.log(`[ff-doctor] fuzzy-only references: ${fuzzyOnly.length}`);
   fuzzyOnly.forEach((entry) => {
     const sample = entry.samples[0];
