@@ -9,7 +9,7 @@ import {
   buildErrorResponse,
   type Role,
 } from "@/lib/admin/rbac";
-import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+import { FF_PUBLIC_COOKIE_OPTIONS, ONE_YEAR_SECONDS } from "@/lib/ff/cookies";
 import { FF } from "@/lib/ff/runtime";
 
 function requiredRoleFor(pathname: string, method: string): Role | null {
@@ -34,13 +34,84 @@ function requiredRoleFor(pathname: string, method: string): Role | null {
   return null;
 }
 
+type CookieRecord = {
+  name: string;
+  value: string;
+  options: Parameters<NextResponse["cookies"]["set"]>[2];
+};
+
+function parseCookieHeader(header: string | null | undefined): Map<string, string> {
+  const jar = new Map<string, string>();
+  if (!header) return jar;
+  for (const part of header.split(/;\s*/)) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const name = part.slice(0, eq).trim();
+    if (!name) continue;
+    const value = part.slice(eq + 1);
+    jar.set(name, value);
+  }
+  return jar;
+}
+
+function serializeCookieJar(jar: Map<string, string>): string {
+  return Array.from(jar.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+function ensureCookie(
+  jar: Map<string, string>,
+  name: string,
+  generator: () => string,
+  options: CookieRecord["options"],
+  updates: CookieRecord[],
+): string {
+  const existing = jar.get(name);
+  if (existing && existing.trim()) {
+    return existing;
+  }
+  const value = generator();
+  jar.set(name, value);
+  updates.push({ name, value, options });
+  return value;
+}
+
 export async function middleware(req: NextRequest) {
   const snapshot = await FF().snapshot();
-  const has = req.cookies.get("sv_id")?.value;
   const incomingRequestId = (req.headers.get("x-request-id") || "").trim();
   const requestId = incomingRequestId || crypto.randomUUID();
   const forwardedHeaders = new Headers(req.headers);
   forwardedHeaders.set("x-request-id", requestId);
+  const cookieJar = parseCookieHeader(forwardedHeaders.get("cookie"));
+  const cookieUpdates: CookieRecord[] = [];
+
+  ensureCookie(
+    cookieJar,
+    "sv_id",
+    () => crypto.randomUUID(),
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+  ensureCookie(
+    cookieJar,
+    "ff_aid",
+    () => crypto.randomUUID(),
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+  ensureCookie(
+    cookieJar,
+    "sv_consent",
+    () => "necessary",
+    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    cookieUpdates,
+  );
+
+  if (cookieUpdates.length > 0) {
+    forwardedHeaders.set("cookie", serializeCookieJar(cookieJar));
+  }
   const required = requiredRoleFor(req.nextUrl.pathname, req.method);
   let res: NextResponse;
 
@@ -52,15 +123,8 @@ export async function middleware(req: NextRequest) {
     if (!result.ok) {
       const error = buildErrorResponse(result.status, result.reason, result.clearSession);
       error.headers.set("x-request-id", requestId);
-      if (!has) {
-        error.cookies.set("sv_id", crypto.randomUUID(), {
-          maxAge: 365 * 24 * 60 * 60,
-          httpOnly: false,
-          sameSite: "lax",
-          secure: FF_COOKIE_SECURE,
-          path: FF_COOKIE_PATH,
-          domain: FF_COOKIE_DOMAIN,
-        });
+      for (const { name, value, options } of cookieUpdates) {
+        error.cookies.set(name, value, options);
       }
       error.headers.set("x-ff-snapshot", snapshot.id);
       return error;
@@ -72,15 +136,8 @@ export async function middleware(req: NextRequest) {
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
   }
 
-  if (!has) {
-    res.cookies.set("sv_id", crypto.randomUUID(), {
-      maxAge: 365 * 24 * 60 * 60,
-      httpOnly: false,
-      sameSite: "lax",
-      secure: FF_COOKIE_SECURE,
-      path: FF_COOKIE_PATH,
-      domain: FF_COOKIE_DOMAIN,
-    });
+  for (const { name, value, options } of cookieUpdates) {
+    res.cookies.set(name, value, options);
   }
   res.headers.set("x-ff-snapshot", snapshot.id);
   res.headers.set("x-request-id", requestId);

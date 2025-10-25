@@ -26,3 +26,7 @@ if (typeof globalThis !== "undefined" && globalThis.crypto) {
     cryptoObj.randomUUID = () => "anon";
   }
 }
+
+if (typeof globalThis !== "undefined" && !("REDACTED_VALUE" in globalThis)) {
+  (globalThis as Record<string, unknown>).REDACTED_VALUE = undefined;
+}

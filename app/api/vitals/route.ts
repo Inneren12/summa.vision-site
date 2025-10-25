@@ -4,7 +4,12 @@ import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
-import { hasDoNotTrackEnabled, readConsent, sanitizeAttribution } from "@/lib/metrics/privacy";
+import {
+  hasDoNotTrackEnabled,
+  readConsent,
+  readIdentifiers,
+  sanitizeAttribution,
+} from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
 
@@ -81,6 +86,13 @@ export async function POST(req: Request) {
 
   const consent = readConsent(req.headers);
   const { sid, aid } = readIdentifiers(req.headers);
+  const metricsContext = { ...correlation } as typeof correlation & { aid?: string | undefined };
+  if (sid) {
+    metricsContext.sessionId = sid;
+  }
+  if (aid) {
+    metricsContext.aid = aid;
+  }
   const rating = typeof payload.rating === "string" ? payload.rating : undefined;
   const id = typeof payload.id === "string" ? payload.id : undefined;
   const startTime = toFiniteNumber(payload.startTime);
@@ -92,7 +104,6 @@ export async function POST(req: Request) {
     typeof payload.attribution === "object" && payload.attribution !== null
       ? (payload.attribution as Record<string, unknown>)
       : undefined;
-  const url = typeof payload.url === "string" ? payload.url : undefined;
 
   FF().metrics.recordVital(snapshotId, name, value, {
     rating,
@@ -102,7 +113,7 @@ export async function POST(req: Request) {
     delta,
     navigationType,
     attribution: sanitizeAttribution(consent, attribution),
-    context: correlation,
+    context: metricsContext,
   });
 
   return new NextResponse(null, { status: 204 });

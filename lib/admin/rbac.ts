@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { FF_COOKIE_DOMAIN, FF_COOKIE_PATH, FF_COOKIE_SECURE } from "@/lib/ff/cookies";
+import { FF_PRIVATE_COOKIE_OPTIONS } from "@/lib/ff/cookies";
 import { tscmp } from "@/lib/ff/tscmp";
 
 export type Role = "viewer" | "ops" | "admin";
@@ -46,11 +46,7 @@ export const ADMIN_SESSION_COOKIE = "sv_admin_session";
 export const ADMIN_SESSION_MAX_AGE = 60 * 15; // 15 minutes
 
 export const ADMIN_SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "strict" as const,
-  secure: FF_COOKIE_SECURE,
-  path: FF_COOKIE_PATH,
-  domain: FF_COOKIE_DOMAIN,
+  ...FF_PRIVATE_COOKIE_OPTIONS,
   maxAge: ADMIN_SESSION_MAX_AGE,
 };
 

@@ -8,10 +8,8 @@ import {
   hasDoNotTrackEnabled,
   readConsent,
   readIdentifiers,
-  sanitizeFilename,
   sanitizeMessage,
   sanitizeStack,
-  sanitizeUrl,
 } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
@@ -50,9 +48,19 @@ export async function POST(req: Request) {
   const rawMessage = typeof payload.message === "string" ? payload.message : undefined;
   const message = sanitizeMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
+  const context = { ...correlationFromRequest(req) } as ReturnType<
+    typeof correlationFromRequest
+  > & {
+    aid?: string;
+  };
+  if (sid) {
+    context.sessionId = sid;
+  }
+  if (aid) {
+    context.aid = aid;
+  }
 
-  const correlation = correlationFromRequest(req);
-  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), correlation);
+  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), context);
 
   return new NextResponse(null, { status: 204 });
 }
