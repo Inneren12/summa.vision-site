@@ -9,9 +9,12 @@ test.describe("Cookie attributes", () => {
     const origin = new URL(resp?.url() ?? page.url()).origin;
     const cookies = await context.cookies([origin]);
     const sv = cookies.find((c) => c.name === "sv_id");
+    const ffAid = cookies.find((c) => c.name === "ff_aid");
     expect(sv).toBeTruthy();
+    expect(ffAid).toBeTruthy();
     if (set) {
       expect(set).toContain("sv_id=");
+      expect(set).toContain("ff_aid=");
       expect(set).toContain("Path=/");
       expect(set.toLowerCase()).toContain("samesite=lax");
       if (process.env.NODE_ENV === "production") {
@@ -23,11 +26,16 @@ test.describe("Cookie attributes", () => {
     expect(sv?.path).toBe("/");
     expect(sv?.sameSite?.toLowerCase?.() ?? "").toContain("lax");
     if (typeof sv?.httpOnly === "boolean") expect(sv?.httpOnly).toBe(false);
+    expect(ffAid?.path).toBe("/");
+    expect(ffAid?.sameSite?.toLowerCase?.() ?? "").toContain("lax");
+    if (typeof ffAid?.httpOnly === "boolean") expect(ffAid?.httpOnly).toBe(false);
     if (!set) {
       if (process.env.NODE_ENV === "production") {
         expect(sv?.secure ?? false).toBe(true);
+        expect(ffAid?.secure ?? false).toBe(true);
       } else {
         expect(sv?.secure ?? false).toBe(false);
+        expect(ffAid?.secure ?? false).toBe(false);
       }
     }
   });

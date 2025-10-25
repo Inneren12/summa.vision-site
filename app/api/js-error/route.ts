@@ -8,10 +8,8 @@ import {
   hasDoNotTrackEnabled,
   readConsent,
   readIdentifiers,
-  sanitizeFilename,
   sanitizeMessage,
   sanitizeStack,
-  sanitizeUrl,
 } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
