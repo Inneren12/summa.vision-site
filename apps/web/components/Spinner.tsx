@@ -1,7 +1,8 @@
 "use client";
 
-import { usePrefersReducedMotion } from "./motion/prefersReducedMotion";
 import type { ComponentPropsWithoutRef } from "react";
+
+import { usePrefersReducedMotion } from "./motion/prefersReducedMotion";
 
 export type SpinnerProps = ComponentPropsWithoutRef<"div">;
 
