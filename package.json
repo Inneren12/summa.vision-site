@@ -30,6 +30,7 @@
     "ff:snapshot:export": "node ./scripts/ff-snapshot.mjs export ./.runtime/flags.snapshot.json",
     "ff:snapshot:restore": "node ./scripts/ff-snapshot.mjs restore ./.runtime/flags.snapshot.json",
     "ff:reload": "node ./scripts/ff-reload.mjs",
+    "ff:validate": "tsx scripts/ff-validate-config.mjs",
     "ff:store:migrate": "tsx scripts/ff-store-migrate.ts",
     "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
     "test:axe": "tsx scripts/og-axe-check.ts",
