@@ -136,7 +136,7 @@ export async function POST(req: Request) {
   const { flags, overrides } = snapshot.data;
   const { store, lock } = FF();
   await lock.withLock(SNAPSHOT_LOCK_KEY, async () => {
-    restoreSnapshot(store, snapshot.data);
+    await restoreSnapshot(store, snapshot.data);
   });
   logAdminAction({
     timestamp: Date.now(),

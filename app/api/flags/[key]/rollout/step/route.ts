@@ -247,7 +247,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const hysteresis = normalizeHysteresis(rawHysteresis);
   const key = params.key;
   const { store, lock, metrics } = FF();
-  const existing = store.getFlag(key);
+  const existing = await store.getFlag(key);
   if (!existing) {
     return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
   }
@@ -260,7 +260,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     }
   }
 
-  const snapshot = FF().snapshot();
+  const snapshot = await FF().snapshot();
   const requiresMetrics = (process.env.METRICS_PROVIDER || "self").toLowerCase() === "self";
   const hasData = metrics.hasData(snapshot.id);
   if (requiresMetrics && !hasData) {
@@ -353,7 +353,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   }
 
   const updated = await lock.withLock(key, async () => {
-    const current = store.getFlag(key);
+    const current = await store.getFlag(key);
     if (!current) throw new Error("Flag disappeared");
     const base = clampPercent(current.rollout?.percent ?? 0);
     const target = clampPercent(targetPct);
@@ -376,7 +376,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
       },
       updatedAt: now,
     };
-    const saved = store.putFlag(nextConfig);
+    const saved = await store.putFlag(nextConfig);
     return { flag: saved, changed: true } as const;
   });
 

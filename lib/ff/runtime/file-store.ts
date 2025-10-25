@@ -70,8 +70,8 @@ export class FileFlagStore implements FlagStore {
     }
   }
 
-  private persist() {
-    const snapshot = this.memory.snapshot();
+  private async persist() {
+    const snapshot = await this.memory.snapshot();
     const payload = JSON.stringify(snapshot, null, 2);
     const tempName = `${path.basename(this.file)}.${process.pid}.${Date.now()}.tmp`;
     const tempPath = path.join(this.tmpDir, tempName);
@@ -80,53 +80,56 @@ export class FileFlagStore implements FlagStore {
     this.lastLoaded = Date.now();
   }
 
-  listFlags(): FlagConfig[] {
+  async listFlags(): Promise<FlagConfig[]> {
     this.refreshFromDisk();
     return this.memory.listFlags();
   }
 
-  getFlag(key: string): FlagConfig | undefined {
+  async getFlag(key: string): Promise<FlagConfig | undefined> {
     this.refreshFromDisk();
     return this.memory.getFlag(key);
   }
 
-  putFlag(config: FlagConfig): FlagConfig {
+  async putFlag(config: FlagConfig): Promise<FlagConfig> {
     this.refreshFromDisk();
-    const updated = this.memory.putFlag(config);
-    this.persist();
+    const updated = await this.memory.putFlag(config);
+    await this.persist();
     return updated;
   }
 
-  removeFlag(key: string): void {
+  async removeFlag(key: string): Promise<void> {
     this.refreshFromDisk();
-    this.memory.removeFlag(key);
-    this.persist();
+    await this.memory.removeFlag(key);
+    await this.persist();
   }
 
-  listOverrides(flag: string): OverrideEntry[] {
+  async listOverrides(flag: string): Promise<OverrideEntry[]> {
     this.refreshFromDisk();
     return this.memory.listOverrides(flag);
   }
 
-  putOverride(entry: OverrideEntry): OverrideEntry {
+  async putOverride(entry: OverrideEntry): Promise<OverrideEntry> {
     this.refreshFromDisk();
-    const updated = this.memory.putOverride(entry);
-    this.persist();
+    const updated = await this.memory.putOverride(entry);
+    await this.persist();
     return updated;
   }
 
-  removeOverride(flag: string, scope: OverrideScope): void {
+  async removeOverride(flag: string, scope: OverrideScope): Promise<void> {
     this.refreshFromDisk();
-    this.memory.removeOverride(flag, scope);
-    this.persist();
+    await this.memory.removeOverride(flag, scope);
+    await this.persist();
   }
 
-  evaluate(key: string, ctx: FlagEvaluationContext): FlagEvaluationResult | undefined {
+  async evaluate(
+    key: string,
+    ctx: FlagEvaluationContext,
+  ): Promise<FlagEvaluationResult | undefined> {
     this.refreshFromDisk();
     return this.memory.evaluate(key, ctx);
   }
 
-  snapshot(): FlagSnapshot {
+  async snapshot(): Promise<FlagSnapshot> {
     this.refreshFromDisk();
     return this.memory.snapshot();
   }

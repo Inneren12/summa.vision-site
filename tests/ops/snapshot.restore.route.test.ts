@@ -124,10 +124,10 @@ describe("ops snapshot/restore routes", () => {
     expect(body.flags).toBe(1);
     expect(body.overrides).toBe(1);
 
-    const flags = store.listFlags();
+    const flags = await store.listFlags();
     expect(flags).toHaveLength(1);
     expect(flags[0].key).toBe("betaUI");
-    expect(store.listOverrides("betaUI")).toHaveLength(1);
+    expect(await store.listOverrides("betaUI")).toHaveLength(1);
 
     const audit = readAuditRecent();
     expect(audit.at(-1)).toMatchObject({

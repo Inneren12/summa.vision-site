@@ -38,7 +38,7 @@ export async function GET(req: Request, { params }: { params: { key: string } })
   if (!auth.ok) return auth.response;
   const key = params.key;
   const store = FF().store;
-  const overrides = store.listOverrides(key);
+  const overrides = await store.listOverrides(key);
   return auth.apply(NextResponse.json({ ok: true, overrides }));
 }
 
@@ -64,7 +64,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const { namespace: nsInput, userId, value, reason, ttlSec } = parsed.data;
   const flagKey = params.key;
   const { store, lock } = FF();
-  const config = store.getFlag(flagKey);
+  const config = await store.getFlag(flagKey);
   if (!config) {
     return auth.apply(NextResponse.json({ error: `Flag ${flagKey} not found` }, { status: 404 }));
   }
@@ -79,16 +79,16 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   }
 
   const result = await lock.withLock(flagKey, async () => {
-    const existing = findMatchingOverride(store.listOverrides(flagKey), scope);
+    const existing = findMatchingOverride(await store.listOverrides(flagKey), scope);
     if (typeof ttlSec === "number" && ttlSec <= 0) {
       if (existing) {
-        store.removeOverride(flagKey, scope);
+        await store.removeOverride(flagKey, scope);
         return { removed: true, previous: existing } as const;
       }
       return { removed: false } as const;
     }
     const entry = createOverride(flagKey, scope, value, auth.role, reason, ttlSec);
-    const saved = store.putOverride(entry);
+    const saved = await store.putOverride(entry);
     return { saved } as const;
   });
 

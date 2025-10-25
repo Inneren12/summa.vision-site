@@ -11,6 +11,6 @@ export async function GET(req: Request) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
   const { store } = FF();
-  const snapshot = store.snapshot();
+  const snapshot = await store.snapshot();
   return auth.apply(NextResponse.json(snapshot));
 }

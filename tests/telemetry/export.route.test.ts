@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-
 import { GET } from "@/app/api/telemetry/export/route";
 
 const TEST_URL = "https://example.com/api/telemetry/export";
@@ -12,6 +11,7 @@ describe("/api/telemetry/export", () => {
 
   beforeEach(() => {
     Object.assign(process.env, savedEnv);
+    process.env.FF_CONSOLE_VIEWER_TOKENS = process.env.FF_CONSOLE_VIEWER_TOKENS || "viewer-token";
   });
 
   afterEach(() => {
@@ -46,7 +46,11 @@ describe("/api/telemetry/export", () => {
     ];
     vi.spyOn(fs, "readFile").mockResolvedValue(lines.join("\n"));
 
-    const res = await GET(new Request(TEST_URL));
+    const res = await GET(
+      new Request(TEST_URL, {
+        headers: { authorization: "Bearer viewer-token" },
+      }),
+    );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-ndjson");
     const body = await res.text();
@@ -87,6 +91,7 @@ describe("/api/telemetry/export", () => {
     const res = await GET(
       new Request(
         `${TEST_URL}?fmt=csv&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        { headers: { authorization: "Bearer viewer-token" } },
       ),
     );
 
@@ -101,7 +106,11 @@ describe("/api/telemetry/export", () => {
   });
 
   it("rejects invalid range", async () => {
-    const res = await GET(new Request(`${TEST_URL}?from=2024-07-10&to=2024-07-01`));
+    const res = await GET(
+      new Request(`${TEST_URL}?from=2024-07-10&to=2024-07-01`, {
+        headers: { authorization: "Bearer viewer-token" },
+      }),
+    );
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBeDefined();

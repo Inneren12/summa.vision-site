@@ -31,7 +31,7 @@ type RuntimeShape = {
   store: FlagStore;
   metrics: MetricsProvider;
   lock: RuntimeLock;
-  snapshot(): { id: string; data: FlagSnapshot };
+  snapshot(): Promise<{ id: string; data: FlagSnapshot }>;
 };
 
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
@@ -77,8 +77,8 @@ function createDefaultRuntime(): RuntimeShape {
     telemetrySink,
     metrics,
     lock,
-    snapshot() {
-      const data = store.snapshot();
+    async snapshot() {
+      const data = await store.snapshot();
       return { id: computeSnapshotId(data), data };
     },
   } satisfies RuntimeShape;
@@ -105,9 +105,9 @@ export function composeFFRuntime(overrides?: ComposeOverrides): RuntimeShape {
     store: overrides?.store ?? base.store,
     metrics: overrides?.metrics ?? base.metrics,
     lock: overrides?.lock ?? base.lock,
-    snapshot() {
+    async snapshot() {
       const store = overrides?.store ?? base.store;
-      const data = store.snapshot();
+      const data = await store.snapshot();
       return { id: computeSnapshotId(data), data };
     },
   } satisfies RuntimeShape;

@@ -68,8 +68,7 @@ export async function GET(req: Request) {
   const namespaceParam = url.searchParams.get("ns");
   const ns = namespaceParam ? normalizeNamespace(namespaceParam) : undefined;
   const store = FF().store;
-  const flags = store
-    .listFlags()
+  const flags = (await store.listFlags())
     .filter((flag) => (ns ? normalizeNamespace(flag.namespace) === ns : true))
     .map(flagToApi);
   const res = NextResponse.json({ ok: true, namespace: ns, flags });
@@ -95,7 +94,7 @@ export async function POST(req: Request) {
   const payload = parsed.data;
   const { store, lock } = FF();
   const updated = await lock.withLock(payload.key, async () => {
-    const existing = store.getFlag(payload.key);
+    const existing = await store.getFlag(payload.key);
     const nextFlag = apiToFlag(payload, existing ?? undefined);
     return store.putFlag(nextFlag);
   });
