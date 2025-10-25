@@ -1,40 +1,35 @@
 export type IdleTask = () => void;
 
-function isWindowAvailable(): window is typeof window & {
-  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-  cancelIdleCallback?: (handle: number) => void;
-} {
-  return typeof window !== "undefined";
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number;
+  cancelIdleCallback?: (id: number) => void;
+};
+
+function getIdleWindow(): IdleCapableWindow | undefined {
+  try {
+    return typeof window !== "undefined" ? (window as IdleCapableWindow) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-export function scheduleIdle(task: IdleTask): () => void {
-  if (!isWindowAvailable()) {
-    task();
-    return () => undefined;
+export type IdleHandle = number | ReturnType<typeof setTimeout>;
+
+export function scheduleIdle(task: IdleTask, opts?: { timeout?: number }): IdleHandle {
+  const w = getIdleWindow();
+  if (w && typeof w.requestIdleCallback === "function") {
+    const o = opts?.timeout ? { timeout: opts.timeout } : undefined;
+    return w.requestIdleCallback(() => { try { task(); } catch {} }, o as any);
   }
+  // Fallback для jsdom/SSR/старых браузеров
+  return setTimeout(task, opts?.timeout ?? 0);
+}
 
-  const win = window as typeof window & {
-    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-    cancelIdleCallback?: (handle: number) => void;
-  };
-
-  if (typeof win.requestIdleCallback === "function") {
-    const handle = win.requestIdleCallback(() => {
-      task();
-    });
-
-    return () => {
-      if (typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(handle);
-      }
-    };
+export function cancelIdle(handle: IdleHandle): void {
+  const w = getIdleWindow();
+  if (typeof handle === "number" && w && typeof w.cancelIdleCallback === "function") {
+    w.cancelIdleCallback(handle);
+    return;
   }
-
-  const timeout = window.setTimeout(() => {
-    task();
-  }, 0);
-
-  return () => {
-    window.clearTimeout(timeout);
-  };
+  clearTimeout(handle as any);
 }
