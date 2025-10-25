@@ -15,7 +15,7 @@ async function loadTsMorph() {
   if (!tsMorphModulePromise) {
     tsMorphModulePromise = import("ts-morph").catch(() => null);
   }
-  return tsMorphModule;
+  return tsMorphModulePromise;
 }
 
 async function getProject() {

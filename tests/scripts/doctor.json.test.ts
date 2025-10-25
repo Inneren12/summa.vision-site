@@ -1,4 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -110,5 +111,61 @@ describe("ff-doctor --json output", () => {
     const fuzzy = new Set((payload.fuzzyOnly ?? []).map((entry) => entry.name));
     expect(fuzzy.has("bannerText")).toBe(true);
     expect(payload.telemetry?.available).toBe(true);
+  });
+});
+
+describe("ff-doctor --watch output", () => {
+  it("emits NDJSON events with reports", async () => {
+    const child = spawn(process.execPath, ["scripts/ff-doctor.mjs", "--watch", "--days=0"], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const received = [] as Array<Record<string, unknown>>;
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("timeout waiting for watch report"));
+      }, 15000);
+
+      const lines: string[] = [];
+      const handleChunk = (chunk: Buffer) => {
+        lines.push(...chunk.toString("utf8").split(/\r?\n/));
+        while (lines.length) {
+          const line = lines.shift();
+          if (!line) continue;
+          try {
+            const parsed = JSON.parse(line) as Record<string, unknown>;
+            received.push(parsed);
+            if (parsed.type === "report") {
+              cleanup();
+              resolve();
+              return;
+            }
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        child.stdout.off("data", handleChunk);
+        child.stderr.off("data", handleChunk);
+      };
+
+      child.stdout.on("data", handleChunk);
+      child.stderr.on("data", handleChunk);
+    });
+
+    child.kill("SIGINT");
+    await once(child, "exit");
+
+    expect(received.some((event) => event.type === "watch-start")).toBe(true);
+    const reportEvent = received.find((event) => event.type === "report");
+    expect(reportEvent).toBeDefined();
+    expect(reportEvent?.payload).toBeTypeOf("object");
+    expect(reportEvent?.payload && typeof reportEvent.payload === "object").toBe(true);
   });
 });
