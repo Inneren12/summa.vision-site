@@ -15,5 +15,6 @@ describe("scanTextForFlags positions", () => {
     const hit = result.occurrences.find((o) => o.name === "unknownFlag");
     expect(hit?.line).toBeGreaterThan(0);
     expect(hit?.col).toBeGreaterThan(0);
+    expect(hit?.fuzzy).toBe(true);
   });
 });
