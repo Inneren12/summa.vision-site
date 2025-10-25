@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies as nextCookies, headers as nextHeaders } from "next/headers";
 
-import { getStableIdFromCookieHeader } from "@/lib/ff/stable-id";
+import { getStableIdFromCookieHeader } from "../ff/stable-id";
 
 export type RequestCorrelation = {
   requestId: string | null;
