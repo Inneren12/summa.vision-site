@@ -94,7 +94,7 @@ export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
     const fm: StoryFrontMatter = {
       ...fm0,
       // гарантируем строковый hash
-      steps: fm0.steps.map((s: any) => ({ ...s, hash: String((s as any).hash ?? s.id) })),
+      steps: fm0.steps.map((s) => ({ ...s, hash: s.hash ?? s.id })),
     };
 
     stories.push(fm);
