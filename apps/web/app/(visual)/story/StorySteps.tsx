@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+
+import { FakeChart } from "./FakeChart";
 
 import { scrollStepIntoView, useStepUrlSync } from "@/components/story/step-url";
 
@@ -50,12 +59,30 @@ export function StorySteps() {
     activeRef.current = activeStep;
   }, [activeStep]);
 
-  const handleLocationStep = useCallback(
-    (id: string) => {
-      if (!steps.some((step) => step.id === id)) return;
-      setActiveStep(id);
+  const focusStepByIndex = useCallback(
+    (index: number) => {
+      const next = steps[index];
+      if (!next) {
+        return false;
+      }
+      setActiveStep(next.id);
+      scrollStepIntoView(next.id, { hashPrefix: HASH_PREFIX });
+      const element = sectionRefs.current[next.id];
+      element?.focus?.({ preventScroll: true });
+      return true;
     },
     [steps],
+  );
+
+  const handleLocationStep = useCallback(
+    (id: string) => {
+      const index = steps.findIndex((step) => step.id === id);
+      if (index < 0) {
+        return;
+      }
+      focusStepByIndex(index);
+    },
+    [focusStepByIndex, steps],
   );
 
   useStepUrlSync({
@@ -109,15 +136,61 @@ export function StorySteps() {
     };
   }, []);
 
-  const handleStepClick = useCallback((id: string) => {
-    setActiveStep(id);
-    scrollStepIntoView(id, { hashPrefix: HASH_PREFIX });
-  }, []);
+  const handleStepClick = useCallback(
+    (id: string) => {
+      const index = steps.findIndex((step) => step.id === id);
+      if (index < 0) {
+        return;
+      }
+      focusStepByIndex(index);
+    },
+    [focusStepByIndex, steps],
+  );
+
+  const handleSectionKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
+      const { key } = event;
+      const currentId = event.currentTarget.getAttribute("data-step-id");
+      if (!currentId) {
+        return;
+      }
+      const index = steps.findIndex((step) => step.id === currentId);
+      if (index < 0) {
+        return;
+      }
+
+      let handled = false;
+      switch (key) {
+        case "ArrowDown":
+        case "PageDown":
+          handled = focusStepByIndex(index + 1);
+          break;
+        case "ArrowUp":
+        case "PageUp":
+          handled = focusStepByIndex(index - 1);
+          break;
+        case "Home":
+          handled = focusStepByIndex(0);
+          break;
+        case "End":
+          handled = focusStepByIndex(steps.length - 1);
+          break;
+        default:
+          break;
+      }
+
+      if (handled) {
+        event.preventDefault();
+      }
+    },
+    [focusStepByIndex, steps],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-16 lg:flex-row">
       <aside className="lg:w-1/3">
         <div className="sticky top-24 space-y-3 rounded-2xl border border-muted/30 bg-bg/70 p-6 backdrop-blur">
+          <FakeChart activeStepId={activeStep} />
           <h2 className="text-xl font-semibold text-fg">Story flow</h2>
           <p className="text-sm text-muted">
             Jump directly to a section or copy the link for a deep link. The active step syncs to
@@ -131,11 +204,12 @@ export function StorySteps() {
                   key={step.id}
                   type="button"
                   onClick={() => handleStepClick(step.id)}
-                  className={`w-full rounded-xl px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                  className={`w-full rounded-xl px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none ${
                     isActive
                       ? "bg-primary text-bg shadow-lg"
                       : "bg-transparent text-muted hover:bg-muted/10 focus-visible:text-fg"
                   }`}
+                  data-step-id={step.id}
                   aria-current={isActive ? "step" : undefined}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -154,12 +228,15 @@ export function StorySteps() {
       </aside>
       <section className="space-y-24 lg:w-2/3">
         {steps.map((step, index) => (
+          /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
           <article
             key={step.id}
             id={`${HASH_PREFIX}${step.id}`}
             data-step-id={step.id}
             ref={registerSection(step.id)}
-            className="story-step-anchor scroll-mt-28 rounded-3xl border border-muted/20 bg-bg/80 p-8 shadow-sm transition"
+            className="story-step-anchor scroll-mt-28 rounded-3xl border border-muted/20 bg-bg/80 p-8 shadow-sm transition motion-reduce:transition-none"
+            tabIndex={0}
+            onKeyDown={handleSectionKeyDown}
           >
             <p className="text-sm font-semibold uppercase tracking-wide text-muted">
               Step {index + 1}
@@ -167,6 +244,7 @@ export function StorySteps() {
             <h3 className="mt-3 text-3xl font-semibold text-fg">{step.title}</h3>
             <p className="mt-4 text-lg leading-7 text-muted">{step.description}</p>
           </article>
+          /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
         ))}
       </section>
     </div>
