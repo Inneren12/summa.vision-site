@@ -1,5 +1,12 @@
 # Feature Flags & Rollouts — Политики и Плейбук
 
+Дополняющие материалы:
+
+- [docs/flags.md](./flags.md) — структура конфигураций, seedBy, сегменты.
+- [docs/rollouts.md](./rollouts.md) — политики rollout'ов, снапшоты и откаты.
+- [docs/segments.md](./segments.md) — предикаты и приоритеты.
+- [docs/data-layer.md](./data-layer.md) — отчёты S5B и чтение журналов.
+
 ## 1. Источники и приоритеты
 
 **Источники (по возрастанию приоритета):**
