@@ -7,7 +7,7 @@ function mkReq(headers: Record<string, string>) {
   return new Request("http://localhost/api/ff-override?ff=a:true", { headers });
 }
 
-describe("override guard: rl key ip+sv_id and safe rpm parsing", () => {
+describe("override guard: rl key ip+stableId and safe rpm parsing", () => {
   const saved = { ...process.env };
   beforeEach(async () => {
     Object.assign(process.env, saved);
@@ -24,13 +24,13 @@ describe("override guard: rl key ip+sv_id and safe rpm parsing", () => {
     await __resetRateLimit();
   });
 
-  it("separates buckets by sv_id for same IP", async () => {
+  it("separates buckets by ff_aid for same IP", async () => {
     const ip = "9.9.9.9";
-    const r1 = mkReq({ "x-forwarded-for": ip, cookie: "sv_id=A" });
-    const r2 = mkReq({ "x-forwarded-for": ip, cookie: "sv_id=B" });
+    const r1 = mkReq({ "x-forwarded-for": ip, cookie: "ff_aid=A" });
+    const r2 = mkReq({ "x-forwarded-for": ip, cookie: "ff_aid=B" });
     expect((await guardOverrideRequest(r1)).allow).toBe(true);
     expect((await guardOverrideRequest(r2)).allow).toBe(true);
-    const r1Again = mkReq({ "x-forwarded-for": ip, cookie: "sv_id=A" });
+    const r1Again = mkReq({ "x-forwarded-for": ip, cookie: "ff_aid=A" });
     const d = await guardOverrideRequest(r1Again);
     expect(d.allow).toBe(false);
     if (!d.allow) expect(d.code).toBe(429);

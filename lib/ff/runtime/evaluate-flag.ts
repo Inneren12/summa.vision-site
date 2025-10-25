@@ -3,6 +3,7 @@ import { percentFor, seedFor } from "../bucketing";
 import type { FlagConfig, FlagValue, OverrideValue, SegmentConfig } from "./types";
 
 export type EvaluateFlagSeeds = {
+  stableId?: string;
   anonId?: string;
   userId?: string;
   namespace?: string;
@@ -83,10 +84,9 @@ function buildEffectiveContext(
   ctx: EvaluateFlagContext | undefined,
   seeds: EvaluateFlagSeeds | undefined,
 ): EffectiveContext {
-  const anonId =
-    seeds?.anonId ?? ctx?.stableId ?? seeds?.userId ?? seeds?.cookie ?? seeds?.namespace ?? "anon";
+  const stableId = seeds?.stableId ?? seeds?.anonId ?? ctx?.stableId ?? "anon";
   return {
-    stableId: anonId,
+    stableId,
     userId: ctx?.userId ?? seeds?.userId,
     namespace: ctx?.namespace ?? seeds?.namespace,
     cookieId: ctx?.cookieId ?? seeds?.cookie,

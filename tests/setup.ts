@@ -10,10 +10,6 @@ if (typeof process !== "undefined" && process.stdout) {
   }
 }
 
-if (typeof process !== "undefined") {
-  process.env.FF_STABLEID_USER_PREFIX ??= "user_";
-}
-
 if (typeof globalThis !== "undefined" && globalThis.crypto) {
   const cryptoObj = globalThis.crypto as { randomUUID?: () => string };
   try {

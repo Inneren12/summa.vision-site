@@ -55,7 +55,7 @@ export default async function FlagGateServer<N extends KeyName>({
   }
   if (shouldRender) {
     const effectiveUserId = userId ?? resolvedUserId;
-    const sid = stableId ?? buildStableId(effectiveUserId);
+    const sid = stableId ?? buildStableId();
     trackExposure({
       flag: key,
       value: value as EffectiveValueFor<N>,

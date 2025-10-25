@@ -22,6 +22,7 @@ export type SeedContext = {
 };
 
 export type SeedHints = {
+  stableId?: string;
   anonId?: string;
   userId?: string;
   namespace?: string;
@@ -67,8 +68,7 @@ function resolveSeedValue(
   seedBy: SeedBy | undefined,
 ): string {
   const normalized = normalizeSeedBy(seedBy);
-  const fallback =
-    hints?.anonId ?? ctx.stableId ?? hints?.userId ?? hints?.cookie ?? hints?.namespace ?? "anon";
+  const fallback = hints?.stableId ?? hints?.anonId ?? ctx.stableId ?? "anon";
 
   switch (normalized) {
     case "userId":
@@ -85,7 +85,7 @@ function resolveSeedValue(
     }
     case "anonId":
     default:
-      return hints?.anonId ?? ctx.stableId ?? fallback;
+      return hints?.stableId ?? hints?.anonId ?? ctx.stableId ?? fallback;
   }
 }
 

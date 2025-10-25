@@ -5,11 +5,12 @@ import type { FlagConfig } from "../../lib/ff/runtime/types";
 
 describe("evaluateFlag", () => {
   const baseCtx = {
+    stableId: "aid-1",
     userId: "user-1",
     namespace: "ns-1",
     tags: ["beta"],
   };
-  const baseSeeds = { anonId: "anon-1" };
+  const baseSeeds = { stableId: "aid-1" };
 
   function makeBaseConfig(): FlagConfig {
     return {
@@ -17,7 +18,7 @@ describe("evaluateFlag", () => {
       enabled: true,
       kill: false,
       defaultValue: true,
-      seedByDefault: "anonId",
+      seedByDefault: "stableId",
       createdAt: 0,
       updatedAt: 0,
       segments: [
@@ -131,7 +132,7 @@ describe("evaluateFlag", () => {
       enabled: true,
       kill: false,
       defaultValue: "enabled",
-      seedByDefault: "anonId",
+      seedByDefault: "stableId",
       createdAt: 0,
       updatedAt: 0,
       rollout: { percent: 50, seedBy: "cookie" },
@@ -178,7 +179,7 @@ describe("evaluateFlag", () => {
       killSwitch: true,
       killValue: null,
       defaultValue: true,
-      seedByDefault: "anonId",
+      seedByDefault: "stableId",
       createdAt: 0,
       updatedAt: 0,
     };

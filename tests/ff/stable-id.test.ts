@@ -13,17 +13,17 @@ describe("stableId()", () => {
     vi.mocked(cookies).mockReset();
   });
 
-  it("uses userId when provided", () => {
-    expect(stable.stableId("123")).toBe("u:123");
-  });
-
-  it("falls back to cookie sv_id or anon", () => {
+  it("prefers ff_aid cookie when present", () => {
     type CookiesReturn = ReturnType<typeof cookies>;
     const withValue = {
-      get: vi.fn().mockReturnValue({ value: "abc" }),
+      get: vi
+        .fn()
+        .mockImplementation((name: string) =>
+          name === "ff_aid" ? { value: "aid-123" } : undefined,
+        ),
     } as unknown as CookiesReturn;
     vi.mocked(cookies).mockReturnValueOnce(withValue);
-    expect(stable.stableId()).toBe("abc");
+    expect(stable.stableId("user-1")).toBe("aid-123");
 
     const withoutValue = {
       get: vi.fn().mockReturnValue(undefined),

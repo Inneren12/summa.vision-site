@@ -1,12 +1,12 @@
 import "server-only";
 
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import type { ExposureSource } from "@/lib/ff/exposure";
 import { FLAG_REGISTRY } from "@/lib/ff/flags";
 import { FF } from "@/lib/ff/runtime";
-import { stableId as buildStableId, STABLEID_USER_PREFIX } from "@/lib/ff/stable-id";
+import { sanitizeUserId, stableId as buildStableId } from "@/lib/ff/stable-id";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
@@ -59,12 +59,9 @@ export async function POST(req: Request) {
 
   const normalizedValue = value as boolean | string | number | null;
 
-  const sid = buildStableId();
-  const cookieId = cookies().get("sv_id")?.value;
-  const stableId = sid || cookieId || "anon";
-  const userId = stableId.startsWith(STABLEID_USER_PREFIX)
-    ? stableId.slice(STABLEID_USER_PREFIX.length)
-    : undefined;
+  const stableId = buildStableId();
+  const rawUserId = typeof body.userId === "string" ? body.userId : undefined;
+  const userId = rawUserId ? sanitizeUserId(rawUserId) : undefined;
   const correlation = correlationFromRequest(req);
 
   try {

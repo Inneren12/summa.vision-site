@@ -15,12 +15,12 @@ describe("stableId cookies", () => {
     mockedCookies.mockReset();
   });
 
-  it("uses sv_id cookie when present", () => {
+  it("uses ff_aid cookie when present", () => {
     mockedCookies.mockReturnValue({
-      get: (name: string) => (name === "sv_id" ? { name, value: "sv-uuid-1" } : undefined),
-      getAll: () => [{ name: "sv_id", value: "sv-uuid-1" }],
+      get: (name: string) => (name === "ff_aid" ? { name, value: "aid-uuid-1" } : undefined),
+      getAll: () => [{ name: "ff_aid", value: "aid-uuid-1" }],
     } as ReturnType<typeof cookies>);
-    expect(getStableIdFromCookies()).toBe("sv-uuid-1");
-    expect(stableId()).toBe("sv-uuid-1");
+    expect(getStableIdFromCookies()).toBe("aid-uuid-1");
+    expect(stableId()).toBe("aid-uuid-1");
   });
 });

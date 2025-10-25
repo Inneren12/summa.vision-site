@@ -36,16 +36,16 @@ export async function guardOverrideRequest(req: Request): Promise<GuardDecision>
   const clientIp = parsedIp === "unknown" ? (req.headers.get("x-real-ip") ?? "unknown") : parsedIp;
   const cookieJar = req.headers.get("cookie") || "";
   const jar = parseCookieHeader(cookieJar);
-  const sv = jar["sv_id"] || "nosvid";
+  const stable = jar["ff_aid"] || "noaid";
 
   if (rpm > 0) {
-    const rlKey = `ff-override:${clientIp}:${sv}`;
+    const rlKey = `ff-override:${clientIp}:${stable}`;
     const { ok, resetIn } = await allow(rlKey, rpm);
     if (!ok) {
       inc("override.429");
       const retry = Math.max(1, Math.ceil(resetIn / 1000));
       console.warn(
-        `[OverrideGuard] rate limit exceeded (rpm=${rpm}) for ip=${clientIp} sv=${sv}, retry in ${retry}s`,
+        `[OverrideGuard] rate limit exceeded (rpm=${rpm}) for ip=${clientIp} stable=${stable}, retry in ${retry}s`,
       );
       return {
         allow: false,
