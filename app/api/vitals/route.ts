@@ -4,7 +4,13 @@ import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
-import { hasDoNotTrackEnabled, readConsent, sanitizeAttribution } from "@/lib/metrics/privacy";
+import {
+  hasDoNotTrackEnabled,
+  readConsent,
+  readIdentifiers,
+  sanitizeAttribution,
+  sanitizeUrl,
+} from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
 
@@ -103,6 +109,9 @@ export async function POST(req: Request) {
     navigationType,
     attribution: sanitizeAttribution(consent, attribution),
     context: correlation,
+    url: sanitizeUrl(consent, url),
+    sid,
+    aid,
   });
 
   return new NextResponse(null, { status: 204 });

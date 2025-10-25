@@ -63,6 +63,20 @@ describe("file store adapter", () => {
     expect(overrides[0].author).toBe("tester");
   });
 
+  it("removes user overrides via deleteOverridesByUser", async () => {
+    const storePath = path.join(tempDir, "flags.json");
+    const store = new FileFlagStore(storePath, tempDir);
+    await store.putFlag(createInitialConfig("beta-user"));
+    await store.putOverride(createOverride("beta-user", { type: "user", id: "user-1" }, true));
+    await store.putOverride(createOverride("beta-user", { type: "user", id: "user-2" }, false));
+
+    const removed = await store.deleteOverridesByUser("user-1");
+    expect(removed).toBe(1);
+    const overrides = await store.listOverrides("beta-user");
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0].scope).toEqual({ type: "user", id: "user-2" });
+  });
+
   it("serializes concurrent rollout steps with file lock", async () => {
     const storePath = path.join(tempDir, "flags.json");
     const lockDir = path.join(tempDir, "locks");
@@ -187,6 +201,28 @@ describe("redis store adapter", () => {
     const overrides = await store.listOverrides("redis-flag");
     expect(overrides).toHaveLength(1);
     expect(overrides[0].author).toBe("tester");
+  });
+
+  it("deletes user overrides across all flags", async () => {
+    await store.putFlag(createInitialConfig("redis-A"));
+    await store.putFlag(createInitialConfig("redis-B"));
+    await store.putOverride(
+      createOverride("redis-A", { type: "user", id: "user-1" }, true, "tester"),
+    );
+    await store.putOverride(
+      createOverride("redis-B", { type: "user", id: "user-1" }, false, "tester"),
+    );
+    await store.putOverride(
+      createOverride("redis-B", { type: "user", id: "user-2" }, true, "tester"),
+    );
+
+    const removed = await store.deleteOverridesByUser("user-1");
+    expect(removed).toBeGreaterThanOrEqual(2);
+    const remainingA = await store.listOverrides("redis-A");
+    const remainingB = await store.listOverrides("redis-B");
+    expect(remainingA).toHaveLength(0);
+    expect(remainingB).toHaveLength(1);
+    expect(remainingB[0].scope).toEqual({ type: "user", id: "user-2" });
   });
 
   it("serializes concurrent rollout steps with redis lock", async () => {

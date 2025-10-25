@@ -1,5 +1,7 @@
 import type { OverrideScope, OverrideValue } from "./runtime/types";
 
+import type { PurgeSummary, PrivacyIdentifierSet } from "@/lib/privacy/erasure";
+
 type AuditMetadata = {
   timestamp: number;
   actor: string;
@@ -58,6 +60,12 @@ export type AuditRecord =
       action: "snapshot_restore";
       flags: number;
       overrides: number;
+    })
+  | (AuditMetadata & {
+      action: "privacy_erase";
+      identifiers: PrivacyIdentifierSet;
+      removedOverrides: number;
+      purge: { vitals: PurgeSummary; errors: PurgeSummary; telemetry: PurgeSummary };
     });
 
 const MAX = 1000;

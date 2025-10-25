@@ -40,3 +40,22 @@ Every stored event is annotated with the stable visitor identifier (`sid`, sourc
 - `POST /api/js-error`
 
 Both routes share the same privacy guard logic described above.
+
+## Data erasure requests (GDPR/CCPA)
+
+To support right-to-be-forgotten workflows we maintain an erasure registry at `PRIVACY_ERASURE_FILE` (defaults to
+`./.runtime/privacy.erasure.ndjson`). Each entry contains the identifiers that must be forgotten (`sid`, `aid`, and/or `userId`) and
+the timestamp of the request. Telemetry providers consult this registry and ignore matching events when computing aggregate
+metrics.
+
+- `POST /api/privacy/erase` (no role header) — self-service endpoint. The current `sv_id` / `sv_aid` / `ff_aid` cookies are added to
+  the erasure registry, the response clears those cookies, and any matching vitals/errors/telemetry entries are purged from the
+  local NDJSON logs (when the files are under 50 MB).
+- `POST /api/privacy/erase` (`x-ff-console-role: admin|ops`) — administrative erasure by `userId` (with optional `sid`/`aid`). This
+  endpoint removes all user overrides, appends the identifiers to the erasure registry, and logs a `privacy_erase` audit event with
+  a summary of the purge.
+- `GET /api/privacy/status` — reports whether the caller's cookies (or query parameters `sid`/`aid`/`userId`) are already marked as
+  erased.
+
+For large NDJSON files (> 50 MB) the purge happens lazily: events remain on disk until rotation, but analytics ignore them by
+consulting the erasure registry.

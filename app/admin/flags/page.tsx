@@ -13,6 +13,7 @@ import { FF } from "@/lib/ff/runtime";
 import { createOverride } from "@/lib/ff/runtime/memory-store";
 import type { FlagConfig, OverrideEntry, OverrideScope } from "@/lib/ff/runtime/types";
 import { correlationFromNextContext } from "@/lib/metrics/correlation";
+import type { PurgeSummary } from "@/lib/privacy/erasure";
 
 const PAGE_PATH = "/admin/flags";
 
@@ -43,6 +44,29 @@ function formatValue(value: boolean | number | string | undefined): string {
   if (typeof value === "undefined") return "—";
   if (typeof value === "string") return value;
   return JSON.stringify(value);
+}
+
+function formatIdentifierSummary(ids: { sid?: string; aid?: string; userId?: string }): string {
+  const parts: string[] = [];
+  if (ids.userId) parts.push(`userId=${ids.userId}`);
+  if (ids.sid) parts.push(`sid=${ids.sid}`);
+  if (ids.aid) parts.push(`aid=${ids.aid}`);
+  return parts.join(", ") || "unknown identifiers";
+}
+
+function formatPurgeSummary(purge: {
+  vitals: PurgeSummary;
+  errors: PurgeSummary;
+  telemetry: PurgeSummary;
+}): string {
+  const segments: string[] = [];
+  if (purge.vitals.purged) segments.push(`vitals ${purge.vitals.removed}`);
+  if (purge.errors.purged) segments.push(`errors ${purge.errors.removed}`);
+  if (purge.telemetry.purged) segments.push(`telemetry ${purge.telemetry.removed}`);
+  if (segments.length === 0) {
+    return "no purge";
+  }
+  return segments.join(", ");
 }
 
 async function ensureRole(required: Role): Promise<Role> {
@@ -304,6 +328,9 @@ function AuditLog() {
             break;
           case "kill_switch":
             description = rec.enabled ? "enabled kill switch" : "disabled kill switch";
+            break;
+          case "privacy_erase":
+            description = `processed privacy erase for ${formatIdentifierSummary(rec.identifiers)} (overrides removed ${rec.removedOverrides}, purge ${formatPurgeSummary(rec.purge)})`;
             break;
           default:
             description = rec.action;

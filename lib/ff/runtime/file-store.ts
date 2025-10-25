@@ -121,6 +121,15 @@ export class FileFlagStore implements FlagStore {
     await this.persist();
   }
 
+  async deleteOverridesByUser(userId: string): Promise<number> {
+    this.refreshFromDisk();
+    const removed = await this.memory.deleteOverridesByUser(userId);
+    if (removed > 0) {
+      await this.persist();
+    }
+    return removed;
+  }
+
   async evaluate(
     key: string,
     ctx: FlagEvaluationContext,

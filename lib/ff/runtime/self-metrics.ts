@@ -92,6 +92,9 @@ export class SelfMetricsProvider {
       navigationType?: string;
       attribution?: Record<string, unknown>;
       context?: RequestCorrelation;
+      url?: string;
+      sid?: string;
+      aid?: string;
     },
   ) {
     const correlation = withCorrelationDefaults(details?.context);
@@ -123,12 +126,27 @@ export class SelfMetricsProvider {
     this.prune();
   }
 
-  recordError(snapshotId: string, message: string, stack?: string, context?: RequestCorrelation) {
-    const correlation = withCorrelationDefaults(context);
+  recordError(
+    snapshotId: string,
+    message: string,
+    stack?: string,
+    details?: {
+      context?: RequestCorrelation;
+      sid?: string;
+      aid?: string;
+      url?: string;
+      filename?: string;
+    },
+  ) {
+    const correlation = withCorrelationDefaults(details?.context);
     const event: ErrorEvent = {
       snapshotId,
       message,
       stack,
+      url: details?.url,
+      filename: details?.filename,
+      sid: details?.sid,
+      aid: details?.aid,
       ts: now(),
       requestId: correlation.requestId,
       sessionId: correlation.sessionId,

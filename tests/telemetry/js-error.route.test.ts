@@ -60,10 +60,16 @@ describe("POST /api/js-error", () => {
 
     expect(response.status).toBe(204);
     expect(recordError).toHaveBeenCalledTimes(1);
-    expect(recordError).toHaveBeenCalledWith("snapshot-err", REDACTED_VALUE, undefined, {
-      requestId: "req-js-2",
-      sessionId: "session-js-2",
-      namespace: "default",
+    const [snapshot, message, stack, details] = recordError.mock.calls[0];
+    expect(snapshot).toBe("snapshot-err");
+    expect(message).toBeUndefined();
+    expect(stack).toBeUndefined();
+    expect(details).toEqual({
+      context: { requestId: "req-js-2", sessionId: "session-js-2", namespace: "default" },
+      sid: "session-js-2",
+      aid: undefined,
+      url: undefined,
+      filename: undefined,
     });
   });
 });

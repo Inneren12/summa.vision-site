@@ -50,9 +50,17 @@ export async function POST(req: Request) {
   const rawMessage = typeof payload.message === "string" ? payload.message : undefined;
   const message = sanitizeMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
+  const filename = typeof payload.filename === "string" ? payload.filename : undefined;
+  const url = typeof payload.url === "string" ? payload.url : undefined;
 
   const correlation = correlationFromRequest(req);
-  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), correlation);
+  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), {
+    context: correlation,
+    sid,
+    aid,
+    url: sanitizeUrl(consent, url),
+    filename: sanitizeFilename(consent, filename),
+  });
 
   return new NextResponse(null, { status: 204 });
 }

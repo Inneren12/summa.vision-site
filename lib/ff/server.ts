@@ -139,5 +139,6 @@ export function __resetEnvCache() {
 }
 
 export function __resetFeatureFlagsCacheForTests() {
+  __resetServerEnvCacheForTests();
   __resetEnvCache();
 }

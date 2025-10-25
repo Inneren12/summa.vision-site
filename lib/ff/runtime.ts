@@ -20,6 +20,9 @@ type VitalDetails = {
   navigationType?: string;
   attribution?: Record<string, unknown>;
   context?: RequestCorrelation;
+  url?: string;
+  sid?: string;
+  aid?: string;
 };
 
 type MetricsProvider = {
@@ -28,7 +31,13 @@ type MetricsProvider = {
     snapshotId: string,
     message: string,
     stack?: string,
-    context?: RequestCorrelation,
+    details?: {
+      context?: RequestCorrelation;
+      sid?: string;
+      aid?: string;
+      url?: string;
+      filename?: string;
+    },
   ): void;
   summarize(snapshotId?: string): SnapshotSummary[];
   hasData(snapshotId: string): boolean;
