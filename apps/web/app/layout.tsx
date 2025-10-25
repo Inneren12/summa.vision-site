@@ -7,6 +7,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { correlationFromNextContext } from "@/lib/metrics/correlation";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata();
@@ -18,10 +19,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   } catch {
     snapshotId = "";
   }
+  const correlation = correlationFromNextContext();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
-        <Providers>
+        <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content
           </a>
