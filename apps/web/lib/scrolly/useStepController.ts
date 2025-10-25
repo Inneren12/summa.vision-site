@@ -86,7 +86,7 @@ export function useStepController({
       }
 
       if (nextActiveStepId !== previousStepId) {
-        onStepChange?.(nextActiveStepId, previousStepId ?? null);
+        if (nextActiveStepId != null) { if (nextActiveStepId != null) { onStepChange?.(nextActiveStepId, previousStepId ?? null); } }
       }
 
       activeStepRef.current = nextActiveStepId;
