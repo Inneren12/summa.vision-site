@@ -27,7 +27,10 @@ describe("POST /api/js-error", () => {
         "x-request-id": "req-js-1",
         cookie: "sv_id=session-js-1",
       },
-      body: JSON.stringify({ message: "Boom", stack: "trace" }),
+      body: JSON.stringify({
+        snapshot: "snapshot-err",
+        events: [{ message: "Boom", stack: "trace" }],
+      }),
     });
 
     const response = await POST(request);
@@ -50,10 +53,15 @@ describe("POST /api/js-error", () => {
         cookie: "sv_id=session-js-2",
       },
       body: JSON.stringify({
-        message: "Sensitive error",
-        stack: "trace",
-        filename: "app.ts",
-        url: "https://example/y",
+        snapshot: "snapshot-err",
+        events: [
+          {
+            message: "Sensitive error",
+            stack: "trace",
+            filename: "app.ts",
+            url: "https://example/y",
+          },
+        ],
       }),
     });
 
@@ -72,5 +80,28 @@ describe("POST /api/js-error", () => {
       sid: "session-js-2",
       aid: undefined,
     });
+  });
+
+  it("records multiple errors in a batch", async () => {
+    const { POST } = await import("@/app/api/js-error/route");
+    const request = new Request("http://localhost/api/js-error", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ff-snapshot": "snapshot-err",
+        "x-request-id": "req-js-batch",
+        cookie: "sv_id=session-js-batch",
+      },
+      body: JSON.stringify({
+        snapshot: "snapshot-err",
+        events: [{ message: "Error 1" }, { message: "Error 2" }],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(204);
+    expect(recordError).toHaveBeenCalledTimes(2);
+    expect(recordError.mock.calls[0][1]).toBeUndefined();
   });
 });
