@@ -13,3 +13,6 @@ playwright-report
 test-results
 reports/data-validation.json
 reports/logs/
+
+# Next.js build output
+apps/web/.next/
