@@ -7,7 +7,7 @@ import matter from "gray-matter";
 import { compileMDX } from "next-mdx-remote/rsc";
 import type { ComponentProps, ComponentType, ReactElement } from "react";
 
-import Step from "../../components/scrolly/Step";
+import Step from "../../../../components/scrolly/Step";
 
 const STORIES_DIR = path.join(process.cwd(), "content", "stories");
 
