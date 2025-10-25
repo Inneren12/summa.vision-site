@@ -5,6 +5,7 @@ import path from "node:path";
 const FALLBACK_ENABLED = true;
 let tsMorphModule;
 let tsMorphModulePromise;
+let tsMorphModule;
 let projectPromise;
 let fallbackToRegex = false;
 let virtualId = 0;
@@ -16,10 +17,7 @@ async function loadTsMorph() {
   if (!tsMorphModulePromise) {
     tsMorphModulePromise = import("ts-morph").catch(() => null);
   }
-  if (tsMorphModule === undefined) {
-    tsMorphModule = await tsMorphModulePromise;
-  }
-  return tsMorphModule;
+  return tsMorphModulePromise;
 }
 
 async function getProject() {

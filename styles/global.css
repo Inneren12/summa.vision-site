@@ -1,13 +1,97 @@
 @import url('./tokens.css');
 @import url('./typography.css');
 
+:root {
+  color-scheme: light;
+}
+
+.motion-safe {
+  animation-duration: var(--motion-duration-base);
+  animation-timing-function: var(--motion-easing-standard);
+  transition-duration: var(--motion-duration-base);
+  transition-timing-function: var(--motion-easing-standard);
+}
+
+.motion-reduce {
+  animation-duration: var(--a11y-motion-reduce-duration-instant) !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: var(--a11y-motion-reduce-duration-instant) !important;
+  transition-timing-function: var(--a11y-motion-reduce-easing-standard) !important;
+  scroll-behavior: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: var(--a11y-motion-reduce-duration-fast);
+    --motion-duration-base: var(--a11y-motion-reduce-duration-base);
+    --motion-duration-gentle: var(--a11y-motion-reduce-duration-gentle);
+    --motion-easing-standard: var(--a11y-motion-reduce-easing-standard);
+    --motion-easing-emphasized: var(--a11y-motion-reduce-easing-emphasized);
+  }
+
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: var(--a11y-motion-reduce-duration-instant) !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: var(--a11y-motion-reduce-duration-instant) !important;
+    transition-timing-function: var(--a11y-motion-reduce-easing-standard) !important;
     scroll-behavior: auto !important;
+  }
+
+  .motion-safe {
+    animation-duration: var(--a11y-motion-reduce-duration-base);
+    animation-timing-function: var(--a11y-motion-reduce-easing-standard);
+    transition-duration: var(--a11y-motion-reduce-duration-base);
+    transition-timing-function: var(--a11y-motion-reduce-easing-standard);
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    forced-color-adjust: none;
+    --color-fg-default: var(--a11y-forced-colors-fg-default);
+    --color-fg-muted: var(--a11y-forced-colors-fg-muted);
+    --color-fg-subtle: var(--a11y-forced-colors-fg-muted);
+    --color-fg-inverse: var(--a11y-forced-colors-fg-inverse);
+    --color-fg-accent: var(--a11y-forced-colors-fg-accent);
+    --color-bg-canvas: var(--a11y-forced-colors-bg-canvas);
+    --color-bg-surface: var(--a11y-forced-colors-bg-surface);
+    --color-bg-elevated: var(--a11y-forced-colors-bg-elevated);
+    --color-bg-subtle: var(--a11y-forced-colors-bg-subtle);
+    --color-bg-inverse: var(--a11y-forced-colors-bg-inverse);
+    --color-border-subtle: var(--a11y-forced-colors-border-default);
+    --color-border-default: var(--a11y-forced-colors-border-default);
+    --color-border-emphasis: var(--a11y-forced-colors-border-emphasis);
+    --color-border-focus: var(--a11y-forced-colors-border-focus);
+    --a11y-focus-ring-color: var(--a11y-forced-colors-focus-ring-color);
+    --component-button-primary-bg: var(--a11y-forced-colors-fg-accent);
+    --component-button-primary-text: var(--a11y-forced-colors-fg-inverse);
+    --component-button-secondary-bg: var(--color-bg-elevated);
+    --component-button-secondary-border: var(--color-border-default);
+    --component-button-secondary-text: var(--color-fg-default);
+    --component-card-bg: var(--color-bg-surface);
+    --component-card-border: var(--color-border-default);
+    --component-chip-bg: var(--color-bg-elevated);
+    --component-chip-text: var(--color-fg-muted);
+    --component-tooltip-bg: var(--color-bg-inverse);
+    --component-tooltip-text: var(--color-fg-inverse);
+  }
+
+  body,
+  [role='application'] {
+    background-color: var(--color-bg-canvas) !important;
+    color: var(--color-fg-default) !important;
+  }
+
+  a,
+  button,
+  [role='button'] {
+    color: var(--a11y-forced-colors-fg-accent) !important;
+  }
+
+  ::selection {
+    background-color: var(--a11y-forced-colors-selection-bg);
+    color: var(--a11y-forced-colors-selection-text);
   }
 }
