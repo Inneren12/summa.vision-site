@@ -1,3 +1,7 @@
+// scrollIntoView polyfill for jsdom
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {};
+}
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMemo } from "react";
 
