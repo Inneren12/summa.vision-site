@@ -60,6 +60,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck || true
 
+      - name: Validate rollout policies
+        run: npm run policy:validate
+
       - name: Unit / Coverage
         run: npm run test:ci || npm test
 
