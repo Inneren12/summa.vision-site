@@ -15,6 +15,7 @@ import { FF } from "@/lib/ff/runtime";
 function requiredRoleFor(pathname: string, method: string): Role | null {
   const normalized = pathname.replace(/\/+$/, "");
   if (normalized.startsWith("/admin/flags")) return "viewer";
+  if (normalized.startsWith("/admin/data-health")) return "viewer";
   if (normalized === "/api/telemetry/export") return "viewer";
   if (normalized === "/api/kill") return method === "POST" ? "admin" : "viewer";
   if (normalized.startsWith("/api/admin/ff-emergency-disable")) return "admin";
