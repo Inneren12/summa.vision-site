@@ -61,7 +61,8 @@
     "pretest:ci": "npm run ff:types",
     "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json",
     "policy:validate": "tsx scripts/policy-validate.ts",
-    "policy:schema:export": "tsx scripts/policy-schema-export.ts"
+    "policy:schema:export": "tsx scripts/policy-schema-export.ts",
+    "commitlint": "node scripts/commitlint-run.mjs"
   },
   "dependencies": {
     "@types/jszip": "^3.4.0",
@@ -72,8 +73,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
-    "@commitlint/cli": "^19.3.0",
-    "@commitlint/config-conventional": "^19.2.2",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "@playwright/test": "1.48.0",
     "@storybook/addon-a11y": "^8.1.0",
     "@storybook/addon-essentials": "^8.1.0",
