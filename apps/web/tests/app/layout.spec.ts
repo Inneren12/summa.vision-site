@@ -1,3 +1,5 @@
+vi.mock("server-only",()=>({}),{virtual:true});
+vi.mock("next/headers",()=>({headers:()=>new Map(),cookies:()=>({get:()=>undefined})}),{virtual:true});
 import React from "react";
 import ReactDOMServer from "react-dom/server";
 import { describe, it, expect } from "vitest";
