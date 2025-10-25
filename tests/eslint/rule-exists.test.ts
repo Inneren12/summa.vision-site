@@ -17,7 +17,11 @@ async function runRule(ruleName: string, code: string, filePath = "test.tsx") {
   return linter.verify(
     code,
     {
-      parserOptions: { ecmaVersion: 2022, sourceType: "module" },
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+      },
       rules: { [fullRuleName]: "error" },
     },
     filePath,
@@ -50,6 +54,16 @@ describe("eslint-plugin-ff-safe", () => {
     const messages = await runRule(
       "no-dynamic-ff-key",
       'import { getFlag } from "@/lib/ff/server";\nconst suffix = Math.random();\ngetFlag(`beta-${suffix}`);',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.ruleId).toBe("ff-safe/no-dynamic-ff-key");
+  });
+
+  it("reports dynamic flag keys in JSX props", async () => {
+    const messages = await runRule(
+      "no-dynamic-ff-key",
+      'const flagName = Math.random() > 0.5 ? "betaUI" : "newCheckout";\nexport const View = () => (<FlagGate name={flagName}>ok</FlagGate>);',
+      "component.tsx",
     );
     expect(messages).toHaveLength(1);
     expect(messages[0]?.ruleId).toBe("ff-safe/no-dynamic-ff-key");
