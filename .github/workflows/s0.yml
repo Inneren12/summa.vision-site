@@ -1,7 +1,11 @@
 name: S0 Code-only Quality Checks
+
 on:
-  push: { branches: ["*"] }
-  pull_request: { branches: ["*"] }
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
 concurrency:
   group: s0-${{ github.ref }}
   cancel-in-progress: true
@@ -16,13 +20,15 @@ jobs:
       NEXT_PUBLIC_SITE_URL: "http://localhost:3010"
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (PR head or current ref)
+        uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.head_ref || github.ref_name }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -46,6 +52,22 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL=https://example.invalid
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
+
+      # ✅ Commitlint: для PR (range base..head) и для push (HEAD^..HEAD)
+      - name: Commitlint (PR range or push)
+        run: |
+          set -euo pipefail
+          TO_SHA="${{ github.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            FROM_SHA="$(git merge-base "$BASE_SHA" "$TO_SHA")"
+          else
+            FROM_SHA="$(git rev-parse "$TO_SHA^" 2>/dev/null || echo "$TO_SHA")"
+          fi
+          echo "Linting commits from $FROM_SHA to $TO_SHA"
+          export COMMITLINT_FROM="$FROM_SHA"
+          export COMMITLINT_TO="$TO_SHA"
+          npm run commitlint
 
       - name: Lint
         run: npm run lint || true
