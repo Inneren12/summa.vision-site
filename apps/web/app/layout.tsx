@@ -4,10 +4,11 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 
+import { correlationFromNextContext } from "../../../lib/metrics/correlation";
+
 import { Providers } from "./providers";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { correlationFromNextContext } from "@/lib/metrics/correlation";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata();

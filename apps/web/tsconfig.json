@@ -1,13 +1,22 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ],
+      "@root/*": [
+        "../../*"
+      ]
     },
     "jsx": "preserve",
     "noEmit": true,
@@ -17,7 +26,11 @@
     "allowJs": true,
     "incremental": true,
     "esModuleInterop": true,
-    "types": ["vitest", "vitest/importMeta", "node"],
+    "types": [
+      "vitest",
+      "vitest/importMeta",
+      "node"
+    ],
     "plugins": [
       {
         "name": "next"
@@ -34,5 +47,7 @@
     "*.d.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["vitest.config.ts"]
+  "exclude": [
+    "vitest.config.ts"
+  ]
 }
