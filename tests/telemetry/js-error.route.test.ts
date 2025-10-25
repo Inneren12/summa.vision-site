@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REDACTED_VALUE } from "@/lib/metrics/privacy";
-
 const recordError = vi.fn();
 
 vi.mock("@/lib/ff/runtime", () => ({
@@ -34,11 +32,12 @@ describe("POST /api/js-error", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ skipped: true });
     expect(recordError).not.toHaveBeenCalled();
   });
 
-  it("redacts message when consent is limited", async () => {
+  it("redacts sensitive fields when consent is limited", async () => {
     const { POST } = await import("@/app/api/js-error/route");
     const request = new Request("http://localhost/api/js-error", {
       method: "POST",
@@ -49,7 +48,12 @@ describe("POST /api/js-error", () => {
         "x-request-id": "req-js-2",
         cookie: "sv_id=session-js-2",
       },
-      body: JSON.stringify({ message: "Sensitive error", stack: "trace" }),
+      body: JSON.stringify({
+        message: "Sensitive error",
+        stack: "trace",
+        filename: "app.ts",
+        url: "https://example/y",
+      }),
     });
 
     const response = await POST(request);

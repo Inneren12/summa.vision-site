@@ -18,6 +18,9 @@ type VitalEvent = {
   delta?: number;
   navigationType?: string;
   attribution?: Record<string, unknown>;
+  url?: string;
+  sid?: string;
+  aid?: string;
   ts: number;
   requestId: string | null;
   sessionId: string | null;
@@ -26,8 +29,12 @@ type VitalEvent = {
 
 type ErrorEvent = {
   snapshotId: string;
-  message: string;
+  message?: string;
   stack?: string;
+  url?: string;
+  filename?: string;
+  sid?: string;
+  aid?: string;
   ts: number;
   requestId: string | null;
   sessionId: string | null;
@@ -99,6 +106,9 @@ export class SelfMetricsProvider {
       delta: details?.delta,
       navigationType: details?.navigationType,
       attribution: details?.attribution,
+      url: details?.url,
+      sid: details?.sid,
+      aid: details?.aid,
       ts: now(),
       requestId: correlation.requestId,
       sessionId: correlation.sessionId,

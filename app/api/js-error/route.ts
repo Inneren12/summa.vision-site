@@ -7,8 +7,11 @@ import { correlationFromRequest } from "@/lib/metrics/correlation";
 import {
   hasDoNotTrackEnabled,
   readConsent,
-  redactMessage,
+  readIdentifiers,
+  sanitizeFilename,
+  sanitizeMessage,
   sanitizeStack,
+  sanitizeUrl,
 } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
@@ -34,7 +37,7 @@ export async function POST(req: Request) {
   }
 
   if (hasDoNotTrackEnabled(req.headers)) {
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ skipped: true }, { status: 200 });
   }
 
   const payload = await readJson(req);
@@ -43,8 +46,9 @@ export async function POST(req: Request) {
   }
 
   const consent = readConsent(req.headers);
+  const { sid, aid } = readIdentifiers(req.headers);
   const rawMessage = typeof payload.message === "string" ? payload.message : undefined;
-  const message = redactMessage(consent, rawMessage);
+  const message = sanitizeMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
 
   const correlation = correlationFromRequest(req);

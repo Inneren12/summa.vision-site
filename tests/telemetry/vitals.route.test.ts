@@ -32,7 +32,8 @@ describe("POST /api/vitals", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ skipped: true });
     expect(recordVital).not.toHaveBeenCalled();
   });
 
@@ -58,6 +59,7 @@ describe("POST /api/vitals", () => {
             count: 5,
           },
         },
+        url: "https://example.com/path",
       }),
     });
 
