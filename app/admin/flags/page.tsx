@@ -425,6 +425,17 @@ export default async function AdminFlagsPage() {
                   Default: <strong>{formatValue(flag.defaultValue)}</strong>
                 </p>
                 <p className="text-sm text-neutral-700">
+                  Kill value:{" "}
+                  <strong>
+                    {typeof flag.defaultValue === "boolean"
+                      ? formatValue(false)
+                      : formatValue(flag.killValue)}
+                  </strong>
+                  {typeof flag.defaultValue !== "boolean" && flag.killValue === undefined && (
+                    <span className="text-xs text-neutral-500"> (returns undefined)</span>
+                  )}
+                </p>
+                <p className="text-sm text-neutral-700">
                   Enabled: {flag.enabled ? "yes" : "no"} · Kill: {flag.kill ? "yes" : "no"}
                 </p>
                 <p className="text-sm text-neutral-700">

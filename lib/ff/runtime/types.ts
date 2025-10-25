@@ -92,9 +92,9 @@ export type FlagEvaluationContext = {
 };
 
 export type FlagEvaluationResult = {
-  value: FlagValue;
+  value: FlagValue | undefined;
   reason:
-    | "kill"
+    | "killSwitch"
     | "user-override"
     | "namespace-override"
     | "segment-override"
