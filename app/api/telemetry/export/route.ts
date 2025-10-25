@@ -3,12 +3,23 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 
+import JSZip from "jszip";
 import { NextResponse } from "next/server";
 
 import { enforceAdminRateLimit, resolveTelemetryExportRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
+import { readAuditRecent, type AuditRecord } from "@/lib/ff/audit";
+import { listNdjsonFiles } from "@/lib/metrics/ndjson";
 
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
+const DEFAULT_VITALS_FILE = "./.runtime/vitals.ndjson";
+const DEFAULT_ERRORS_FILE = "./.runtime/errors.ndjson";
+const MAX_ZIP_RECORDS = 100_000;
+const MAX_ZIP_BYTES = 25 * 1024 * 1024;
+const ZIP_WARNING_THRESHOLD = 0.8;
+const AUDIT_EXPORT_LIMIT = 1_000;
+
+export const runtime = "nodejs";
 
 type TelemetryExportEventType =
   | "flag_evaluated"
@@ -99,6 +110,11 @@ function sanitizeNumber(value: unknown): number | undefined {
   const num = typeof value === "string" && value.trim() ? Number(value) : NaN;
   if (!Number.isFinite(num)) return undefined;
   return num;
+}
+
+function parseTimestamp(value: unknown): number | undefined {
+  const numeric = sanitizeNumber(value);
+  return typeof numeric === "number" && Number.isFinite(numeric) ? numeric : undefined;
 }
 
 function normalizeRow(raw: Record<string, unknown>, hashSalt: string): TelemetryExportRow | null {
@@ -203,6 +219,164 @@ function parseTimeParam(value: string | null): TimeParamResult {
   return { ok: true, value: parsed };
 }
 
+type FlagFilter = Set<string> | null;
+
+function resolveFlagFilter(params: URLSearchParams): FlagFilter {
+  const values: string[] = [];
+  for (const raw of params.getAll("flag")) {
+    for (const part of raw.split(",")) {
+      const normalized = part.trim();
+      if (normalized) {
+        values.push(normalized);
+      }
+    }
+  }
+  if (values.length === 0) {
+    return null;
+  }
+  return new Set(values);
+}
+
+function matchesFlag(value: string | undefined, filter: FlagFilter): boolean {
+  if (!filter) return true;
+  if (!value) return false;
+  return filter.has(value);
+}
+
+type RangeFilter = {
+  fromTs?: number;
+  toTs?: number;
+};
+
+type DatasetContent = {
+  name: string;
+  content: string;
+  records: number;
+  bytes: number;
+};
+
+function auditMatchesFlag(record: AuditRecord, filter: FlagFilter): boolean {
+  if (!filter) return true;
+  if ("flag" in record && typeof record.flag === "string") {
+    return filter.has(record.flag);
+  }
+  if ("flags" in record && Array.isArray(record.flags)) {
+    return record.flags.some((flag) => typeof flag === "string" && filter.has(flag));
+  }
+  return false;
+}
+
+function collectAuditDataset(filter: RangeFilter, flagFilter: FlagFilter): DatasetContent | null {
+  const records = readAuditRecent(AUDIT_EXPORT_LIMIT);
+  const lines: string[] = [];
+  for (const entry of records) {
+    const ts = parseTimestamp(entry.timestamp);
+    if (typeof filter.fromTs === "number" && (typeof ts !== "number" || ts < filter.fromTs)) {
+      continue;
+    }
+    if (typeof filter.toTs === "number" && (typeof ts !== "number" || ts > filter.toTs)) {
+      continue;
+    }
+    if (!auditMatchesFlag(entry, flagFilter)) {
+      continue;
+    }
+    lines.push(JSON.stringify(entry));
+  }
+  const content = lines.join("\n");
+  return {
+    name: "audit.ndjson",
+    content,
+    records: lines.length,
+    bytes: Buffer.byteLength(content, "utf8"),
+  } satisfies DatasetContent;
+}
+
+async function collectNdjsonDataset(
+  baseFile: string,
+  filter: RangeFilter,
+  name: string,
+): Promise<DatasetContent> {
+  const files = await listNdjsonFiles(baseFile, { maxChunkCount: 0, maxChunkDays: 0 });
+  const lines: string[] = [];
+  for (const filePath of files) {
+    let content = "";
+    try {
+      content = await fs.readFile(filePath, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+    for (const rawLine of content.split("\n")) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) {
+        continue;
+      }
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      const ts = parseTimestamp(parsed?.ts);
+      if (typeof filter.fromTs === "number" && (typeof ts !== "number" || ts < filter.fromTs)) {
+        continue;
+      }
+      if (typeof filter.toTs === "number" && (typeof ts !== "number" || ts > filter.toTs)) {
+        continue;
+      }
+      lines.push(trimmed);
+    }
+  }
+  const content = lines.join("\n");
+  return {
+    name,
+    content,
+    records: lines.length,
+    bytes: Buffer.byteLength(content, "utf8"),
+  } satisfies DatasetContent;
+}
+
+async function prepareZipDatasets(
+  rows: TelemetryExportRow[],
+  range: RangeFilter,
+  flagFilter: FlagFilter,
+): Promise<{ datasets: DatasetContent[]; totalRecords: number; totalBytes: number }> {
+  const datasets: DatasetContent[] = [];
+  let totalRecords = 0;
+  let totalBytes = 0;
+
+  const telemetryLines = rows.map((row) => JSON.stringify(row));
+  const telemetryContent = telemetryLines.join("\n");
+  datasets.push({
+    name: "telemetry.ndjson",
+    content: telemetryContent,
+    records: telemetryLines.length,
+    bytes: Buffer.byteLength(telemetryContent, "utf8"),
+  });
+
+  const vitalsFile = process.env.METRICS_VITALS_FILE || DEFAULT_VITALS_FILE;
+  const errorsFile = process.env.METRICS_ERRORS_FILE || DEFAULT_ERRORS_FILE;
+  const vitals = await collectNdjsonDataset(vitalsFile, range, "vitals.ndjson");
+  datasets.push(vitals);
+
+  const errors = await collectNdjsonDataset(errorsFile, range, "errors.ndjson");
+  datasets.push(errors);
+
+  const audit = collectAuditDataset(range, flagFilter);
+  if (audit) {
+    datasets.push(audit);
+  }
+
+  for (const dataset of datasets) {
+    totalRecords += dataset.records;
+    totalBytes += dataset.bytes;
+  }
+
+  return { datasets, totalRecords, totalBytes };
+}
+
 export async function GET(req: Request) {
   const auth = authorizeApi(req, "viewer");
   if (!auth.ok) return auth.response;
@@ -218,7 +392,7 @@ export async function GET(req: Request) {
   }
   const url = new URL(req.url);
   const fmtParam = (url.searchParams.get("fmt") || "ndjson").toLowerCase();
-  if (fmtParam !== "ndjson" && fmtParam !== "csv") {
+  if (!["ndjson", "csv", "zip"].includes(fmtParam)) {
     return NextResponse.json({ error: "Unsupported format" }, { status: 400 });
   }
 
@@ -236,6 +410,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "from must be ≤ to" }, { status: 400 });
   }
 
+  const flagFilter = resolveFlagFilter(url.searchParams);
   const file = process.env.TELEMETRY_FILE || DEFAULT_TELEMETRY_FILE;
   let content = "";
   try {
@@ -248,8 +423,50 @@ export async function GET(req: Request) {
   const rows = parseTelemetry(content, hashSalt).filter((row) => {
     if (typeof fromTs === "number" && row.ts < fromTs) return false;
     if (typeof toTs === "number" && row.ts > toTs) return false;
+    if (!matchesFlag(row.flag, flagFilter)) return false;
     return true;
   });
+
+  if (fmtParam === "zip") {
+    const range: RangeFilter = { fromTs, toTs };
+    const { datasets, totalBytes, totalRecords } = await prepareZipDatasets(
+      rows,
+      range,
+      flagFilter,
+    );
+    if (totalRecords === 0) {
+      return auth.apply(new NextResponse(null, { status: 204 }));
+    }
+    if (totalRecords > MAX_ZIP_RECORDS || totalBytes > MAX_ZIP_BYTES) {
+      const error = NextResponse.json(
+        { error: "Selection exceeds export limits" },
+        { status: 413 },
+      );
+      return auth.apply(error);
+    }
+
+    const zip = new JSZip();
+    for (const dataset of datasets) {
+      zip.file(dataset.name, dataset.content);
+    }
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    const headers = new Headers({
+      "content-type": "application/zip",
+      "content-disposition": 'attachment; filename="telemetry-export.zip"',
+      "x-telemetry-export-records": String(totalRecords),
+    });
+    if (buffer.length > 0) {
+      headers.set("content-length", String(buffer.length));
+    }
+    if (
+      totalBytes > MAX_ZIP_BYTES * ZIP_WARNING_THRESHOLD ||
+      totalRecords > MAX_ZIP_RECORDS * ZIP_WARNING_THRESHOLD
+    ) {
+      headers.set("x-telemetry-export-warning", "Large selection approaching export limits");
+    }
+    const res = new NextResponse(buffer, { status: 200, headers });
+    return auth.apply(res);
+  }
 
   if (rows.length === 0) {
     return auth.apply(new NextResponse(null, { status: 204 }));
