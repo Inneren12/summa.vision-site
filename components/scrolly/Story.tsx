@@ -16,6 +16,7 @@ import {
 import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
 
 import StickyPanel from "./StickyPanel";
+import { useStoryAnalytics } from "./useStoryAnalytics";
 
 export type StoryVisualizationApplyOptions = {
   /**
@@ -41,6 +42,7 @@ type StoryContextValue = {
   focusStepByOffset: (currentStepId: string, offset: number) => boolean;
   focusFirstStep: () => boolean;
   focusLastStep: () => boolean;
+  trackShareClick: () => void;
 };
 
 const StoryContext = createContext<StoryContextValue | null>(null);
@@ -62,6 +64,7 @@ export type StoryProps = {
    * Sticky top offset. Provide a pixel number or CSS length that matches the header height.
    */
   stickyTop?: number | string;
+  storyId?: string;
   children: ReactNode;
   className?: string;
 };
@@ -70,14 +73,21 @@ function classNames(...values: Array<string | undefined | false>): string {
   return values.filter(Boolean).join(" ");
 }
 
-export default function Story({ children, stickyTop, className }: StoryProps) {
+export default function Story({ children, stickyTop, className, storyId }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const initialHashHandled = useRef(false);
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const visualizationRef = useRef<StoryVisualizationController | null>(null);
+  const childArray = Children.toArray(children) as ReactElement[];
+  const stickyChild = childArray.find((child) => isStickyPanel(child));
+  const stepChildren = childArray.filter((child) => !isStickyPanel(child));
+  const resolvedStepCount = stepChildren.length;
+  const [stepCount, setStepCount] = useState(resolvedStepCount);
+  const { trackStoryView, handleStepChange, flush, trackShareClick } = useStoryAnalytics({
+    storyId,
+    stepCount,
+  });
 
   const setActiveStep = useCallback((stepId: string) => {
     setActiveStepId((current) => (current === stepId ? current : stepId));
@@ -185,6 +195,21 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
   }, []);
 
   useEffect(() => {
+    trackStoryView();
+  }, [trackStoryView]);
+
+  useEffect(() => {
+    return () => {
+      flush();
+    };
+  }, [flush]);
+
+  useEffect(() => {
+    const index = activeStepId ? orderedStepIdsRef.current.indexOf(activeStepId) : -1;
+    handleStepChange(activeStepId, index);
+  }, [activeStepId, handleStepChange]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || !activeStepId) {
       return;
     }
@@ -289,9 +314,16 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
       focusStepByOffset,
       focusFirstStep,
       focusLastStep,
+      trackShareClick,
     }),
     [
       activeStepId,
+      trackShareClick,
+      focusFirstStep,
+      focusLastStep,
+      focusStep,
+      focusStepByOffset,
+      registerStep,
       setActiveStep,
       registerStep,
       unregisterStep,
@@ -306,9 +338,9 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
     ],
   );
 
-  const childArray = Children.toArray(children) as ReactElement[];
-  const stickyChild = childArray.find((child) => isStickyPanel(child));
-  const stepChildren = childArray.filter((child) => !isStickyPanel(child));
+  useEffect(() => {
+    setStepCount(resolvedStepCount);
+  }, [resolvedStepCount]);
 
   return (
     <section ref={containerRef} className={classNames("scrolly", className)} data-scrolly>
