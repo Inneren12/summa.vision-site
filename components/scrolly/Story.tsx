@@ -13,15 +13,32 @@ import {
   useState,
 } from "react";
 
+import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
+
 import StickyPanel from "./StickyPanel";
 import { scheduleIdle } from "./scheduleIdle";
 import { useStoryAnalytics } from "./useStoryAnalytics";
+
+export type StoryVisualizationApplyOptions = {
+  /**
+   * Indicates that the update must be discrete (no interpolated animation).
+   */
+  discrete?: boolean;
+};
+
+export type StoryVisualizationController = {
+  applyState: (stepId: string, options?: StoryVisualizationApplyOptions) => void;
+};
 
 type StoryContextValue = {
   activeStepId: string | null;
   setActiveStep: (stepId: string) => void;
   registerStep: (id: string, element: HTMLElement) => void;
   unregisterStep: (id: string) => void;
+
+  registerVisualization: (controller: StoryVisualizationController | null) => void;
+  prefersReducedMotion: boolean;
+
   focusStep: (stepId: string) => boolean;
   focusStepByOffset: (currentStepId: string, offset: number) => boolean;
   focusFirstStep: () => boolean;
@@ -72,6 +89,8 @@ export default function Story({
 }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const visualizationRef = useRef<StoryVisualizationController | null>(null);
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -94,6 +113,16 @@ export default function Story({
   const setActiveStep = useCallback((stepId: string) => {
     setActiveStepId((current) => (current === stepId ? current : stepId));
   }, []);
+
+  const registerVisualization = useCallback(
+    (controller: StoryVisualizationController | null) => {
+      visualizationRef.current = controller;
+      if (controller && activeStepId) {
+        controller.applyState(activeStepId, { discrete: prefersReducedMotion });
+      }
+    },
+    [activeStepId, prefersReducedMotion],
+  );
 
   const focusStep = useCallback(
     (stepId: string) => {
@@ -398,12 +427,29 @@ export default function Story({
     }
   }, [activeStepId]);
 
+  useEffect(() => {
+    if (!activeStepId) {
+      return;
+    }
+
+    const controller = visualizationRef.current;
+    if (!controller) {
+      return;
+    }
+
+    controller.applyState(activeStepId, { discrete: prefersReducedMotion });
+  }, [activeStepId, prefersReducedMotion]);
+
   const contextValue = useMemo<StoryContextValue>(
     () => ({
       activeStepId,
       setActiveStep,
       registerStep,
       unregisterStep,
+
+      registerVisualization,
+      prefersReducedMotion,
+
       focusStep,
       focusStepByOffset,
       focusFirstStep,
@@ -419,7 +465,16 @@ export default function Story({
       focusStepByOffset,
       registerStep,
       setActiveStep,
+      registerStep,
       unregisterStep,
+
+      registerVisualization,
+      prefersReducedMotion,
+
+      focusStep,
+      focusStepByOffset,
+      focusFirstStep,
+      focusLastStep,
     ],
   );
 
@@ -459,4 +514,19 @@ export default function Story({
       </StoryContext.Provider>
     </section>
   );
+}
+
+export function useStoryVisualization(controller: StoryVisualizationController | null): {
+  prefersReducedMotion: boolean;
+} {
+  const { registerVisualization, prefersReducedMotion } = useStoryContext();
+
+  useEffect(() => {
+    registerVisualization(controller);
+    return () => {
+      registerVisualization(null);
+    };
+  }, [controller, registerVisualization]);
+
+  return { prefersReducedMotion };
 }
