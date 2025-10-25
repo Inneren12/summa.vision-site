@@ -11,8 +11,6 @@ import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
-const ALLOWED_SOURCES: ExposureSource[] = ["global", "override", "env", "default"];
-
 export async function POST(req: Request) {
   // Do-Not-Track: если клиент запретил трекинг, не логируем
   try {

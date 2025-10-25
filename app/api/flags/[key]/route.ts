@@ -1,23 +1,14 @@
 import "server-only";
 
-import { NextResponse } from "next/server";
-
 import { authorizeApi } from "@/lib/admin/rbac";
-import { flagToApi } from "@/lib/ff/admin/api";
-import { FF } from "@/lib/ff/runtime";
+import { handleFlag } from "@/lib/ff/http/core";
+import { nextResponseFromCore, requestFromNext } from "@/lib/ff/http/next";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request, { params }: { params: { key: string } }) {
   const auth = authorizeApi(req, "viewer");
   if (!auth.ok) return auth.response;
-  const key = params.key;
-  const store = FF().store;
-  const flag = await store.getFlag(key);
-  if (!flag) {
-    return auth.apply(NextResponse.json({ error: `Flag ${key} not found` }, { status: 404 }));
-  }
-  const overrides = await store.listOverrides(key);
-  const res = NextResponse.json({ ok: true, flag: flagToApi(flag), overrides });
-  return auth.apply(res);
+  const result = await handleFlag(requestFromNext(req), params.key);
+  return auth.apply(nextResponseFromCore(result));
 }

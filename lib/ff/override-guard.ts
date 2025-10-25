@@ -1,3 +1,4 @@
+import type { RequestLike } from "./http/types";
 import { inc } from "./metrics";
 import { parseXForwardedFor } from "./net";
 import { isSameSiteRequest } from "./origin";
@@ -25,14 +26,15 @@ function parseOverrideRpm(): number {
 }
 
 /** Preflight for /api/ff-override: rate limit + prod tester token. */
-export async function guardOverrideRequest(req: Request): Promise<GuardDecision> {
+export async function guardOverrideRequest(
+  req: Pick<RequestLike, "headers" | "url">,
+): Promise<GuardDecision> {
   const rpm = parseOverrideRpm();
   const requireToken = process.env.NODE_ENV === "production";
   const testerToken = process.env.FF_TESTER_TOKEN;
 
-  // IP for rate-limiting
   const rawXff = req.headers.get("x-forwarded-for");
-  const parsedIp = parseXForwardedFor(rawXff);
+  const parsedIp = parseXForwardedFor(rawXff ?? undefined);
   const clientIp = parsedIp === "unknown" ? (req.headers.get("x-real-ip") ?? "unknown") : parsedIp;
   const cookieJar = req.headers.get("cookie") || "";
   const jar = parseCookieHeader(cookieJar);

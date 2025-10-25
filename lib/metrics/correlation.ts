@@ -31,7 +31,7 @@ function resolveNamespace(headers: HeaderLike): string {
   return DEFAULT_NAMESPACE;
 }
 
-export function correlationFromHeaders(headers: Headers): RequestCorrelation {
+export function correlationFromHeaders(headers: HeaderLike): RequestCorrelation {
   const requestId = sanitize(headers.get("x-request-id"));
   const namespace = resolveNamespace(headers);
   const cookieHeader = headers.get("cookie") ?? undefined;
