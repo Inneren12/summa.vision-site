@@ -9,6 +9,7 @@ import {
   readConsent,
   readIdentifiers,
   sanitizeAttribution,
+  sanitizeUrl,
 } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
@@ -68,7 +69,9 @@ export async function POST(req: Request) {
   }
 
   if (hasDoNotTrackEnabled(req.headers)) {
-    return NextResponse.json({ skipped: true }, { status: 200 });
+    const response = new Response(null, { status: 204 });
+    response.headers.set("sv-telemetry-status", "ok:true, skipped:true");
+    return response;
   }
 
   const json = await readJson(req);
@@ -104,6 +107,7 @@ export async function POST(req: Request) {
     typeof payload.attribution === "object" && payload.attribution !== null
       ? (payload.attribution as Record<string, unknown>)
       : undefined;
+  const url = typeof payload.url === "string" ? payload.url : undefined;
 
   FF().metrics.recordVital(snapshotId, name, value, {
     rating,
@@ -114,7 +118,7 @@ export async function POST(req: Request) {
     navigationType,
     attribution: sanitizeAttribution(consent, attribution),
     context: correlation,
-    url: consent === "necessary" ? undefined : url,
+    url: sanitizeUrl(consent, url),
     sid,
     aid,
   });

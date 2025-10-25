@@ -37,7 +37,9 @@ export async function POST(req: Request) {
   }
 
   if (hasDoNotTrackEnabled(req.headers)) {
-    return NextResponse.json({ skipped: true }, { status: 200 });
+    const response = new Response(null, { status: 204 });
+    response.headers.set("sv-telemetry-status", "ok:true, skipped:true");
+    return response;
   }
 
   const payload = await readJson(req);
