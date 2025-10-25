@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import type { RequestCorrelation } from "../metrics/correlation";
+
 import { FileTelemetrySink } from "./runtime/file-telemetry";
 import type { RuntimeLock } from "./runtime/lock";
 import { SelfMetricsProvider, type SnapshotSummary } from "./runtime/self-metrics";
@@ -17,11 +19,17 @@ type VitalDetails = {
   delta?: number;
   navigationType?: string;
   attribution?: Record<string, unknown>;
+  context?: RequestCorrelation;
 };
 
 type MetricsProvider = {
   recordVital(snapshotId: string, metric: string, value: number, details?: VitalDetails): void;
-  recordError(snapshotId: string, message: string, stack?: string): void;
+  recordError(
+    snapshotId: string,
+    message: string,
+    stack?: string,
+    context?: RequestCorrelation,
+  ): void;
   summarize(snapshotId?: string): SnapshotSummary[];
   hasData(snapshotId: string): boolean;
 };

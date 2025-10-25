@@ -9,6 +9,7 @@ import { flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import type { RolloutHysteresis, RolloutStopConditions } from "@/lib/ff/runtime/types";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -226,6 +227,7 @@ function evaluateRollout(params: {
 export async function POST(req: Request, { params }: { params: { key: string } }) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
+  const correlation = correlationFromRequest(req);
   const limit = resolveRolloutStepRpm();
   const gate = await enforceAdminRateLimit({
     req,
@@ -346,6 +348,9 @@ export async function POST(req: Request, { params }: { params: { key: string } }
       cls: metricsSnapshot.cls,
       inp: metricsSnapshot.inp,
       denom: metricsSnapshot.denominator,
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      requestNamespace: correlation.namespace,
     });
     return auth.apply(
       NextResponse.json(
@@ -409,6 +414,9 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     action: "rollout_step",
     flag: key,
     nextPercent: apiFlag.rollout?.currentPct ?? apiFlag.rollout?.steps?.at(-1)?.pct ?? targetPct,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   return auth.apply(
     NextResponse.json({ ok: true, rollout: apiFlag.rollout, metrics: metricsSnapshot }),

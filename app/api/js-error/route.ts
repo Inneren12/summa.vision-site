@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 import {
   hasDoNotTrackEnabled,
   readConsent,
@@ -46,7 +47,8 @@ export async function POST(req: Request) {
   const message = redactMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
 
-  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack));
+  const correlation = correlationFromRequest(req);
+  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), correlation);
 
   return new NextResponse(null, { status: 204 });
 }

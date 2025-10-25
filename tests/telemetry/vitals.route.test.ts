@@ -24,6 +24,8 @@ describe("POST /api/vitals", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-1",
         dnt: "1",
+        "x-request-id": "req-test-1",
+        cookie: "sv_id=session-test-1",
       },
       body: JSON.stringify({ name: "LCP", value: 123 }),
     });
@@ -42,6 +44,8 @@ describe("POST /api/vitals", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-2",
         "x-consent": "necessary",
+        "x-request-id": "req-vitals-1",
+        cookie: "sv_id=session-vitals",
       },
       body: JSON.stringify({
         name: "FID",
@@ -67,6 +71,11 @@ describe("POST /api/vitals", () => {
       nested: {
         count: 5,
       },
+    });
+    expect(details?.context).toEqual({
+      requestId: "req-vitals-1",
+      sessionId: "session-vitals",
+      namespace: "default",
     });
   });
 });

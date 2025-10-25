@@ -2,6 +2,8 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import { correlationFromNextContext } from "../metrics/correlation";
+
 import { resolveEffectiveFlag } from "./effective.shared";
 import { FLAG_REGISTRY, type EffectiveFlags, type EffectiveValueFor, type FlagName } from "./flags";
 import { unitFromIdSalt } from "./hash";
@@ -40,6 +42,7 @@ export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promis
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
   const id = buildStableId(opts?.userId);
   const userId = deriveUserId(id);
+  const correlation = correlationFromNextContext();
   const out: Partial<EffectiveFlags> = {};
   const rolloutUnits = new Map<string, number>();
   const variantUnits = new Map<string, number>();
@@ -72,6 +75,9 @@ export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promis
       evaluationTime,
       cacheHit: false,
       type: "evaluation",
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      namespace: correlation.namespace,
     });
   }
   return {
@@ -113,6 +119,7 @@ export async function getFlagServerWithMeta<N extends FlagName>(
   const cookieHeader = opts?.cookieHeader ?? buildCookieHeaderString();
   const { merged, sources } = await getFeatureFlagsFromHeadersWithSources({ cookie: cookieHeader });
   const id = buildStableId(opts?.userId);
+  const correlation = correlationFromNextContext();
   const unitForSalt = (salt: string, mode: "rollout" | "variant" = "rollout") => {
     if (mode === "variant") return unitFromVariantSalt(id, salt);
     return unitFromIdSalt(id, salt);
@@ -135,6 +142,9 @@ export async function getFlagServerWithMeta<N extends FlagName>(
     evaluationTime: end - start,
     cacheHit: false,
     type: "evaluation",
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    namespace: correlation.namespace,
   });
   return { value, source, stableId: id };
 }

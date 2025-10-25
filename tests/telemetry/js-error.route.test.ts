@@ -26,6 +26,8 @@ describe("POST /api/js-error", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-err",
         dnt: "1",
+        "x-request-id": "req-js-1",
+        cookie: "sv_id=session-js-1",
       },
       body: JSON.stringify({ message: "Boom", stack: "trace" }),
     });
@@ -44,6 +46,8 @@ describe("POST /api/js-error", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-err",
         "x-consent": "necessary",
+        "x-request-id": "req-js-2",
+        cookie: "sv_id=session-js-2",
       },
       body: JSON.stringify({ message: "Sensitive error", stack: "trace" }),
     });
@@ -52,6 +56,10 @@ describe("POST /api/js-error", () => {
 
     expect(response.status).toBe(204);
     expect(recordError).toHaveBeenCalledTimes(1);
-    expect(recordError).toHaveBeenCalledWith("snapshot-err", REDACTED_VALUE, undefined);
+    expect(recordError).toHaveBeenCalledWith("snapshot-err", REDACTED_VALUE, undefined, {
+      requestId: "req-js-2",
+      sessionId: "session-js-2",
+      namespace: "default",
+    });
   });
 });
