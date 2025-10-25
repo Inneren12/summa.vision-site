@@ -83,6 +83,24 @@ jobs:
             echo "No package.json found; skipping install."
           fi
 
+      - name: "Commit message lint"
+        run: |
+          set -eo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM="${{ github.event.pull_request.base.sha }}"
+            TO="${{ github.event.pull_request.head.sha }}"
+          else
+            FROM="${{ github.event.before }}"
+            TO="${{ github.sha }}"
+          fi
+          if [ -z "$FROM" ] || [ "$FROM" = "0000000000000000000000000000000000000000" ]; then
+            FROM=$(git rev-list --max-parents=0 HEAD | head -n1)
+          fi
+          if [ -z "$TO" ] || [ "$TO" = "0000000000000000000000000000000000000000" ]; then
+            TO=$(git rev-parse HEAD)
+          fi
+          npm run commitlint -- --from "$FROM" --to "$TO"
+
       - name: "Verify token source exists"
         run: |
           test -f tokens/brand.tokens.json || { echo "::error::missing tokens/brand.tokens.json"; exit 1; }
