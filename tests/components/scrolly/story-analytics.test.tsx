@@ -2,16 +2,18 @@
 import "@testing-library/jest-dom";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
-import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Step from "../../../components/scrolly/Step";
 import StickyPanel from "../../../components/scrolly/StickyPanel";
 import Story from "../../../components/scrolly/Story";
 import StoryShareButton from "../../../components/scrolly/StoryShareButton";
 import { STEP_EXIT_DELAY_MS } from "../../../components/scrolly/useStoryAnalytics";
-
+import {
+  resetMockIntersectionObserver,
+  setupMockIntersectionObserver,
+  triggerIntersection,
+} from "../../utils/mockIntersectionObserver";
 
 type CapturedEvent = {
   event: string;
@@ -21,43 +23,32 @@ type CapturedEvent = {
 
 const events: CapturedEvent[] = [];
 
-const server = setupServer(
-  http.post("/api/dev/analytics/story", async ({ request }) => {
-    const body = (await request.json()) as CapturedEvent;
-    events.push(body);
-    return HttpResponse.json({ ok: true });
-  }),
-);
+const originalFetch = globalThis.fetch;
+let fetchMock: ReturnType<typeof vi.fn<typeof globalThis.fetch>> | null = null;
 
-class MockIntersectionObserver implements IntersectionObserver {
-  readonly root: Element | Document | null = null;
-
-  readonly rootMargin: string = "";
-
-  readonly thresholds: ReadonlyArray<number> = [];
-
-  constructor(_callback: IntersectionObserverCallback) {
-    void _callback;
+function getRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
   }
 
-  disconnect(): void {}
-
-  observe(): void {}
-
-  takeRecords(): IntersectionObserverEntry[] {
-    return [];
+  if (input instanceof URL) {
+    return input.toString();
   }
 
-  unobserve(): void {}
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    return input.url;
+  }
+
+  return String(input);
 }
 
 function getEventsByType(type: string) {
   return events.filter((event) => event.event === type);
 }
 
-function renderStory(consent: "necessary" | "all" = "all") {
+async function renderStory(consent: "necessary" | "all" = "all") {
   document.cookie = `sv_consent=${consent}`;
-  return render(
+  const result = render(
     <Story stickyTop={0} storyId="demo-story">
       <StickyPanel>
         <div>
@@ -72,16 +63,23 @@ function renderStory(consent: "necessary" | "all" = "all") {
       </Step>
     </Story>,
   );
+
+  const sentinel = result.container.querySelector(
+    "[data-scrolly-lazy-sentinel]",
+  ) as HTMLElement | null;
+  if (sentinel) {
+    await act(async () => {
+      triggerIntersection(sentinel);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  return result;
 }
 
 describe("story analytics", () => {
   beforeAll(() => {
-    server.listen();
-    Object.defineProperty(globalThis, "IntersectionObserver", {
-      configurable: true,
-      writable: true,
-      value: MockIntersectionObserver,
-    });
+    setupMockIntersectionObserver();
   });
 
   beforeEach(() => {
@@ -90,22 +88,70 @@ describe("story analytics", () => {
     Object.defineProperty(navigator, "doNotTrack", { configurable: true, value: "0" });
     Object.defineProperty(window, "doNotTrack", { configurable: true, value: "0" });
     Object.defineProperty(navigator, "globalPrivacyControl", { configurable: true, value: false });
+
+    fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = getRequestUrl(input);
+      if (url.endsWith("/api/dev/analytics/story")) {
+        const rawBody = init?.body;
+        if (rawBody) {
+          try {
+            const text = typeof rawBody === "string" ? rawBody : String(rawBody);
+            const parsed = JSON.parse(text) as CapturedEvent;
+            events.push(parsed);
+          } catch {
+            // ignore malformed payloads
+          }
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(null, { status: 204 });
+    });
+
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
   });
 
   afterEach(() => {
-    server.resetHandlers();
     document.cookie = "sv_consent=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
     Reflect.deleteProperty(navigator, "doNotTrack");
     Reflect.deleteProperty(window, "doNotTrack");
     Reflect.deleteProperty(navigator, "globalPrivacyControl");
+    if (originalFetch) {
+      Object.defineProperty(globalThis, "fetch", {
+        configurable: true,
+        writable: true,
+        value: originalFetch,
+      });
+    } else {
+      Reflect.deleteProperty(globalThis, "fetch");
+    }
+    fetchMock?.mockReset();
+    fetchMock = null;
+    resetMockIntersectionObserver();
   });
 
   afterAll(() => {
-    server.close();
+    if (originalFetch) {
+      Object.defineProperty(globalThis, "fetch", {
+        configurable: true,
+        writable: true,
+        value: originalFetch,
+      });
+    } else {
+      Reflect.deleteProperty(globalThis, "fetch");
+    }
   });
 
   it("emits story and step events with deduplication and exit delay", async () => {
-    renderStory("all");
+    await renderStory("all");
 
     await waitFor(() => {
       expect(getEventsByType("story_view")).toHaveLength(1);
@@ -161,7 +207,7 @@ describe("story analytics", () => {
     Object.defineProperty(navigator, "doNotTrack", { configurable: true, value: "1" });
     Object.defineProperty(window, "doNotTrack", { configurable: true, value: "1" });
 
-    renderStory("all");
+    await renderStory("all");
 
     const firstStep = screen.getByRole("article", { name: "Step 1" });
     await act(async () => {
@@ -175,7 +221,7 @@ describe("story analytics", () => {
   });
 
   it("emits only necessary events when consent is limited", async () => {
-    renderStory("necessary");
+    await renderStory("necessary");
 
     const shareButton = screen.getByRole("button", { name: "Поделиться" });
     await act(async () => {
@@ -203,7 +249,7 @@ describe("story analytics", () => {
   });
 
   it("tracks share clicks when consent allows full analytics", async () => {
-    renderStory("all");
+    await renderStory("all");
 
     const shareButton = screen.getByRole("button", { name: "Поделиться" });
     await act(async () => {

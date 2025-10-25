@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import StickyPanel from "./StickyPanel";
+import { scheduleIdle } from "./scheduleIdle";
 import { useStoryAnalytics } from "./useStoryAnalytics";
 
 type StoryContextValue = {
@@ -42,6 +43,11 @@ export function useStoryContext(): StoryContextValue {
 
 const isStickyPanel = (child: ReactElement) => child.type === StickyPanel;
 
+export type StoryPrefetchRequest = {
+  url: string;
+  options?: RequestInit;
+};
+
 export type StoryProps = {
   /**
    * Sticky top offset. Provide a pixel number or CSS length that matches the header height.
@@ -50,22 +56,35 @@ export type StoryProps = {
   storyId?: string;
   children: ReactNode;
   className?: string;
+  prefetchRequests?: StoryPrefetchRequest[];
 };
 
 function classNames(...values: Array<string | undefined | false>): string {
   return values.filter(Boolean).join(" ");
 }
 
-export default function Story({ children, stickyTop, className, storyId }: StoryProps) {
+export default function Story({
+  children,
+  stickyTop,
+  className,
+  storyId,
+  prefetchRequests,
+}: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const lazyObserverRef = useRef<IntersectionObserver | null>(null);
+  const prefetchControllerRef = useRef<AbortController | null>(null);
+  const prefetchRequestedRef = useRef(false);
   const initialHashHandled = useRef(false);
   const childArray = Children.toArray(children) as ReactElement[];
   const stickyChild = childArray.find((child) => isStickyPanel(child));
   const stepChildren = childArray.filter((child) => !isStickyPanel(child));
   const resolvedStepCount = stepChildren.length;
+  const hasStickyChild = Boolean(stickyChild);
+  const [isStickyMounted, setIsStickyMounted] = useState(() => !hasStickyChild);
   const [stepCount, setStepCount] = useState(resolvedStepCount);
   const { trackStoryView, handleStepChange, flush, trackShareClick } = useStoryAnalytics({
     storyId,
@@ -134,6 +153,125 @@ export default function Story({ children, stickyTop, className, storyId }: Story
     () => focusStepByIndex(orderedStepIdsRef.current.length - 1),
     [focusStepByIndex],
   );
+
+  const runPrefetch = useCallback(() => {
+    if (
+      prefetchRequestedRef.current ||
+      !prefetchRequests ||
+      prefetchRequests.length === 0 ||
+      typeof fetch !== "function"
+    ) {
+      return;
+    }
+
+    prefetchRequestedRef.current = true;
+
+    const controller = new AbortController();
+    prefetchControllerRef.current = controller;
+    let remaining = prefetchRequests.length;
+
+    for (const request of prefetchRequests) {
+      const { url, options } = request;
+      if (!url) {
+        remaining -= 1;
+        continue;
+      }
+
+      const { signal, ...rest } = options ?? {};
+      const init: RequestInit = {
+        method: "GET",
+        ...rest,
+        signal: signal ?? controller.signal,
+      };
+
+      try {
+        void fetch(url, init)
+          .catch(() => undefined)
+          .finally(() => {
+            remaining -= 1;
+            if (remaining <= 0 && prefetchControllerRef.current === controller) {
+              prefetchControllerRef.current = null;
+            }
+          });
+      } catch {
+        remaining -= 1;
+      }
+    }
+  }, [prefetchRequests]);
+
+  useEffect(() => {
+    return () => {
+      lazyObserverRef.current?.disconnect();
+      lazyObserverRef.current = null;
+      prefetchControllerRef.current?.abort();
+      prefetchControllerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasStickyChild || isStickyMounted) {
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      setIsStickyMounted(true);
+      return;
+    }
+
+    const sentinel = sentinelRef.current;
+
+    if (!sentinel) {
+      setIsStickyMounted(true);
+      return;
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      scheduleIdle(() => {
+        setIsStickyMounted(true);
+      });
+      return;
+    }
+
+    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+    const topMargin = Math.round(viewportHeight * 0.6);
+    const bottomMargin = Math.round(viewportHeight * 0.2);
+    let cancelIdle: (() => void) | null = null;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isVisible = entries.some(
+          (entry) => entry.isIntersecting || entry.intersectionRatio > 0,
+        );
+
+        if (!isVisible) {
+          return;
+        }
+
+        observer.disconnect();
+        lazyObserverRef.current = null;
+
+        runPrefetch();
+
+        cancelIdle = scheduleIdle(() => {
+          setIsStickyMounted(true);
+        });
+      },
+      {
+        rootMargin: `${topMargin}px 0px ${bottomMargin}px 0px`,
+        threshold: [0, 0.01],
+      },
+    );
+
+    observer.observe(sentinel);
+    lazyObserverRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+      lazyObserverRef.current = null;
+      cancelIdle?.();
+      cancelIdle = null;
+    };
+  }, [hasStickyChild, isStickyMounted, runPrefetch]);
 
   const handleInitialHash = useCallback(() => {
     if (initialHashHandled.current || typeof window === "undefined") {
@@ -289,10 +427,34 @@ export default function Story({ children, stickyTop, className, storyId }: Story
     setStepCount(resolvedStepCount);
   }, [resolvedStepCount]);
 
+  useEffect(() => {
+    prefetchRequestedRef.current = false;
+    if (!prefetchRequests || prefetchRequests.length === 0) {
+      prefetchControllerRef.current?.abort();
+      prefetchControllerRef.current = null;
+    }
+  }, [prefetchRequests]);
+
   return (
     <section ref={containerRef} className={classNames("scrolly", className)} data-scrolly>
       <StoryContext.Provider value={contextValue}>
-        {stickyChild ?? <div className="scrolly-sticky" aria-hidden="true" />}
+        {hasStickyChild ? (
+          <>
+            <div ref={sentinelRef} data-scrolly-lazy-sentinel aria-hidden="true" />
+            {isStickyMounted ? (
+              stickyChild
+            ) : (
+              <div
+                className="scrolly-sticky"
+                aria-hidden="true"
+                data-scrolly-sticky-placeholder
+                data-placeholder="true"
+              />
+            )}
+          </>
+        ) : (
+          (stickyChild ?? <div className="scrolly-sticky" aria-hidden="true" />)
+        )}
         <div className="scrolly-steps">{stepChildren}</div>
       </StoryContext.Provider>
     </section>

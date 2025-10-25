@@ -1,30 +1,35 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import Step from "../../../components/scrolly/Step";
 import StickyPanel from "../../../components/scrolly/StickyPanel";
 import Story from "../../../components/scrolly/Story";
+import {
+  resetMockIntersectionObserver,
+  setupMockIntersectionObserver,
+  triggerIntersection,
+} from "../../tests/utils/mockIntersectionObserver";
 
 describe("Scrollytelling Story", () => {
-  beforeEach(() => {
-    class MockIntersectionObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-      takeRecords(): IntersectionObserverEntry[] {
-        return [];
-      }
-    }
-
-    globalThis.IntersectionObserver =
-      MockIntersectionObserver as unknown as typeof IntersectionObserver;
+  beforeAll(() => {
+    setupMockIntersectionObserver();
   });
 
   afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (globalThis as any).IntersectionObserver;
+    resetMockIntersectionObserver();
   });
 
-  it("renders steps with focus management and aria semantics", () => {
+  const mountStickyPanel = async (container: HTMLElement) => {
+    const sentinel = container.querySelector("[data-scrolly-lazy-sentinel]") as HTMLElement | null;
+    expect(sentinel).toBeTruthy();
+    await act(async () => {
+      if (sentinel) {
+        triggerIntersection(sentinel);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
+
+  it("renders steps with focus management and aria semantics", async () => {
     const { container } = render(
       <Story stickyTop="calc(var(--space-8) * 2)">
         <StickyPanel>
@@ -38,6 +43,10 @@ describe("Scrollytelling Story", () => {
         </Step>
       </Story>,
     );
+
+    expect(screen.queryByTestId("sticky")).not.toBeInTheDocument();
+
+    await mountStickyPanel(container as HTMLElement);
 
     const storySection = container.querySelector("section.scrolly") as HTMLElement;
     expect(storySection).toBeInTheDocument();

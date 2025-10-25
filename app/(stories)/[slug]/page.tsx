@@ -43,8 +43,13 @@ export const metadata: Metadata = {
 
 export default function StoryPage({ params }: { params: { slug: string } }) {
   const storyId = params?.slug ?? "story-demo";
+  const prefetchUrl = `/story-data/${storyId}.json`;
   return (
-    <Story stickyTop="calc(var(--space-8) * 3)" storyId={storyId}>
+    <Story
+      stickyTop="calc(var(--space-8) * 3)"
+      storyId={storyId}
+      prefetchRequests={[{ url: prefetchUrl }]}
+    >
       <StickyPanel>
         <figure aria-labelledby="story-figure-title story-figure-caption">
           <div aria-hidden="true" className="scrolly-demo-graphic" />

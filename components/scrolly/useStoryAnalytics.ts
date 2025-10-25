@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { scheduleIdle } from "./scheduleIdle";
+
 export type StoryAnalyticsEventName = "story_view" | "step_view" | "step_exit" | "share_click";
 
 export type StoryAnalyticsController = {
@@ -153,6 +155,7 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storyViewedRef = useRef(false);
   const dntEnabled = useMemo(() => hasClientDoNotTrackEnabled(), []);
+  const idleCancelsRef = useRef<Set<() => void>>(new Set());
 
   useEffect(() => {
     storyIdRef.current = resolveStoryId(explicitStoryId);
@@ -162,22 +165,36 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
     stepCountRef.current = stepCount;
   }, [stepCount]);
 
+  const scheduleEventDispatch = useCallback((task: () => void) => {
+    const cancel = scheduleIdle(() => {
+      idleCancelsRef.current.delete(cancel);
+      task();
+    });
+
+    idleCancelsRef.current.add(cancel);
+
+    return cancel;
+  }, []);
+
   const sendEvent = useCallback(
     (event: StoryAnalyticsEventName, detail: SendEventDetail = {}) => {
       if (dntEnabled) {
         return;
       }
-      const storyId = storyIdRef.current;
-      if (!storyId) {
-        return;
-      }
-      const consent = readConsentFromCookies();
-      if (consent === "necessary" && !NECESSARY_EVENTS.has(event)) {
-        return;
-      }
-      sendAnalyticsEvent(storyId, stepCountRef.current, event, detail, consent);
+
+      scheduleEventDispatch(() => {
+        const storyId = storyIdRef.current;
+        if (!storyId) {
+          return;
+        }
+        const consent = readConsentFromCookies();
+        if (consent === "necessary" && !NECESSARY_EVENTS.has(event)) {
+          return;
+        }
+        sendAnalyticsEvent(storyId, stepCountRef.current, event, detail, consent);
+      });
     },
-    [dntEnabled],
+    [dntEnabled, scheduleEventDispatch],
   );
 
   const flushExit = useCallback(() => {
@@ -240,6 +257,10 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
   useEffect(
     () => () => {
       flushExit();
+      for (const cancel of idleCancelsRef.current) {
+        cancel();
+      }
+      idleCancelsRef.current.clear();
     },
     [flushExit],
   );

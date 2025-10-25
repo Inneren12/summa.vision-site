@@ -39,6 +39,11 @@
     overflow: hidden;
   }
 
+  .scrolly-sticky[data-placeholder="true"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .scrolly-sticky figure {
     margin: 0;
     display: flex;
@@ -94,6 +99,8 @@
     flex-direction: column;
     gap: var(--space-3);
     color: var(--color-fg-muted);
+    content-visibility: auto;
+    contain-intrinsic-size: auto calc(var(--space-6) * 6);
     transition:
       color var(--motion-duration-base) var(--motion-easing-standard),
       border-color var(--motion-duration-base) var(--motion-easing-standard),
