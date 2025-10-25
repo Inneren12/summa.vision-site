@@ -83,6 +83,7 @@ async function parseVitals(
     const aid = typeof event.aid === "string" ? event.aid : undefined;
     const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || !metric || value === undefined || ts === undefined) continue;
+    if (isIdentifierErased(erasures, extractIdentifiers(event))) continue;
     if (ts < cutoff) continue;
     if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     if (!map.has(snapshotId)) {
@@ -119,6 +120,7 @@ async function parseErrors(
     const aid = typeof event.aid === "string" ? event.aid : undefined;
     const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || ts === undefined) continue;
+    if (isIdentifierErased(erasures, extractIdentifiers(event))) continue;
     if (ts < cutoff) continue;
     if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     map.set(snapshotId, (map.get(snapshotId) ?? 0) + 1);
