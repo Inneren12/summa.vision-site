@@ -55,7 +55,7 @@
     "test:unit": "vitest run --reporter=basic",
     "test:unit:watch": "vitest",
     "test:e2e:flags": "playwright test --config=playwright.flags.config.ts",
-    "prebuild": "npm run ff:codegen",
+    "prebuild": "npm run ff:codegen && npm run ff:types",
     "postbuild": "npm run ff:types",
     "pretest": "npm run ff:types",
     "pretest:ci": "npm run ff:types",
