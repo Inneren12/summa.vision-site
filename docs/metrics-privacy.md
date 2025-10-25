@@ -34,9 +34,20 @@ When consent is `all`, the fields above are retained to aid incident debugging.
 
 Every stored event is annotated with the stable visitor identifier (`sid`, sourced from the `sv_id` cookie or `x-sid` header) and the account identifier (`aid`, taken from the `sv_aid` cookie or `x-aid` header when present). These markers let us locate and delete telemetry quickly during Data Subject Requests.
 
+## Erasure workflow
+
+- `POST /api/privacy/erase` — self-service, deletes the current `sv_id` / `ff_aid` cookies from future telemetry. Admins (`x-ff-console-role: admin|ops`) may pass a JSON payload with `userId`, `sid`, or `aid` to trigger a Data Subject Request; feature-flag overrides for that user are deleted as part of the operation.
+- `GET /api/privacy/status` — returns `{ erased: true }` when the resolved identifiers (from cookies or explicit query params) already reside in the erasure registry.
+
+Erased identifiers are appended to `.runtime/privacy.erasure.ndjson`. The metrics providers (`SelfMetricsProvider` and `SelfHostedMetricsProvider`) filter vitals/error events using that registry, so p75/error-rate reports exclude deleted visitors immediately. For small (<50 MB) NDJSON logs (`telemetry.ndjson`, `vitals.ndjson`, `errors.ndjson`) we rewrite the files in place to remove matching lines; larger files fall back to lazy filtering until the next rotation.
+
+Aggregated or anonymous audit rows without `sid`/`userId` markers are not altered.
+
 ## Endpoints covered
 
 - `POST /api/vitals`
 - `POST /api/js-error`
+- `POST /api/privacy/erase`
+- `GET /api/privacy/status`
 
-Both routes share the same privacy guard logic described above.
+The telemetry ingestion routes share the same privacy guard logic described above.

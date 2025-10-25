@@ -11,8 +11,10 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(() => ({ get: () => null })),
 }));
 
+import { __resetServerEnvCacheForTests } from "../../lib/env.server";
 import { getFlagsServer, getFlagsServerWithMeta } from "../../lib/ff/effective.server";
 import { composeFFRuntime, resetFFRuntime } from "../../lib/ff/runtime";
+import { __resetFeatureFlagsCacheForTests } from "../../lib/ff/server";
 import { __clearTelemetry, readRecent } from "../../lib/ff/telemetry";
 import type { TelemetryEvent } from "../../lib/ff/telemetry";
 
@@ -34,6 +36,8 @@ describe("telemetry integration via getFlagsServer()", () => {
       betaUI: true,
       newCheckout: { enabled: true, percent: 100 },
     });
+    __resetServerEnvCacheForTests();
+    __resetFeatureFlagsCacheForTests();
     __clearTelemetry();
   });
 
@@ -74,6 +78,8 @@ describe("telemetry integration via getFlagsServer()", () => {
     process.env.FEATURE_FLAGS_JSON = JSON.stringify({
       newCheckout: { enabled: true, percent: 100, shadow: true },
     });
+    __resetServerEnvCacheForTests();
+    __resetFeatureFlagsCacheForTests();
     const events: TelemetryEvent[] = [];
     composeFFRuntime({ telemetry: { emit: (event: TelemetryEvent) => events.push(event) } });
 
