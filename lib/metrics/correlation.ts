@@ -21,6 +21,14 @@ function sanitize(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getCookieValue(header: string, name: string): string | undefined {
+  const prefix = `${name}=`;
+  const parts = header.split(/;\s*/);
+  const match = parts.find((part) => part.startsWith(prefix));
+  if (!match) return undefined;
+  return match.slice(prefix.length);
+}
+
 function resolveNamespace(headers: HeaderLike): string {
   for (const key of HEADER_NAMESPACE_CANDIDATES) {
     const value = headers.get(key);
@@ -35,7 +43,9 @@ export function correlationFromHeaders(headers: HeaderLike): RequestCorrelation 
   const requestId = sanitize(headers.get("x-request-id"));
   const namespace = resolveNamespace(headers);
   const cookieHeader = headers.get("cookie") ?? undefined;
-  const sessionId = cookieHeader ? sanitize(getStableIdFromCookieHeader(cookieHeader)) : null;
+  const ffAid = cookieHeader ? getStableIdFromCookieHeader(cookieHeader) : undefined;
+  const fallback = cookieHeader ? getCookieValue(cookieHeader, "sv_id") : undefined;
+  const sessionId = sanitize(ffAid ?? fallback ?? null);
   return { requestId, sessionId, namespace };
 }
 

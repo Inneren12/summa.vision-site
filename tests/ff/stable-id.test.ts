@@ -31,4 +31,18 @@ describe("stableId()", () => {
     vi.mocked(cookies).mockReturnValueOnce(withoutValue);
     expect(stable.stableId()).toBe("anon");
   });
+
+  it("ignores legacy sv_id cookie when ff_aid is absent", () => {
+    type CookiesReturn = ReturnType<typeof cookies>;
+    const legacyOnly = {
+      get: vi
+        .fn()
+        .mockImplementation((name: string) =>
+          name === "sv_id" ? { value: "sv-only" } : undefined,
+        ),
+    } as unknown as CookiesReturn;
+    vi.mocked(cookies).mockReturnValueOnce(legacyOnly);
+    expect(stable.stableId()).toBe("anon");
+    expect(stable.getStableIdFromCookieHeader("sv_id=sv-only")).toBeUndefined();
+  });
 });
