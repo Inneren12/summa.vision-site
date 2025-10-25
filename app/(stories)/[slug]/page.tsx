@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Step from "@/components/scrolly/Step";
 import StickyPanel from "@/components/scrolly/StickyPanel";
 import Story from "@/components/scrolly/Story";
+import StoryShareButton from "@/components/scrolly/StoryShareButton";
 
 import "../scrolly.css";
 
@@ -40,9 +41,10 @@ export const metadata: Metadata = {
   description: "Базовый каркас для историй с двухпанельным скроллителлингом.",
 };
 
-export default function StoryPage() {
+export default function StoryPage({ params }: { params: { slug: string } }) {
+  const storyId = params?.slug ?? "story-demo";
   return (
-    <Story stickyTop="calc(var(--space-8) * 3)">
+    <Story stickyTop="calc(var(--space-8) * 3)" storyId={storyId}>
       <StickyPanel>
         <figure aria-labelledby="story-figure-title story-figure-caption">
           <div aria-hidden="true" className="scrolly-demo-graphic" />
@@ -53,6 +55,7 @@ export default function StoryPage() {
             Закреплённая панель отображает интерактив или иллюстрацию и остаётся в пределах
             вьюпорта.
           </figcaption>
+          <StoryShareButton />
         </figure>
       </StickyPanel>
       {demoSteps.map((step) => (
