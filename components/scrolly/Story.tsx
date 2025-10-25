@@ -505,12 +505,13 @@ export default function Story({
         {stickyChild ? (
           <>
             <div ref={sentinelRef} aria-hidden="true" className="scrolly-visualization-sentinel" />
-            {cloneElement(stickyChild as ReactElement<{ children?: ReactNode }>, {
-              children: shouldRenderSticky
-                ? (stickyChild.props as any).children
-                : null,
-              "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
-            })}
+            {cloneElement<any>(
+              stickyChild as any,
+              {
+                children: shouldRenderSticky ? (stickyChild.props as any).children : null,
+                "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
+              } as any
+            )}
           </>
         ) : (
           <div className="scrolly-sticky" aria-hidden="true" />
