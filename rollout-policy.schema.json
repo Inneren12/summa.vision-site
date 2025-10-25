@@ -94,6 +94,41 @@
         },
         "shadow": {
           "type": "boolean"
+        },
+        "canary": {
+          "type": "object",
+          "properties": {
+            "ttlHours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168
+            },
+            "cohort": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "User identifier to enroll in canary"
+                  },
+                  "ff_aid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "ff_aid cookie value to enroll in canary"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "ttlHours",
+            "cohort"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
