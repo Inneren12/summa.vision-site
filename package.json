@@ -38,6 +38,7 @@
     "ff:validate": "tsx scripts/ff-validate-config.mjs",
     "ff:store:migrate": "tsx scripts/ff-store-migrate.ts",
     "lint:no-raw-colors": "node scripts/check-no-raw-colors.mjs",
+    "stories:validate": "node scripts/stories-validate.mjs",
     "test:axe": "tsx scripts/og-axe-check.ts",
     "a11y:e2e": "playwright test e2e/a11y-home.spec.ts",
     "ci:check": "npm run typecheck && npm run lint && npm run lint:no-raw-colors && npm run test:ci && npm run ff:validate && npm run web:build",
@@ -67,9 +68,13 @@
     "policy:schema:export": "tsx scripts/policy-schema-export.ts"
   },
   "dependencies": {
+    "@mdx-js/mdx": "^3.1.1",
     "@types/jszip": "^3.4.0",
+    "gray-matter": "^4.0.3",
     "ioredis": "^4.28.5",
     "ulid": "^3.0.1",
+    "unist-util-visit": "^5.0.0",
+    "vfile": "^6.0.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

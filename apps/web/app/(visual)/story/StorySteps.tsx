@@ -1,48 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { getStepHash } from "@/components/story/MdxStep";
 import { scrollStepIntoView, useStepUrlSync } from "@/components/story/step-url";
 
-interface StoryStep {
-  id: string;
-  title: string;
-  description: string;
+interface StoryStepDefinition {
+  readonly id: string;
+  readonly title: string;
+  readonly hash?: string;
 }
 
-const HASH_PREFIX = "step-";
+interface StoryStepsProps {
+  readonly steps: StoryStepDefinition[];
+  readonly children: ReactNode;
+}
 
-const STORY_STEPS: StoryStep[] = [
-  {
-    id: "baseline",
-    title: "Baseline momentum",
-    description:
-      "Summa Vision’s programmes start by mapping existing community assets and aligning local partners around a shared north star. Baseline data on education, health, and climate risks lets teams focus on leverage points rather than duplicating efforts.",
-  },
-  {
-    id: "activation",
-    title: "Activation and pilots",
-    description:
-      "Pilot projects launch quickly to prove traction—think microgrid pilots, digital skills cohorts, or regenerative agriculture demos. Every activation publishes metrics publicly so peers can replicate what works.",
-  },
-  {
-    id: "scale",
-    title: "Scaling with partners",
-    description:
-      "Once the pilot playbook is solid, it expands with regional delivery partners. Shared infrastructure, toolkits, and funding rails help municipalities and NGOs adopt the blueprint while adapting to local context.",
-  },
-  {
-    id: "impact",
-    title: "Measuring real outcomes",
-    description:
-      "Impact dashboards track emissions avoided, jobs created, and resilience gains. Communities can subscribe to alerts for new data drops, and media kits make it easy to report on progress without waiting for quarterly summaries.",
-  },
-];
+type StoryStepWithHash = StoryStepDefinition & { readonly hash: string };
 
-export function StorySteps() {
-  const steps = useMemo(() => STORY_STEPS, []);
+export function StorySteps({ steps: inputSteps, children }: StoryStepsProps) {
+  const steps = useMemo<StoryStepWithHash[]>(
+    () => inputSteps.map((step) => ({ ...step, hash: getStepHash(step.id, step.hash) })),
+    [inputSteps],
+  );
+  const hashToId = useMemo(() => new Map(steps.map((step) => [step.hash, step.id])), [steps]);
+  const idToHash = useMemo(() => new Map(steps.map((step) => [step.id, step.hash])), [steps]);
   const [activeStep, setActiveStep] = useState<string>(steps[0]?.id ?? "");
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const containerRef = useRef<HTMLElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const activeRef = useRef(activeStep);
 
@@ -50,33 +34,33 @@ export function StorySteps() {
     activeRef.current = activeStep;
   }, [activeStep]);
 
+  useEffect(() => {
+    if (!activeStep && steps[0]) {
+      setActiveStep(steps[0].id);
+      return;
+    }
+    if (activeStep && !steps.some((step) => step.id === activeStep) && steps[0]) {
+      setActiveStep(steps[0].id);
+    }
+  }, [activeStep, steps]);
+
   const handleLocationStep = useCallback(
-    (id: string) => {
-      if (!steps.some((step) => step.id === id)) return;
-      setActiveStep(id);
+    (hash: string) => {
+      const resolvedId = hashToId.get(hash);
+      if (resolvedId) {
+        setActiveStep(resolvedId);
+      }
     },
-    [steps],
+    [hashToId],
   );
+
+  const activeStepHash = activeStep ? (idToHash.get(activeStep) ?? "") : "";
 
   useStepUrlSync({
-    activeStepId: activeStep,
+    activeStepId: activeStepHash || null,
     onStepFromUrl: handleLocationStep,
-    hashPrefix: HASH_PREFIX,
+    hashPrefix: "",
   });
-
-  const registerSection = useCallback(
-    (id: string) => (node: HTMLElement | null) => {
-      const previous = sectionRefs.current[id];
-      if (observerRef.current && previous) {
-        observerRef.current.unobserve(previous);
-      }
-      sectionRefs.current[id] = node;
-      if (observerRef.current && node) {
-        observerRef.current.observe(node);
-      }
-    },
-    [],
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -100,19 +84,40 @@ export function StorySteps() {
       { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.2, 0.4, 0.6, 1] },
     );
     observerRef.current = observer;
-    Object.values(sectionRefs.current).forEach((node) => {
-      if (node) observer.observe(node);
-    });
+    const container = containerRef.current;
+    if (container) {
+      const nodes = container.querySelectorAll<HTMLElement>("[data-step-id]");
+      nodes.forEach((node) => observer.observe(node));
+    }
     return () => {
       observer.disconnect();
       observerRef.current = null;
     };
   }, []);
 
-  const handleStepClick = useCallback((id: string) => {
-    setActiveStep(id);
-    scrollStepIntoView(id, { hashPrefix: HASH_PREFIX });
-  }, []);
+  const handleStepClick = useCallback(
+    (id: string) => {
+      setActiveStep(id);
+      const hash = idToHash.get(id);
+      if (hash) {
+        scrollStepIntoView(hash, { hashPrefix: "" });
+      }
+    },
+    [idToHash],
+  );
+
+  useEffect(() => {
+    const observer = observerRef.current;
+    const container = containerRef.current;
+    if (!observer || !container) {
+      return;
+    }
+    const nodes = Array.from(container.querySelectorAll<HTMLElement>("[data-step-id]"));
+    nodes.forEach((node) => observer.observe(node));
+    return () => {
+      nodes.forEach((node) => observer.unobserve(node));
+    };
+  }, [steps]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-16 lg:flex-row">
@@ -152,22 +157,8 @@ export function StorySteps() {
           </nav>
         </div>
       </aside>
-      <section className="space-y-24 lg:w-2/3">
-        {steps.map((step, index) => (
-          <article
-            key={step.id}
-            id={`${HASH_PREFIX}${step.id}`}
-            data-step-id={step.id}
-            ref={registerSection(step.id)}
-            className="story-step-anchor scroll-mt-28 rounded-3xl border border-muted/20 bg-bg/80 p-8 shadow-sm transition"
-          >
-            <p className="text-sm font-semibold uppercase tracking-wide text-muted">
-              Step {index + 1}
-            </p>
-            <h3 className="mt-3 text-3xl font-semibold text-fg">{step.title}</h3>
-            <p className="mt-4 text-lg leading-7 text-muted">{step.description}</p>
-          </article>
-        ))}
+      <section ref={containerRef} className="space-y-24 lg:w-2/3">
+        {children}
       </section>
     </div>
   );
