@@ -283,4 +283,29 @@ describe("SelfHostedMetricsProvider", () => {
 
     await expect(provider.getWebVital("INP", "flag-chunks", snapshotId)).resolves.toBe(250);
   });
+
+  it("limits the number of chunk files loaded into the window", async () => {
+    vi.setSystemTime(new Date("2024-01-04T00:00:00.000Z"));
+    const snapshotId = "snapshot-window";
+    const now = Date.now();
+
+    await writeFile(vitalsFile, "", "utf8");
+
+    const makeEntry = (value: number) =>
+      JSON.stringify({ snapshotId, metric: "INP", value, ts: now - 10_000 });
+
+    await writeFile(path.join(tmpDir, "vitals-20240101.ndjson"), `${makeEntry(999)}\n`, "utf8");
+    await writeFile(path.join(tmpDir, "vitals-20240102.ndjson"), `${makeEntry(10)}\n`, "utf8");
+    await writeFile(path.join(tmpDir, "vitals-20240103.ndjson"), `${makeEntry(20)}\n`, "utf8");
+
+    const provider = new SelfHostedMetricsProvider({
+      windowMs: 60 * 60 * 1000,
+      vitalsFile,
+      errorsFile,
+      maxChunkDays: 10,
+      maxChunkCount: 2,
+    });
+
+    await expect(provider.getWebVital("INP", "flag-window", snapshotId)).resolves.toBe(20);
+  });
 });

@@ -9,7 +9,12 @@ S5B отчёты строятся поверх локальных журнало
 - `.runtime/telemetry.ndjson` — произвольные ff-метрики.
 - `.runtime/flags.snapshot.json` — текущая конфигурация флагов (если активирован file store).
 
-Файлы растут без ограничений — настройте cron/`logrotate` (см. [docs/rollouts.md](./rollouts.md#мониторинг-состояния)).
+## Ротация и компакция NDJSON
+
+- Порог размера и возраста задаются переменными `METRICS_ROTATE_MAX_MB` (по умолчанию 50 MB) и `METRICS_ROTATE_DAYS` (по умолчанию 7).
+- Кроним `node scripts/metrics-rotate.mjs` — он перемещает «переполненные» файлы в чанки `vitals-YYYYMMDD.ndjson`, `errors-YYYYMMDD.ndjson`, `telemetry-YYYYMMDD.ndjson` и пересоздаёт активные файлы.
+- Компакция `node scripts/metrics-compact.mjs --days=14` объединяет мелкие чанки, удаляет устаревшие (старше `--days` или `METRICS_ROTATE_DAYS`) и применяет DSR‑purge к новым файлам, чтобы не перебирать гигабайты в cron.
+- Self-metrics провайдер читает только ограниченное окно чанков (`maxChunkDays`, `maxChunkCount`) и кэширует результаты на 30 секунд.
 
 ## Чтение отчётов S5B
 

@@ -355,7 +355,7 @@ async function run() {
   const rotateDays = parseNumber(process.env.METRICS_ROTATE_DAYS, DEFAULT_ROTATE_DAYS);
   const retentionDays = args.days ?? Math.max(rotateDays, DEFAULT_RETENTION_DAYS);
   const matcher = await loadErasureMatcher();
-  const options = { retentionDays, matcher, now: Date.now() };
+  const options = { retentionDays, matcher, now: Date.now(), alwaysRewrite: true };
   for (const target of TARGETS) {
     const filePath = process.env[target.env] || target.defaultPath;
     const result = await compactTarget(filePath, options);
