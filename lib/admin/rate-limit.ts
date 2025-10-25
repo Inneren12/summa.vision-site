@@ -5,7 +5,7 @@ import type { Role } from "./rbac";
 import { parseXForwardedFor } from "@/lib/ff/net";
 import { allow } from "@/lib/ff/ratelimit";
 
-export type AdminRateLimitScope = "override" | "rollout-step" | "kill";
+export type AdminRateLimitScope = "override" | "rollout-step" | "kill" | "telemetry-export";
 
 export type AdminRateLimitDecision =
   | { ok: true }
@@ -24,11 +24,19 @@ function parseRpm(envValue: string | undefined, fallback: number): number {
 }
 
 export function resolveRolloutStepRpm(): number {
-  return parseRpm(process.env.ADMIN_RATE_LIMIT_ROLLOUT_STEP_RPM, 6);
+  return parseRpm(process.env.ADMIN_RATE_LIMIT_ROLLOUT_STEP_RPM, 5);
 }
 
 export function resolveKillSwitchRpm(): number {
-  return parseRpm(process.env.ADMIN_RATE_LIMIT_KILL_RPM, 3);
+  return parseRpm(process.env.ADMIN_RATE_LIMIT_KILL_RPM, 2);
+}
+
+export function resolveOverrideRpm(): number {
+  return parseRpm(process.env.ADMIN_RATE_LIMIT_OVERRIDE_RPM, 20);
+}
+
+export function resolveTelemetryExportRpm(): number {
+  return parseRpm(process.env.ADMIN_RATE_LIMIT_TELEMETRY_EXPORT_RPM, 2);
 }
 
 export type AdminRateLimitActor = {
@@ -50,8 +58,8 @@ export async function enforceAdminRateLimit(options: {
   const rawXff = req.headers.get("x-forwarded-for");
   const parsedIp = parseXForwardedFor(rawXff);
   const clientIp = parsedIp === "unknown" ? (req.headers.get("x-real-ip") ?? "unknown") : parsedIp;
-  const actorId = actor?.session || `${actor?.role ?? "anon"}`;
-  const key = `admin:${scope}:${actorId}:${clientIp}`;
+  const identifier = actor?.session || actor?.role || clientIp || "unknown";
+  const key = `rl:admin:${scope}:${identifier}`;
   const result = await allow(key, rpm);
   if (result.ok) {
     return { ok: true };
@@ -59,7 +67,7 @@ export async function enforceAdminRateLimit(options: {
 
   const retry = Math.max(1, Math.ceil(result.resetIn / 1000));
   console.warn(
-    `[AdminRateLimit] scope=${scope} denied for actor=${actorId} ip=${clientIp} (rpm=${rpm}), retry in ${retry}s`,
+    `[AdminRateLimit] scope=${scope} denied for actor=${identifier} ip=${clientIp} (rpm=${rpm}), retry in ${retry}s`,
   );
   const response = NextResponse.json(
     { error: "Too many requests", scope, retryAfter: retry },

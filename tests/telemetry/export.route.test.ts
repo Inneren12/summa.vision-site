@@ -12,6 +12,7 @@ describe("/api/telemetry/export", () => {
   beforeEach(() => {
     Object.assign(process.env, savedEnv);
     process.env.FF_CONSOLE_VIEWER_TOKENS = process.env.FF_CONSOLE_VIEWER_TOKENS || "viewer-token";
+    process.env.ADMIN_RATE_LIMIT_TELEMETRY_EXPORT_RPM = "0";
   });
 
   afterEach(() => {

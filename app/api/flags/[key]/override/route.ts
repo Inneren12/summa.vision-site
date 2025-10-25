@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { enforceAdminRateLimit, resolveOverrideRpm } from "@/lib/admin/rate-limit";
 import { authorizeApi } from "@/lib/admin/rbac";
 import { normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
@@ -47,6 +48,16 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
   const correlation = correlationFromRequest(req);
+  const limit = resolveOverrideRpm();
+  const gate = await enforceAdminRateLimit({
+    req,
+    scope: "override",
+    rpm: limit,
+    actor: { role: auth.role, session: auth.session },
+  });
+  if (!gate.ok) {
+    return auth.apply(gate.response);
+  }
   if (process.env.FF_FREEZE_OVERRIDES === "true") {
     return auth.apply(NextResponse.json({ error: "Overrides are frozen" }, { status: 423 }));
   }

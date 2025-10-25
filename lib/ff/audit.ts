@@ -1,7 +1,5 @@
 import type { OverrideScope, OverrideValue } from "./runtime/types";
 
-import type { PurgeSummary, PrivacyIdentifierSet } from "@/lib/privacy/erasure";
-
 type AuditMetadata = {
   timestamp: number;
   actor: string;
