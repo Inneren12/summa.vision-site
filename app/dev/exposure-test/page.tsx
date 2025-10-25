@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 
 import FlagGateServer from "@/components/gates/FlagGate.server";
+import { getEnv } from "@/lib/env/load";
 import { withExposureContext } from "@/lib/ff/exposure";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     notFound();
   }
   return withExposureContext(async () => (

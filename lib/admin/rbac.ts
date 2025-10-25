@@ -2,12 +2,7 @@ import crypto from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import {
-  FF_COOKIE_DOMAIN,
-  FF_COOKIE_PATH,
-  FF_COOKIE_SECURE,
-  stableCookieOptions,
-} from "@/lib/ff/cookies";
+import { FF_PRIVATE_COOKIE_OPTIONS, stableCookieOptions } from "@/lib/ff/cookies";
 import { tscmp } from "@/lib/ff/tscmp";
 
 export type Role = "viewer" | "ops" | "admin";

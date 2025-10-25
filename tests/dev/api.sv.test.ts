@@ -1,18 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { GET } from "@/app/api/dev/sv/route";
+import { __resetEnvCache } from "@/lib/env/load";
 
 describe("Dev API /api/dev/sv", () => {
   const saved = { ...process.env };
   beforeEach(() => {
     Object.assign(process.env, saved);
     process.env.NEXT_PUBLIC_DEV_TOOLS = "true";
+    __resetEnvCache();
   });
   afterEach(() => {
     for (const key of Object.keys(process.env)) {
       delete process.env[key];
     }
     Object.assign(process.env, saved);
+    __resetEnvCache();
   });
 
   it("returns 404 when dev tools disabled", async () => {

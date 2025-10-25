@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
+import { getEnv } from "@/lib/env/load";
 import { getFlagsServer } from "@/lib/ff/effective.server";
 import { knownFlags, FLAG_REGISTRY } from "@/lib/ff/flags";
 import { stableId } from "@/lib/ff/stable-id";
@@ -8,7 +9,7 @@ import { stableId } from "@/lib/ff/stable-id";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     notFound();
   }
   const DevFlagsClient = (await import("@/components/dev/DevFlagsClient")).default; // ленивый импорт — не попадёт в прод‑бандлы

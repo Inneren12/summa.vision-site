@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { getEnv } from "@/lib/env/load";
 import { snapshot } from "@/lib/ff/metrics";
 import { readRecent } from "@/lib/ff/telemetry";
 
@@ -10,7 +11,7 @@ export default async function Page({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     notFound();
   }
   const filterFlag = typeof searchParams?.flag === "string" ? searchParams.flag : undefined;

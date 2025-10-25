@@ -10,6 +10,8 @@ import {
   readIdentifiers,
   sanitizeMessage,
   sanitizeStack,
+  sanitizeFilename,
+  sanitizeUrl,
 } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";

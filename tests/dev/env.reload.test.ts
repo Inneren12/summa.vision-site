@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { POST } from "@/app/api/dev/flags-reload/route";
+import { __resetEnvCache } from "@/lib/env/load";
 import { getFeatureFlagsFromHeaders } from "@/lib/ff/server";
 
 describe("Dev flags reload API", () => {
@@ -10,6 +11,7 @@ describe("Dev flags reload API", () => {
     Object.assign(process.env, originalEnv);
     process.env.NODE_ENV = "test";
     process.env.NEXT_PUBLIC_DEV_TOOLS = "true";
+    __resetEnvCache();
   });
 
   afterEach(() => {
@@ -17,6 +19,7 @@ describe("Dev flags reload API", () => {
       delete (process.env as Record<string, string | undefined>)[key];
     }
     Object.assign(process.env, originalEnv);
+    __resetEnvCache();
   });
 
   it("updates FEATURE_FLAGS_JSON when called", async () => {

@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
+import { getEnv } from "@/lib/env/load";
 import { FLAG_REGISTRY, isKnownFlag, type FlagName } from "@/lib/ff/flags";
 import { inRollout } from "@/lib/ff/hash";
 import { getFeatureFlagsFromHeaders } from "@/lib/ff/server";
@@ -11,7 +12,7 @@ import { stableId as buildStableId } from "@/lib/ff/stable-id";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  if (process.env.NEXT_PUBLIC_DEV_TOOLS !== "true") {
+  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
     return NextResponse.json({ error: "Dev tools disabled" }, { status: 404 });
   }
   const url = new URL(req.url);

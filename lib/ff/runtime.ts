@@ -2,12 +2,15 @@ import crypto from "node:crypto";
 
 import type { RequestCorrelation } from "../metrics/correlation";
 
+
 import { FileTelemetrySink } from "./runtime/file-telemetry";
 import type { RuntimeLock } from "./runtime/lock";
 import { SelfMetricsProvider, type SnapshotSummary } from "./runtime/self-metrics";
 import { resolveStoreAdapter } from "./runtime/store-resolver";
 import type { FlagStore, FlagSnapshot } from "./runtime/types";
 import type { TelemetryEvent } from "./telemetry";
+
+import { getEnv } from "@/lib/env/load";
 
 type TelemetrySink = { emit: (event: TelemetryEvent) => void };
 
@@ -54,7 +57,7 @@ type RuntimeShape = {
 const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 const DEFAULT_VITALS_FILE = "./.runtime/vitals.ndjson";
 const DEFAULT_ERRORS_FILE = "./.runtime/errors.ndjson";
-const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
+const DEFAULT_WINDOW_MS = 30 * 60 * 1000;
 
 let runtime: RuntimeShape | null = null;
 
@@ -70,7 +73,7 @@ function resolveTelemetrySink(): TelemetrySink {
 
 function resolveMetricsProvider(): MetricsProvider {
   const provider = (process.env.METRICS_PROVIDER || "self").toLowerCase();
-  const windowMs = Number(process.env.METRICS_WINDOW_MS || DEFAULT_WINDOW_MS);
+  const windowMs = getEnv().METRICS_WINDOW_MS || DEFAULT_WINDOW_MS;
   const vitalsFile = process.env.METRICS_VITALS_FILE || DEFAULT_VITALS_FILE;
   const errorsFile = process.env.METRICS_ERRORS_FILE || DEFAULT_ERRORS_FILE;
   if (provider === "memory") {

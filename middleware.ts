@@ -14,6 +14,56 @@ import {
 import { stableCookieOptions } from "@/lib/ff/cookies";
 import { FF } from "@/lib/ff/runtime";
 
+type CookieRecord = {
+  name: string;
+  value: string;
+  options: ReturnType<typeof stableCookieOptions>;
+};
+type CookieJar = Map<string, string>;
+
+function parseCookieHeader(header: string | null): CookieJar {
+  const jar: CookieJar = new Map();
+  if (!header) return jar;
+  const parts = header.split(";");
+  for (const part of parts) {
+    const segment = part.trim();
+    if (!segment) continue;
+    const [rawName, ...rest] = segment.split("=");
+    const name = rawName.trim();
+    if (!name) continue;
+    const value = rest.join("=");
+    jar.set(name, value);
+  }
+  return jar;
+}
+
+function serializeCookieJar(jar: CookieJar): string {
+  return Array.from(jar.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+function applyCookieUpdates(response: NextResponse, updates: CookieRecord[]) {
+  for (const update of updates) {
+    response.cookies.set(update.name, update.value, update.options);
+  }
+}
+
+function ensureCookie(
+  jar: CookieJar,
+  name: string,
+  factory: () => string,
+  overrides: Parameters<typeof stableCookieOptions>[0],
+  updates: CookieRecord[],
+) {
+  if (jar.has(name)) return;
+  const value = factory();
+  jar.set(name, value);
+  if (name !== "sv_id") {
+    updates.push({ name, value, options: stableCookieOptions({ httpOnly: false, ...overrides }) });
+  }
+}
+
 function requiredRoleFor(pathname: string, method: string): Role | null {
   const normalized = pathname.replace(/\/+$/, "");
   if (normalized.startsWith("/admin/flags")) return "viewer";
@@ -72,21 +122,21 @@ export async function middleware(req: NextRequest) {
     cookieJar,
     "sv_id",
     () => crypto.randomUUID(),
-    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    { httpOnly: false, maxAge: YEAR_IN_SECONDS },
     cookieUpdates,
   );
   ensureCookie(
     cookieJar,
     "ff_aid",
     () => crypto.randomUUID(),
-    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    { httpOnly: false, maxAge: YEAR_IN_SECONDS },
     cookieUpdates,
   );
   ensureCookie(
     cookieJar,
     "sv_consent",
     () => "necessary",
-    { ...FF_PUBLIC_COOKIE_OPTIONS, maxAge: ONE_YEAR_SECONDS },
+    { httpOnly: false, maxAge: YEAR_IN_SECONDS },
     cookieUpdates,
   );
 
@@ -114,6 +164,7 @@ export async function middleware(req: NextRequest) {
         );
       }
       error.headers.set("x-ff-snapshot", snapshot.id);
+      applyCookieUpdates(error, cookieUpdates);
       return error;
     }
     forwardedHeaders.set("x-ff-console-role", result.role);
@@ -128,6 +179,8 @@ export async function middleware(req: NextRequest) {
   } else {
     res = NextResponse.next({ request: { headers: forwardedHeaders } });
   }
+
+  applyCookieUpdates(res, cookieUpdates);
 
   if (refreshAid && ffAidValue) {
     res.cookies.set(

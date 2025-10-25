@@ -2,12 +2,15 @@ import path from "node:path";
 
 import Redis from "ioredis";
 
+
 import { FileFlagStore, DEFAULT_FILE_STORE_PATH, DEFAULT_FILE_STORE_TMP } from "./file-store";
 import { InMemoryRuntimeLock, FileRuntimeLock, type RuntimeLock } from "./lock";
 import { MemoryFlagStore } from "./memory-store";
 import { RedisRuntimeLock } from "./redis-lock";
 import { RedisFlagStore } from "./redis-store";
 import type { FlagStore } from "./types";
+
+import { getEnv } from "@/lib/env/load";
 
 type StoreResolution = {
   store: FlagStore;
@@ -44,11 +47,12 @@ function safeRedisUrl(url: string): string {
 }
 
 function resolveRedisAdapter(url: string): StoreResolution {
+  const env = getEnv();
   const client = new Redis(url, {
     lazyConnect: false,
     maxRetriesPerRequest: 3,
   });
-  const ttlMs = Number(process.env.ROLLOUT_LOCK_TTL_MS ?? 15_000);
+  const ttlMs = env.ROLLOUT_LOCK_TTL_MS;
   const retryMs = Number(process.env.ROLLOUT_LOCK_RETRY_MS ?? 50);
   const store = new RedisFlagStore(client);
   const lock = new RedisRuntimeLock(client, {
@@ -66,7 +70,8 @@ function resolveRedisAdapter(url: string): StoreResolution {
 
 export function resolveStoreAdapter(): StoreResolution {
   const adapterEnv = process.env.FF_STORE_ADAPTER?.toLowerCase();
-  const redisUrlEnv = process.env.REDIS_URL || process.env.FF_REDIS_URL;
+  const env = getEnv();
+  const redisUrlEnv = env.REDIS_URL || process.env.FF_REDIS_URL;
 
   if (adapterEnv === "redis" || (!adapterEnv && redisUrlEnv)) {
     if (!redisUrlEnv) {
