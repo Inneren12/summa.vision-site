@@ -247,6 +247,9 @@ export class MemoryFlagStore implements FlagStore {
         return { value: segment.override, reason: "segment-override", segmentId: segment.id };
       }
       if (segment.rollout) {
+        if (segment.rollout.shadow) {
+          continue;
+        }
         const percent = ensurePercent(segment.rollout.percent);
         if (percent <= 0) continue;
         if (percent >= 100) {
@@ -270,6 +273,9 @@ export class MemoryFlagStore implements FlagStore {
     }
 
     if (flag.rollout) {
+      if (flag.rollout.shadow) {
+        return { value: flag.defaultValue, reason: "default" };
+      }
       const percent = ensurePercent(flag.rollout.percent);
       if (percent >= 100) {
         return { value: flag.defaultValue, reason: "global-rollout" };

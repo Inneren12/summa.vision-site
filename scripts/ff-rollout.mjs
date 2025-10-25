@@ -146,8 +146,14 @@ async function loadPolicy(path) {
     integer: true,
   });
   const hysteresis = sanitizeHysteresis(json.hysteresis);
+  const shadow =
+    typeof json.shadow === "boolean"
+      ? json.shadow
+      : typeof json.shadow === "string"
+        ? json.shadow.toLowerCase() === "true"
+        : undefined;
   const token = typeof json.token === "string" && json.token.trim() ? json.token.trim() : undefined;
-  return { host, flag, namespace, steps, stop, minSamples, coolDownMs, hysteresis, token };
+  return { host, flag, namespace, steps, stop, minSamples, coolDownMs, hysteresis, token, shadow };
 }
 
 function resolveToken(policyToken) {
@@ -258,7 +264,7 @@ async function main() {
       return;
     }
     console.log(`Current rollout: ${currentPct.toFixed(2)}%`);
-    console.log(`Next step: ${nextPct.toFixed(2)}%`);
+    console.log(`Next step: ${nextPct.toFixed(2)}%${policy.shadow ? " (shadow)" : ""}`);
     console.log(`  ${describeImpact(currentPct, nextPct)}`);
 
     const payload = {
@@ -269,6 +275,7 @@ async function main() {
       coolDownMs: policy.coolDownMs,
       hysteresis: policy.hysteresis,
       dryRun: args.mode === "dry-run",
+      shadow: typeof policy.shadow === "boolean" ? policy.shadow : undefined,
     };
 
     const { status, body } = await postStep(policy.host, token, policy.flag, payload);
@@ -288,6 +295,9 @@ async function main() {
       if (typeof body.retryInMs === "number") {
         console.log(`  retry in: ${(body.retryInMs / 1000).toFixed(1)}s`);
       }
+      if (body.shadowCoverage !== undefined) {
+        console.log(`  shadow coverage: ${body.shadowCoverage.toFixed(2)}%`);
+      }
       if (body.metrics) {
         printMetrics(body.metrics);
       }
@@ -298,6 +308,9 @@ async function main() {
       console.log(`Apply succeeded (${status}).`);
       if (body.rollout?.currentPct !== undefined) {
         console.log(`  rollout now: ${body.rollout.currentPct}%`);
+      }
+      if (body.rollout?.shadow !== undefined) {
+        console.log(`  shadow: ${body.rollout.shadow ? "enabled" : "disabled"}`);
       }
       if (body.metrics) {
         printMetrics(body.metrics);

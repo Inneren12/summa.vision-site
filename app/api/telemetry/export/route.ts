@@ -12,6 +12,7 @@ const DEFAULT_TELEMETRY_FILE = "./.runtime/telemetry.ndjson";
 type TelemetryExportEventType =
   | "flag_evaluated"
   | "exposure"
+  | "exposure_shadow"
   | "override_set"
   | "rollout_step"
   | "rollout_blocked"
@@ -37,6 +38,7 @@ type TelemetryExportRow = {
 const EVENT_TYPE_MAP: Record<string, TelemetryExportEventType> = {
   evaluation: "flag_evaluated",
   exposure: "exposure",
+  exposure_shadow: "exposure_shadow",
   override_set: "override_set",
   rollout_step: "rollout_step",
   rollout_blocked: "rollout_blocked",

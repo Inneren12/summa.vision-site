@@ -40,6 +40,7 @@ export type ApiRollout = {
   seedByDefault?: ApiSeedBy;
   stop?: RolloutStopConditions;
   hysteresis?: RolloutHysteresis;
+  shadow?: boolean;
 };
 
 export type ApiSegment = {
@@ -177,6 +178,7 @@ export function flagToApi(flag: FlagConfig): ApiFlagConfig {
         seedByDefault: toApiSeed(flag.rollout.seedByDefault ?? flag.seedByDefault),
         stop: flag.rollout.stop,
         hysteresis: flag.rollout.hysteresis,
+        shadow: flag.rollout.shadow,
       }
     : undefined;
   const segments = flag.segments?.length ? flag.segments.map(toApiSegment) : undefined;
@@ -255,6 +257,9 @@ export function apiToFlag(payload: ApiFlagConfig, existing?: FlagConfig): FlagCo
         steps: normalizeSteps(payload.rollout.steps, existing?.rollout?.steps),
         stop: payload.rollout.stop ?? existing?.rollout?.stop,
         hysteresis: payload.rollout.hysteresis ?? existing?.rollout?.hysteresis,
+        shadow: Object.prototype.hasOwnProperty.call(payload.rollout, "shadow")
+          ? payload.rollout.shadow
+          : existing?.rollout?.shadow,
       }
     : existing?.rollout;
 

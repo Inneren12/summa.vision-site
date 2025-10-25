@@ -11,8 +11,10 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(() => ({ get: () => null })),
 }));
 
-import { getFlagsServer } from "../../lib/ff/effective.server";
+import { getFlagsServer, getFlagsServerWithMeta } from "../../lib/ff/effective.server";
+import { composeFFRuntime, resetFFRuntime } from "../../lib/ff/runtime";
 import { __clearTelemetry, readRecent } from "../../lib/ff/telemetry";
+import type { TelemetryEvent } from "../../lib/ff/telemetry";
 
 describe("telemetry integration via getFlagsServer()", () => {
   const savedEnv = { ...process.env };
@@ -41,6 +43,7 @@ describe("telemetry integration via getFlagsServer()", () => {
     }
     Object.assign(process.env, savedEnv);
     __clearTelemetry();
+    resetFFRuntime();
   });
 
   it("records events with source=env when no overrides", async () => {
@@ -64,5 +67,22 @@ describe("telemetry integration via getFlagsServer()", () => {
     const last = events[events.length - 1];
     expect(last.source).toBe("override");
     expect(String(last.value)).toBe("false");
+  });
+
+  it("emits shadow exposures without changing served value", async () => {
+    mockCookies([{ name: "sv_id", value: "sv_shadow" }]);
+    process.env.FEATURE_FLAGS_JSON = JSON.stringify({
+      newCheckout: { enabled: true, percent: 100, shadow: true },
+    });
+    const events: TelemetryEvent[] = [];
+    composeFFRuntime({ telemetry: { emit: (event: TelemetryEvent) => events.push(event) } });
+
+    const { flags } = await getFlagsServerWithMeta();
+
+    expect(flags.newCheckout).toBe(false);
+    const shadowEvents = events.filter((e) => e.type === "exposure_shadow");
+    expect(shadowEvents.length).toBeGreaterThan(0);
+    expect(shadowEvents.every((e) => e.flag === "newCheckout")).toBe(true);
+    expect(shadowEvents.every((e) => e.value === true)).toBe(true);
   });
 });

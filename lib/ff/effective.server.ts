@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { correlationFromNextContext } from "../metrics/correlation";
 
 import { resolveEffectiveFlag } from "./effective.shared";
+import { trackShadowExposure } from "./exposure";
 import { FLAG_REGISTRY, type EffectiveFlags, type EffectiveValueFor, type FlagName } from "./flags";
 import { unitFromIdSalt } from "./hash";
 import { getFeatureFlagsFromHeadersWithSources, type FlagSources } from "./server";
@@ -61,7 +62,18 @@ export async function getFlagsServerWithMeta(opts?: { userId?: string }): Promis
   for (const name of Object.keys(FLAG_REGISTRY) as FlagName[]) {
     const start = Date.now();
     const raw = Object.prototype.hasOwnProperty.call(merged, name) ? merged[name] : undefined;
-    const value = resolveEffectiveFlag(name, raw, id, unitForSalt);
+    const value = resolveEffectiveFlag(name, raw, id, unitForSalt, {
+      onShadow: ({ value: shadowValue }) => {
+        if (!shadowValue) return;
+        trackShadowExposure({
+          flag: name,
+          value: shadowValue,
+          source: sources[name] ?? "default",
+          stableId: id,
+          userId,
+        });
+      },
+    });
     const end = Date.now();
     const evaluationTime = end - start;
     out[name] = value as EffectiveFlags[typeof name];
@@ -124,14 +136,25 @@ export async function getFlagServerWithMeta<N extends FlagName>(
     if (mode === "variant") return unitFromVariantSalt(id, salt);
     return unitFromIdSalt(id, salt);
   };
+  const source = sources[name] ?? "default";
+  const userId = deriveUserId(id);
   const start = Date.now();
   const raw = Object.prototype.hasOwnProperty.call(merged, name)
     ? (merged as Record<string, unknown>)[name]
     : undefined;
-  const value = resolveEffectiveFlag(name, raw, id, unitForSalt) as EffectiveValueFor<N>;
+  const value = resolveEffectiveFlag(name, raw, id, unitForSalt, {
+    onShadow: ({ value: shadowValue }) => {
+      if (!shadowValue) return;
+      trackShadowExposure({
+        flag: name,
+        value: shadowValue,
+        source,
+        stableId: id,
+        userId,
+      });
+    },
+  }) as EffectiveValueFor<N>;
   const end = Date.now();
-  const source = sources[name] ?? "default";
-  const userId = deriveUserId(id);
   trackFlagEvaluation({
     ts: end,
     flag: name,

@@ -3,7 +3,7 @@
 
 export type TelemetrySource = "env" | "override" | "default" | "global";
 
-export type TelemetryEventType = "evaluation" | "exposure";
+export type TelemetryEventType = "evaluation" | "exposure" | "exposure_shadow";
 
 export type TelemetryEvent = {
   ts: number; // timestamp (ms since epoch)

@@ -156,8 +156,12 @@ async function adjustRollout(formData: FormData) {
   const role = await ensureRole("ops");
   const flag = String(formData.get("flag") ?? "").trim();
   const delta = Number(formData.get("step"));
+  const shadowParam = formData.get("shadow");
   if (!flag) throw new Error("Flag key is required");
   if (!Number.isFinite(delta)) throw new Error("Invalid step");
+  const shadowRaw = typeof shadowParam === "string" ? shadowParam.trim() : undefined;
+  const hasShadowParam = typeof shadowRaw === "string" && shadowRaw.length > 0;
+  const nextShadowValue = hasShadowParam ? shadowRaw.toLowerCase() === "true" : undefined;
   const { store, lock, metrics } = FF();
   const existing = await store.getFlag(flag);
   if (!existing) throw new Error("Flag not found");
@@ -171,9 +175,19 @@ async function adjustRollout(formData: FormData) {
     if (!current) throw new Error("Flag disappeared");
     const base = current.rollout?.percent ?? 0;
     const nextPercent = Math.max(0, Math.min(100, base + delta));
+    const currentShadow = Boolean(current.rollout?.shadow);
+    const nextShadow = hasShadowParam ? nextShadowValue === true : currentShadow;
+    const percentChanged = Math.abs(base - nextPercent) >= 1e-6;
+    if (!percentChanged && nextShadow === currentShadow) {
+      return current;
+    }
     const nextConfig: FlagConfig = {
       ...current,
-      rollout: { ...(current.rollout ?? { percent: 0 }), percent: nextPercent },
+      rollout: {
+        ...(current.rollout ?? { percent: nextPercent }),
+        percent: percentChanged ? nextPercent : base,
+        shadow: nextShadow,
+      },
       updatedAt: Date.now(),
     };
     return store.putFlag(nextConfig);
@@ -185,6 +199,7 @@ async function adjustRollout(formData: FormData) {
     action: "rollout_step",
     flag,
     nextPercent: updated.rollout?.percent ?? 0,
+    shadow: hasShadowParam ? nextShadowValue === true : updated.rollout?.shadow,
     requestId: correlation.requestId,
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,
@@ -280,6 +295,9 @@ function AuditLog() {
             break;
           case "rollout_step":
             description = `set rollout of ${rec.flag} to ${rec.nextPercent}%`;
+            if (rec.shadow) {
+              description += " (shadow)";
+            }
             break;
           case "rollout_blocked":
             description = `blocked rollout of ${rec.flag} (${rec.reason ?? "stop condition"})`;
@@ -380,7 +398,9 @@ export default async function AdminFlagsPage() {
                 <p className="text-sm text-neutral-700">
                   Enabled: {flag.enabled ? "yes" : "no"} · Kill: {flag.kill ? "yes" : "no"}
                 </p>
-                <p className="text-sm text-neutral-700">Rollout: {flag.rollout?.percent ?? 0}%</p>
+                <p className="text-sm text-neutral-700">
+                  Rollout: {flag.rollout?.percent ?? 0}%{flag.rollout?.shadow ? " (shadow)" : ""}
+                </p>
                 {flag.tags && flag.tags.length > 0 && (
                   <p className="text-sm text-neutral-600">Tags: {flag.tags.join(", ")}</p>
                 )}
@@ -391,6 +411,11 @@ export default async function AdminFlagsPage() {
                   <form action={adjustRollout} method="post">
                     <input type="hidden" name="flag" value={flag.key} />
                     <input type="hidden" name="step" value="-5" />
+                    <input
+                      type="hidden"
+                      name="shadow"
+                      value={flag.rollout?.shadow ? "true" : "false"}
+                    />
                     <button className="rounded bg-neutral-200 px-3 py-1 text-sm" type="submit">
                       −5%
                     </button>
@@ -398,8 +423,28 @@ export default async function AdminFlagsPage() {
                   <form action={adjustRollout} method="post">
                     <input type="hidden" name="flag" value={flag.key} />
                     <input type="hidden" name="step" value="5" />
+                    <input
+                      type="hidden"
+                      name="shadow"
+                      value={flag.rollout?.shadow ? "true" : "false"}
+                    />
                     <button className="rounded bg-neutral-200 px-3 py-1 text-sm" type="submit">
                       +5%
+                    </button>
+                  </form>
+                  <form action={adjustRollout} method="post">
+                    <input type="hidden" name="flag" value={flag.key} />
+                    <input type="hidden" name="step" value="0" />
+                    <input
+                      type="hidden"
+                      name="shadow"
+                      value={flag.rollout?.shadow ? "false" : "true"}
+                    />
+                    <button
+                      className="rounded bg-neutral-900 px-3 py-1 text-sm text-white"
+                      type="submit"
+                    >
+                      {flag.rollout?.shadow ? "Disable shadow" : "Enable shadow"}
                     </button>
                   </form>
                 </div>
