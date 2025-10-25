@@ -331,6 +331,34 @@ export class RedisFlagStore implements FlagStore {
     );
   }
 
+  async deleteOverridesByUser(userId: string): Promise<number> {
+    return this.handle(
+      async () => {
+        const keys = await this.scanKeys(OVERRIDE_KEY_PREFIX);
+        if (keys.length === 0) {
+          return 0;
+        }
+        const field = scopeField({ type: "user", id: userId });
+        const pipeline = this.redis.pipeline();
+        for (const key of keys) {
+          pipeline.hdel(key, field);
+        }
+        const results = await pipeline.exec();
+        let removed = 0;
+        for (const [error, value] of results) {
+          if (!error && typeof value === "number") {
+            removed += value;
+          }
+        }
+        if (removed > 0) {
+          await this.memoryFallback.deleteOverridesByUser(userId);
+        }
+        return removed;
+      },
+      () => this.memoryFallback.deleteOverridesByUser(userId),
+    );
+  }
+
   async evaluate(
     key: string,
     ctx: FlagEvaluationContext,

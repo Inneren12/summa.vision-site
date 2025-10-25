@@ -58,6 +58,11 @@ export type AuditRecord =
       action: "snapshot_restore";
       flags: number;
       overrides: number;
+    })
+  | (AuditMetadata & {
+      action: "privacy_erase";
+      identifiers: { sid?: string; aid?: string; userId?: string; stableId?: string };
+      removedOverrides: number;
     });
 
 const MAX = 1000;

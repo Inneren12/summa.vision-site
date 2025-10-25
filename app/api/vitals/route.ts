@@ -113,7 +113,10 @@ export async function POST(req: Request) {
     delta,
     navigationType,
     attribution: sanitizeAttribution(consent, attribution),
-    context: metricsContext,
+    context: correlation,
+    url: consent === "necessary" ? undefined : url,
+    sid,
+    aid,
   });
 
   return new NextResponse(null, { status: 204 });

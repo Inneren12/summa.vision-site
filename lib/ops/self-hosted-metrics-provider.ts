@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { loadErasureMatcher } from "@/lib/privacy/erasure";
+
 const DEFAULT_RUNTIME_DIR = path.resolve(".runtime");
 const DEFAULT_VITALS_FILE = path.join(DEFAULT_RUNTIME_DIR, "vitals.ndjson");
 const DEFAULT_ERRORS_FILE = path.join(DEFAULT_RUNTIME_DIR, "errors.ndjson");
@@ -48,7 +50,20 @@ type Options = {
   resolveSnapshotIds?: SnapshotResolver;
 };
 
-async function parseVitals(filePath: string | undefined, cutoff: number): Promise<SnapshotMetrics> {
+type ErasureMatcher = {
+  isErased(candidate: {
+    sid?: string | null;
+    aid?: string | null;
+    sessionId?: string | null;
+    userId?: string | null;
+  }): boolean;
+};
+
+async function parseVitals(
+  filePath: string | undefined,
+  cutoff: number,
+  matcher: ErasureMatcher,
+): Promise<SnapshotMetrics> {
   const map: SnapshotMetrics = new Map();
   const lines = await readLines(filePath);
   for (const line of lines) {
@@ -64,8 +79,12 @@ async function parseVitals(filePath: string | undefined, cutoff: number): Promis
     const metric = typeof event.metric === "string" ? event.metric : undefined;
     const value = isFiniteNumber(event.value) ? (event.value as number) : undefined;
     const ts = isFiniteNumber(event.ts) ? (event.ts as number) : undefined;
+    const sid = typeof event.sid === "string" ? event.sid : undefined;
+    const aid = typeof event.aid === "string" ? event.aid : undefined;
+    const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || !metric || value === undefined || ts === undefined) continue;
     if (ts < cutoff) continue;
+    if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     if (!map.has(snapshotId)) {
       map.set(snapshotId, new Map());
     }
@@ -78,7 +97,11 @@ async function parseVitals(filePath: string | undefined, cutoff: number): Promis
   return map;
 }
 
-async function parseErrors(filePath: string | undefined, cutoff: number): Promise<SnapshotErrors> {
+async function parseErrors(
+  filePath: string | undefined,
+  cutoff: number,
+  matcher: ErasureMatcher,
+): Promise<SnapshotErrors> {
   const map: SnapshotErrors = new Map();
   const lines = await readLines(filePath);
   for (const line of lines) {
@@ -92,8 +115,12 @@ async function parseErrors(filePath: string | undefined, cutoff: number): Promis
     const event = parsed as Record<string, unknown>;
     const snapshotId = typeof event.snapshotId === "string" ? event.snapshotId : undefined;
     const ts = isFiniteNumber(event.ts) ? (event.ts as number) : undefined;
+    const sid = typeof event.sid === "string" ? event.sid : undefined;
+    const aid = typeof event.aid === "string" ? event.aid : undefined;
+    const sessionId = typeof event.sessionId === "string" ? event.sessionId : undefined;
     if (!snapshotId || ts === undefined) continue;
     if (ts < cutoff) continue;
+    if (matcher.isErased({ sid: sid ?? sessionId ?? null, aid, sessionId })) continue;
     map.set(snapshotId, (map.get(snapshotId) ?? 0) + 1);
   }
   return map;
@@ -141,9 +168,10 @@ export class SelfHostedMetricsProvider {
     }
     const now = Date.now();
     const cutoff = now - span;
+    const matcher = await loadErasureMatcher();
     const [metrics, errors] = await Promise.all([
-      parseVitals(this.vitalsFile, cutoff),
-      parseErrors(this.errorsFile, cutoff),
+      parseVitals(this.vitalsFile, cutoff, matcher),
+      parseErrors(this.errorsFile, cutoff, matcher),
     ]);
     return { metrics, errors };
   }

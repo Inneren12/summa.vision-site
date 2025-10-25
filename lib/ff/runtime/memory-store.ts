@@ -204,6 +204,17 @@ export class MemoryFlagStore implements FlagStore {
     }
   }
 
+  async deleteOverridesByUser(userId: string): Promise<number> {
+    let removed = 0;
+    for (const map of this.state.overrides.values()) {
+      pruneExpired(map);
+      if (map.user.delete(userId)) {
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   async evaluate(
     key: string,
     ctx: FlagEvaluationContext,
