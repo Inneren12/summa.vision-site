@@ -1,43 +1,41 @@
 import type { OverrideScope, OverrideValue } from "./runtime/types";
 
+type AuditMetadata = {
+  timestamp: number;
+  actor: string;
+  requestId?: string | null;
+  sessionId?: string | null;
+  requestNamespace?: string | null;
+};
+
 export type AuditRecord =
-  | {
-      timestamp: number;
-      actor: string;
+  | (AuditMetadata & {
       action: "global_override_set";
       flag: string;
       value: boolean | string | number;
       ttlSeconds: number;
       reason?: string;
       instanceId?: string;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "override_set";
       flag: string;
       scope: OverrideScope;
       value: OverrideValue;
       ttlSeconds?: number;
       reason?: string;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "override_remove";
       flag: string;
       scope: OverrideScope;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "rollout_step";
       flag: string;
       nextPercent: number;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "rollout_blocked";
       flag: string;
       reason?: string;
@@ -47,29 +45,30 @@ export type AuditRecord =
       cls?: number;
       inp?: number;
       denom?: number;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "kill_switch";
       enabled: boolean;
       flags?: string[];
       namespace?: string;
       reason?: string;
-    }
-  | {
-      timestamp: number;
-      actor: string;
+    })
+  | (AuditMetadata & {
       action: "snapshot_restore";
       flags: number;
       overrides: number;
-    };
+    });
 
 const MAX = 1000;
 const LOG: AuditRecord[] = [];
 
 export function logAdminAction(rec: AuditRecord) {
-  LOG.push(rec);
+  LOG.push({
+    ...rec,
+    requestId: rec.requestId ?? null,
+    sessionId: rec.sessionId ?? null,
+    requestNamespace: rec.requestNamespace ?? null,
+  });
   if (LOG.length > MAX) LOG.shift();
 }
 

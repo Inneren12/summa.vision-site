@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 import { GET } from "@/app/api/ff-override/route";

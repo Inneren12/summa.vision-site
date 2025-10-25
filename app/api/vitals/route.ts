@@ -3,13 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
-import {
-  hasDoNotTrackEnabled,
-  readConsent,
-  readIdentifiers,
-  sanitizeAttribution,
-  sanitizeUrl,
-} from "@/lib/metrics/privacy";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
+import { hasDoNotTrackEnabled, readConsent, sanitizeAttribution } from "@/lib/metrics/privacy";
 
 export const runtime = "nodejs";
 
@@ -76,6 +71,7 @@ export async function POST(req: Request) {
     return badRequest("Expected JSON payload");
   }
 
+  const correlation = correlationFromRequest(req);
   const payload = sanitizePayload(json);
   const name = typeof payload.name === "string" ? payload.name : undefined;
   const value = toFiniteNumber(payload.value);
@@ -106,9 +102,7 @@ export async function POST(req: Request) {
     delta,
     navigationType,
     attribution: sanitizeAttribution(consent, attribution),
-    url: sanitizeUrl(consent, url),
-    sid,
-    aid,
+    context: correlation,
   });
 
   return new NextResponse(null, { status: 204 });

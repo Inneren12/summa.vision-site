@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SelfMetricsProvider } from "@/lib/ff/runtime/self-metrics";
 
 function waitForQueue() {
-  return new Promise((resolve) => setTimeout(resolve, 10));
+  return new Promise((resolve) => setTimeout(resolve, 100));
 }
 
 describe("SelfMetricsProvider persistence", () => {
@@ -44,6 +44,9 @@ describe("SelfMetricsProvider persistence", () => {
     expect(vitalEvent.value).toBe(245);
     expect(vitalEvent.label).toBe("web-vital");
     expect(vitalEvent.id).toBe("metric-test");
+    expect(vitalEvent.requestId).toBeNull();
+    expect(vitalEvent.sessionId).toBeNull();
+    expect(vitalEvent.namespace).toBe("default");
 
     const errorsContent = await readFile(errorsFile, "utf8");
     const errorLines = errorsContent.trim().split(/\r?\n/);
@@ -51,5 +54,8 @@ describe("SelfMetricsProvider persistence", () => {
     const errorEvent = JSON.parse(errorLines[0]) as Record<string, unknown>;
     expect(errorEvent.snapshotId).toBe("snapshot-test");
     expect(errorEvent.message).toBe("Boom");
+    expect(errorEvent.requestId).toBeNull();
+    expect(errorEvent.sessionId).toBeNull();
+    expect(errorEvent.namespace).toBe("default");
   });
 });

@@ -12,6 +12,7 @@ const cookiesMock = vi.hoisted(() =>
 
 vi.mock("next/headers", () => ({
   cookies: cookiesMock,
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 describe("S3-D: override type validation", () => {

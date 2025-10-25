@@ -8,6 +8,7 @@ import { authorizeApi } from "@/lib/admin/rbac";
 import { normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,7 @@ const KillSchema = z.object({
 export async function POST(req: Request) {
   const auth = authorizeApi(req, "admin");
   if (!auth.ok) return auth.response;
+  const correlation = correlationFromRequest(req);
   const limit = resolveKillSwitchRpm();
   const gate = await enforceAdminRateLimit({
     req,
@@ -76,6 +78,9 @@ export async function POST(req: Request) {
       flags: Array.from(appliedFlags),
       namespace: undefined,
       reason,
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      requestNamespace: correlation.namespace,
     });
     return auth.apply(
       NextResponse.json({
@@ -118,6 +123,9 @@ export async function POST(req: Request) {
       flags: Array.from(appliedFlags),
       namespace,
       reason,
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      requestNamespace: correlation.namespace,
     });
     return auth.apply(
       NextResponse.json({
@@ -139,6 +147,9 @@ export async function POST(req: Request) {
     flags: undefined,
     namespace: undefined,
     reason,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   return auth.apply(NextResponse.json({ ok: true, scope: "global", enabled: enable, reason }));
 }

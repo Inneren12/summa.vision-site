@@ -10,6 +10,7 @@ const cookiesMock = vi.hoisted(() =>
 
 vi.mock("next/headers", () => ({
   cookies: cookiesMock,
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 import { GET } from "../../app/api/ff-override/route";

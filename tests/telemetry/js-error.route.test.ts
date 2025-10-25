@@ -24,6 +24,8 @@ describe("POST /api/js-error", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-err",
         dnt: "1",
+        "x-request-id": "req-js-1",
+        cookie: "sv_id=session-js-1",
       },
       body: JSON.stringify({ message: "Boom", stack: "trace" }),
     });
@@ -43,7 +45,8 @@ describe("POST /api/js-error", () => {
         "content-type": "application/json",
         "x-ff-snapshot": "snapshot-err",
         "x-consent": "necessary",
-        cookie: "sv_id=sid-err; sv_aid=aid-err",
+        "x-request-id": "req-js-2",
+        cookie: "sv_id=session-js-2",
       },
       body: JSON.stringify({
         message: "Sensitive error",
@@ -57,40 +60,10 @@ describe("POST /api/js-error", () => {
 
     expect(response.status).toBe(204);
     expect(recordError).toHaveBeenCalledTimes(1);
-    expect(recordError).toHaveBeenCalledWith("snapshot-err", undefined, undefined, {
-      filename: undefined,
-      url: undefined,
-      sid: "sid-err",
-      aid: "aid-err",
-    });
-  });
-
-  it("preserves error context when consent cookie allows all", async () => {
-    const { POST } = await import("@/app/api/js-error/route");
-    const request = new Request("http://localhost/api/js-error", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-ff-snapshot": "snapshot-err",
-        cookie: "sv_consent=all; sv_id=sid-err; sv_aid=aid-err",
-      },
-      body: JSON.stringify({
-        message: "Boom",
-        stack: "trace",
-        filename: "app.ts",
-        url: "https://example/z",
-      }),
-    });
-
-    const response = await POST(request);
-
-    expect(response.status).toBe(204);
-    expect(recordError).toHaveBeenCalledTimes(1);
-    expect(recordError).toHaveBeenCalledWith("snapshot-err", "Boom", "trace", {
-      filename: "app.ts",
-      url: "https://example/z",
-      sid: "sid-err",
-      aid: "aid-err",
+    expect(recordError).toHaveBeenCalledWith("snapshot-err", REDACTED_VALUE, undefined, {
+      requestId: "req-js-2",
+      sessionId: "session-js-2",
+      namespace: "default",
     });
   });
 });

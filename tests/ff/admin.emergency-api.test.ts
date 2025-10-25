@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 import { POST } from "@/app/api/admin/ff-emergency-disable/route";
@@ -14,7 +15,7 @@ import * as server from "@/lib/ff/server";
 function req(body: unknown, hdrs: Record<string, string> = {}) {
   return new Request("http://localhost/api/admin/ff-emergency-disable", {
     method: "POST",
-    headers: { "content-type": "application/json", ...hdrs },
+    headers: { "content-type": "application/json", "x-request-id": "admin-test", ...hdrs },
     body: JSON.stringify(body),
   });
 }
@@ -52,7 +53,11 @@ describe("S3-E Admin Emergency Disable API", () => {
     const res = await POST(
       new Request("http://localhost/api/admin/ff-emergency-disable", {
         method: "POST",
-        headers: { "x-ff-admin-token": "adm1n", "content-type": "text/plain" },
+        headers: {
+          "x-ff-admin-token": "adm1n",
+          "content-type": "text/plain",
+          "x-request-id": "admin-test-plain",
+        },
         body: "flag=betaUI",
       }),
     );
@@ -70,6 +75,7 @@ describe("S3-E Admin Emergency Disable API", () => {
           "x-ff-admin-token": "adm1n",
           "content-type": "application/json",
           "content-length": "2001",
+          "x-request-id": "admin-test-large",
         },
         body: JSON.stringify({ flag: "betaUI", value: true }),
       }),
@@ -109,6 +115,7 @@ describe("S3-E Admin Emergency Disable API", () => {
     const audit = readAuditRecent(10);
     expect(audit.length).toBe(1);
     expect(audit[0].flag).toBe("newCheckout");
+    expect(audit[0].requestId).toBe("admin-test");
   });
 
   it("capacity limit срабатывает", async () => {

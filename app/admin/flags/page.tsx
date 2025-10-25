@@ -12,6 +12,7 @@ import { logAdminAction, readAuditRecent } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import { createOverride } from "@/lib/ff/runtime/memory-store";
 import type { FlagConfig, OverrideEntry, OverrideScope } from "@/lib/ff/runtime/types";
+import { correlationFromNextContext } from "@/lib/metrics/correlation";
 
 const PAGE_PATH = "/admin/flags";
 
@@ -96,6 +97,7 @@ async function upsertOverride(formData: FormData) {
   const lock = FF().lock;
   const entry = createOverride(flag, scope, value, role, reason);
   const saved = await lock.withLock(flag, async () => store.putOverride(entry));
+  const correlation = correlationFromNextContext();
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
@@ -104,6 +106,9 @@ async function upsertOverride(formData: FormData) {
     scope: saved.scope,
     value: saved.value,
     reason,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   revalidatePath(PAGE_PATH);
 }
@@ -132,12 +137,16 @@ async function removeOverride(formData: FormData) {
   await lock.withLock(flag, async () => {
     await store.removeOverride(flag, scope);
   });
+  const correlation = correlationFromNextContext();
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
     action: "override_remove",
     flag,
     scope,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   revalidatePath(PAGE_PATH);
 }
@@ -169,12 +178,16 @@ async function adjustRollout(formData: FormData) {
     };
     return store.putFlag(nextConfig);
   });
+  const correlation = correlationFromNextContext();
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
     action: "rollout_step",
     flag,
     nextPercent: updated.rollout?.percent ?? 0,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   revalidatePath(PAGE_PATH);
 }
@@ -184,11 +197,15 @@ async function toggleKill(formData: FormData) {
   const role = await ensureRole("admin");
   const enabled = String(formData.get("enable")) === "true";
   process.env.FF_KILL_ALL = enabled ? "true" : "false";
+  const correlation = correlationFromNextContext();
   logAdminAction({
     timestamp: Date.now(),
     actor: role,
     action: "kill_switch",
     enabled,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   revalidatePath(PAGE_PATH);
 }

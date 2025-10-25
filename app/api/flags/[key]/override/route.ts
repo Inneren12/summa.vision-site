@@ -9,6 +9,7 @@ import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
 import { createOverride } from "@/lib/ff/runtime/memory-store";
 import type { OverrideEntry, OverrideScope } from "@/lib/ff/runtime/types";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,7 @@ export async function GET(req: Request, { params }: { params: { key: string } })
 export async function POST(req: Request, { params }: { params: { key: string } }) {
   const auth = authorizeApi(req, "ops");
   if (!auth.ok) return auth.response;
+  const correlation = correlationFromRequest(req);
   if (process.env.FF_FREEZE_OVERRIDES === "true") {
     return auth.apply(NextResponse.json({ error: "Overrides are frozen" }, { status: 423 }));
   }
@@ -100,6 +102,9 @@ export async function POST(req: Request, { params }: { params: { key: string } }
         action: "override_remove",
         flag: flagKey,
         scope,
+        requestId: correlation.requestId,
+        sessionId: correlation.sessionId,
+        requestNamespace: correlation.namespace,
       });
     }
     return auth.apply(new NextResponse(null, { status: 204 }));
@@ -114,6 +119,9 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     value,
     ttlSeconds: ttlSec,
     reason,
+    requestId: correlation.requestId,
+    sessionId: correlation.sessionId,
+    requestNamespace: correlation.namespace,
   });
   return auth.apply(NextResponse.json({ ok: true, override: result.saved }));
 }

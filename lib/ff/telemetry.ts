@@ -15,6 +15,9 @@ export type TelemetryEvent = {
   evaluationTime?: number; // ms spent evaluating this flag
   cacheHit?: boolean; // reserved; currently always false
   type: TelemetryEventType; // kind of event
+  requestId: string | null;
+  sessionId: string | null;
+  namespace: string;
 };
 
 const RING: TelemetryEvent[] = [];

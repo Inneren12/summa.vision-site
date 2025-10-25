@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { FF } from "@/lib/ff/runtime";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 import {
   hasDoNotTrackEnabled,
   readConsent,
@@ -49,15 +50,9 @@ export async function POST(req: Request) {
   const rawMessage = typeof payload.message === "string" ? payload.message : undefined;
   const message = sanitizeMessage(consent, rawMessage);
   const stack = typeof payload.stack === "string" ? payload.stack : undefined;
-  const filename = typeof payload.filename === "string" ? payload.filename : undefined;
-  const url = typeof payload.url === "string" ? payload.url : undefined;
 
-  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), {
-    filename: sanitizeFilename(consent, filename),
-    url: sanitizeUrl(consent, url),
-    sid,
-    aid,
-  });
+  const correlation = correlationFromRequest(req);
+  FF().metrics.recordError(snapshotId, message, sanitizeStack(consent, stack), correlation);
 
   return new NextResponse(null, { status: 204 });
 }

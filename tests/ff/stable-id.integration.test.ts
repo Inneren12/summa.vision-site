@@ -11,6 +11,7 @@ const cookiesMock = vi.hoisted(() => vi.fn<() => CookieStore>());
 
 vi.mock("next/headers", () => ({
   cookies: cookiesMock,
+  headers: vi.fn(() => ({ get: () => null })),
 }));
 
 import { getFlagsServer } from "../../lib/ff/effective.server";

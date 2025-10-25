@@ -6,6 +6,7 @@ import { logAdminAction } from "@/lib/ff/audit";
 import { FLAG_REGISTRY, isKnownFlag } from "@/lib/ff/flags";
 import { setGlobal, type GlobalValue } from "@/lib/ff/global";
 import { getInstanceId } from "@/lib/ff/instance";
+import { correlationFromRequest } from "@/lib/metrics/correlation";
 
 export const runtime = "nodejs";
 
@@ -87,6 +88,7 @@ function validateByRegistry(name: string, value: unknown): ValidationResult {
 export async function POST(req: Request) {
   const auth = authorizeApi(req, "admin");
   if (!auth.ok) return auth.response;
+  const correlation = correlationFromRequest(req);
 
   const body = await readJsonWithLimit(req, 1024);
   if (!body.ok) return auth.apply(body.res);
@@ -117,6 +119,9 @@ export async function POST(req: Request) {
       ttlSeconds: ttl,
       reason,
       instanceId: getInstanceId(),
+      requestId: correlation.requestId,
+      sessionId: correlation.sessionId,
+      requestNamespace: correlation.namespace,
     });
     return auth.apply(
       NextResponse.json(
