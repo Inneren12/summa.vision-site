@@ -6,7 +6,7 @@ import { exit } from "node:process";
 const HELP = `Usage: node scripts/ff-rollout.mjs --policy=<file> (--dry-run|--apply)\n`;
 
 function parseArgs() {
-  const out = { policy: undefined, mode: null };
+  const out = { policy: undefined, mode: null, shadow: undefined };
   for (const arg of process.argv.slice(2)) {
     if (arg === "--help" || arg === "-h") {
       console.log(HELP);
@@ -28,6 +28,14 @@ function parseArgs() {
     }
     if (arg.startsWith("--policy=")) {
       out.policy = arg.slice("--policy=".length);
+      continue;
+    }
+    if (arg === "--shadow") {
+      out.shadow = true;
+      continue;
+    }
+    if (arg === "--no-shadow") {
+      out.shadow = false;
       continue;
     }
     console.warn(`Unknown argument: ${arg}`);
@@ -249,6 +257,9 @@ async function main() {
   try {
     const args = parseArgs();
     const policy = await loadPolicy(args.policy);
+    if (typeof args.shadow === "boolean") {
+      policy.shadow = args.shadow;
+    }
     const token = resolveToken(policy.token);
     if (!token) {
       console.warn("Warning: no admin token resolved; request may fail with 401");

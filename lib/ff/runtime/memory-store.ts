@@ -12,6 +12,7 @@ import type {
   OverrideEntry,
   OverrideScope,
   OverrideValue,
+  SeedBy,
 } from "./types";
 
 function cloneConfig(config: FlagConfig): FlagConfig {
@@ -174,18 +175,41 @@ export class MemoryFlagStore implements FlagStore {
 
     const killActive = (flag.killSwitch ?? flag.kill ?? false) === true;
     const globalKill = process.env.FF_KILL_ALL === "true";
+    let shadowValue: boolean | undefined;
+    const withShadow = <T extends FlagEvaluationResult>(result: T): T => {
+      if (typeof shadowValue === "boolean") {
+        return { ...result, shadowValue } as T;
+      }
+      return result;
+    };
+    const recordShadow = (
+      shadow: FlagConfig["rollout"] extends { shadow?: infer S } ? S : undefined,
+      salt: string,
+      fallbackSeed: SeedBy,
+    ) => {
+      if (!shadow) return;
+      const cfg = shadow as { pct: number; seedBy?: SeedBy };
+      shadowValue = shadowValue ?? false;
+      const pct = ensurePercent(cfg.pct);
+      if (pct <= 0) return;
+      const seedKey = seedFor(flag.key, ctx, undefined, cfg.seedBy ?? fallbackSeed);
+      if (pctHit(`${seedKey}:${salt}`, pct)) {
+        shadowValue = true;
+      }
+    };
+
     if (killActive || globalKill) {
       if (typeof flag.defaultValue === "boolean") {
-        return {
+        return withShadow({
           value: false,
           reason: "killSwitch",
-        } satisfies FlagEvaluationResult;
+        } satisfies FlagEvaluationResult);
       }
       const killValue = flag.killValue !== undefined ? flag.killValue : undefined;
-      return {
+      return withShadow({
         value: killValue,
         reason: "killSwitch",
-      } satisfies FlagEvaluationResult;
+      } satisfies FlagEvaluationResult);
     }
 
     const overrides = this.state.overrides.get(key);
@@ -194,19 +218,19 @@ export class MemoryFlagStore implements FlagStore {
       pruneExpired(overrides);
       const userOverride = ctx.userId ? overrides.user.get(ctx.userId) : undefined;
       if (userOverride) {
-        return {
+        return withShadow({
           value: userOverride.value,
           reason: "user-override",
           override: cloneOverride(userOverride),
-        };
+        });
       }
       const nsOverride = ctx.namespace ? overrides.namespace.get(ctx.namespace) : undefined;
       if (nsOverride) {
-        return {
+        return withShadow({
           value: nsOverride.value,
           reason: "namespace-override",
           override: cloneOverride(nsOverride),
-        };
+        });
       }
     }
 
@@ -214,51 +238,75 @@ export class MemoryFlagStore implements FlagStore {
     for (const segment of segments) {
       if (!matchesSegment(segment, ctx)) continue;
       if (typeof segment.override !== "undefined") {
-        return { value: segment.override, reason: "segment-override", segmentId: segment.id };
+        return withShadow({
+          value: segment.override,
+          reason: "segment-override",
+          segmentId: segment.id,
+        });
       }
       if (segment.rollout) {
+        const fallbackSeed = segment.rollout.seedBy ?? seedByDefault;
+        recordShadow(
+          segment.rollout.shadow,
+          `${segment.rollout.salt || `${key}:seg:${segment.id}`}:shadow`,
+          fallbackSeed,
+        );
         if (segment.rollout.shadow) {
           continue;
         }
         const percent = ensurePercent(segment.rollout.percent);
         if (percent <= 0) continue;
         if (percent >= 100) {
-          return { value: flag.defaultValue, reason: "segment-rollout", segmentId: segment.id };
+          return withShadow({
+            value: flag.defaultValue,
+            reason: "segment-rollout",
+            segmentId: segment.id,
+          });
         }
-        const seedKey = seedFor(flag.key, ctx, undefined, segment.rollout.seedBy ?? seedByDefault);
+        const seedKey = seedFor(flag.key, ctx, undefined, fallbackSeed);
         const salt = segment.rollout.salt || `${key}:seg:${segment.id}`;
         if (pctHit(`${seedKey}:${salt}`, percent)) {
-          return { value: flag.defaultValue, reason: "segment-rollout", segmentId: segment.id };
+          return withShadow({
+            value: flag.defaultValue,
+            reason: "segment-rollout",
+            segmentId: segment.id,
+          });
         }
       }
     }
 
     if (overrides?.global) {
-      return {
+      return withShadow({
         value: overrides.global.value,
         reason: "global-override",
         override: cloneOverride(overrides.global),
-      };
+      });
     }
 
     if (flag.rollout) {
+      const fallbackSeed = flag.rollout.seedBy ?? seedByDefault;
+      recordShadow(
+        flag.rollout.shadow,
+        `${flag.rollout.salt || `${key}:global`}:shadow`,
+        fallbackSeed,
+      );
       if (flag.rollout.shadow) {
-        return { value: flag.defaultValue, reason: "default" };
+        return withShadow({ value: flag.defaultValue, reason: "default" });
       }
       const percent = ensurePercent(flag.rollout.percent);
       if (percent >= 100) {
-        return { value: flag.defaultValue, reason: "global-rollout" };
+        return withShadow({ value: flag.defaultValue, reason: "global-rollout" });
       }
       if (percent > 0) {
-        const seedKey = seedFor(flag.key, ctx, undefined, flag.rollout.seedBy ?? seedByDefault);
+        const seedKey = seedFor(flag.key, ctx, undefined, fallbackSeed);
         const salt = flag.rollout.salt || `${key}:global`;
         if (pctHit(`${seedKey}:${salt}`, percent)) {
-          return { value: flag.defaultValue, reason: "global-rollout" };
+          return withShadow({ value: flag.defaultValue, reason: "global-rollout" });
         }
       }
     }
 
-    return { value: flag.defaultValue, reason: "default" };
+    return withShadow({ value: flag.defaultValue, reason: "default" });
   }
 
   async snapshot(): Promise<FlagSnapshot> {

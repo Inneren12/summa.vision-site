@@ -76,7 +76,7 @@ describe("telemetry integration via getFlagsServer()", () => {
   it("emits shadow exposures without changing served value", async () => {
     mockCookies([{ name: "ff_aid", value: "aid_shadow" }]);
     process.env.FEATURE_FLAGS_JSON = JSON.stringify({
-      newCheckout: { enabled: true, percent: 100, shadow: true },
+      newCheckout: { enabled: true, percent: 100, shadow: { pct: 100 } },
     });
     __resetServerEnvCacheForTests();
     __resetFeatureFlagsCacheForTests();

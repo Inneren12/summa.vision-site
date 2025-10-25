@@ -1,11 +1,29 @@
 import { z } from "zod";
 
 // --- Strict unions for FlagValue (S2-A already supports structured values) ---
+const RolloutSeedBySchema = z.enum([
+  "stableId",
+  "anonId",
+  "user",
+  "userId",
+  "namespace",
+  "cookie",
+  "ipUa",
+]);
+
+export const RolloutShadowSchema = z
+  .object({
+    pct: z.number().min(0).max(100),
+    seedBy: RolloutSeedBySchema.optional(),
+  })
+  .strict();
+export type RolloutShadowConfig = z.infer<typeof RolloutShadowSchema>;
+
 export const RolloutConfigSchema = z.object({
   enabled: z.boolean(),
   percent: z.number().min(0).max(100).optional(),
   salt: z.string().max(64).optional(),
-  shadow: z.boolean().optional(),
+  shadow: RolloutShadowSchema.optional(),
 });
 export type RolloutConfig = z.infer<typeof RolloutConfigSchema>;
 

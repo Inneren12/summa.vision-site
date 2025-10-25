@@ -8,7 +8,12 @@ import { authorizeApi } from "@/lib/admin/rbac";
 import { flagToApi, normalizeNamespace } from "@/lib/ff/admin/api";
 import { logAdminAction } from "@/lib/ff/audit";
 import { FF } from "@/lib/ff/runtime";
-import type { RolloutHysteresis, RolloutStopConditions } from "@/lib/ff/runtime/types";
+import type {
+  RolloutHysteresis,
+  RolloutStopConditions,
+  RolloutStrategy,
+  SeedBy,
+} from "@/lib/ff/runtime/types";
 import { FlagConfigSchema } from "@/lib/ff/schema";
 import { correlationFromRequest } from "@/lib/metrics/correlation";
 
@@ -33,6 +38,20 @@ const HysteresisSchema = z
   .partial()
   .optional();
 
+const ShadowParamSchema = z
+  .union([
+    z.boolean(),
+    z
+      .object({
+        pct: z.number().min(0).max(100),
+        seedBy: z
+          .enum(["stableId", "anonId", "user", "userId", "namespace", "cookie", "ipUa"])
+          .optional(),
+      })
+      .strict(),
+  ])
+  .optional();
+
 const StepSchema = z.object({
   namespace: z.string().min(1).optional(),
   nextPct: z.number().min(0).max(100),
@@ -41,7 +60,7 @@ const StepSchema = z.object({
   coolDownMs: z.number().int().min(0).optional(),
   hysteresis: HysteresisSchema,
   dryRun: z.boolean().optional(),
-  shadow: z.boolean().optional(),
+  shadow: ShadowParamSchema,
 });
 
 function metricsUnavailable(): NextResponse {
@@ -127,6 +146,31 @@ function buildMetrics(summary?: RolloutMetricsSummary): MetricsSnapshot {
     cls: typeof cls === "number" ? cls : undefined,
     inp: typeof inp === "number" ? inp : undefined,
   } satisfies MetricsSnapshot;
+}
+
+type ShadowInput = z.infer<typeof ShadowParamSchema>;
+
+function resolveShadowConfig(
+  input: ShadowInput,
+  targetPct: number,
+  current: RolloutStrategy | undefined,
+  seedByDefault: SeedBy | undefined,
+): { enabled: boolean; config: RolloutStrategy["shadow"] | undefined } {
+  const fallbackSeed = current?.shadow?.seedBy ?? current?.seedBy ?? seedByDefault;
+  if (typeof input === "boolean") {
+    if (input) {
+      return { enabled: true, config: { pct: targetPct, seedBy: fallbackSeed } };
+    }
+    return { enabled: false, config: undefined };
+  }
+  if (input && typeof input === "object") {
+    const pct = clampPercent(input.pct);
+    if (pct <= 0) {
+      return { enabled: false, config: undefined };
+    }
+    return { enabled: true, config: { pct, seedBy: input.seedBy ?? fallbackSeed } };
+  }
+  return { enabled: Boolean(current?.shadow), config: current?.shadow };
 }
 
 function evaluateRollout(params: {
@@ -299,7 +343,12 @@ export async function POST(req: Request, { params }: { params: { key: string } }
   const lastStepAt = lastRecordedStep?.at ?? existing.updatedAt ?? 0;
   const effectiveStop = stop ?? existing.rollout?.stop;
   const effectiveHysteresis = hysteresis ?? existing.rollout?.hysteresis;
-  const shadowFlag = typeof shadow === "boolean" ? shadow : (existing.rollout?.shadow ?? false);
+  const { enabled: desiredShadowEnabled, config: desiredShadowConfig } = resolveShadowConfig(
+    shadow,
+    targetPct,
+    existing.rollout,
+    existing.seedByDefault,
+  );
   const evaluation = evaluateRollout({
     stop: effectiveStop,
     hysteresis: effectiveHysteresis,
@@ -319,7 +368,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
         {
           ok: !evaluation.blocked,
           dryRun: true,
-          decision: evaluation.blocked ? "hold" : shadowFlag ? "shadow" : "advance",
+          decision: evaluation.blocked ? "hold" : desiredShadowEnabled ? "shadow" : "advance",
           reason: evaluation.reason,
           limit: evaluation.limit,
           actual: evaluation.actual,
@@ -329,8 +378,8 @@ export async function POST(req: Request, { params }: { params: { key: string } }
           metrics: metricsSnapshot,
           currentPct,
           nextPct: targetPct,
-          shadow: shadowFlag,
-          shadowCoverage: shadowFlag ? targetPct : undefined,
+          shadow: desiredShadowEnabled,
+          shadowCoverage: desiredShadowConfig?.pct,
         },
         { status: 200 },
       ),
@@ -379,10 +428,23 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     if (!current) throw new Error("Flag disappeared");
     const base = clampPercent(current.rollout?.percent ?? 0);
     const target = clampPercent(targetPct);
-    const currentShadow = Boolean(current.rollout?.shadow);
-    const nextShadow = typeof shadow === "boolean" ? shadow : currentShadow;
+    const { config: nextShadowConfig } = resolveShadowConfig(
+      shadow,
+      target,
+      current.rollout,
+      current.seedByDefault,
+    );
+    const currentShadowConfig = current.rollout?.shadow;
+    const shadowChanged = (() => {
+      if (!currentShadowConfig && !nextShadowConfig) return false;
+      if (!!currentShadowConfig !== !!nextShadowConfig) return true;
+      if (!currentShadowConfig || !nextShadowConfig) return false;
+      if (Math.abs(currentShadowConfig.pct - nextShadowConfig.pct) >= 1e-6) return true;
+      if (currentShadowConfig.seedBy !== nextShadowConfig.seedBy) return true;
+      return false;
+    })();
     const percentChanged = Math.abs(base - target) >= 1e-6;
-    if (!percentChanged && nextShadow === currentShadow) {
+    if (!percentChanged && !shadowChanged) {
       return { flag: current, changed: false } as const;
     }
     const now = Date.now();
@@ -398,7 +460,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
         stop: effectiveStop,
         hysteresis: effectiveHysteresis,
         steps: nextSteps,
-        shadow: nextShadow,
+        shadow: nextShadowConfig,
       },
       updatedAt: now,
     };
@@ -407,7 +469,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
       return { ok: false, error: parsed.error } as const;
     }
     const saved = await store.putFlag(parsed.data);
-    const changed = percentChanged || nextShadow !== currentShadow;
+    const changed = percentChanged || shadowChanged;
     return { ok: true, flag: saved, changed } as const;
   });
 
@@ -438,7 +500,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     action: "rollout_step",
     flag: key,
     nextPercent: apiFlag.rollout?.currentPct ?? apiFlag.rollout?.steps?.at(-1)?.pct ?? targetPct,
-    shadow: shadowFlag,
+    shadow: desiredShadowEnabled,
     requestId: correlation.requestId,
     sessionId: correlation.sessionId,
     requestNamespace: correlation.namespace,

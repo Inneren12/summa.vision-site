@@ -225,4 +225,41 @@ describe("evaluateFlag", () => {
     const result = evaluateFlag({ cfg, ctx: baseCtx, seeds: baseSeeds });
     expect(result).toMatchObject({ reason: "killSwitch", value: 0 });
   });
+
+  it("computes shadowValue without changing rollout", () => {
+    const cfg: FlagConfig = {
+      key: "flag-shadow",
+      enabled: true,
+      kill: false,
+      defaultValue: false,
+      seedByDefault: "stableId",
+      createdAt: 0,
+      updatedAt: 0,
+      rollout: { percent: 0, shadow: { pct: 50 } },
+    };
+
+    const result = evaluateFlag({
+      cfg,
+      ctx: baseCtx,
+      seeds: baseSeeds,
+      rolloutPct: ({ seed }) => {
+        void seed;
+        return 10;
+      },
+    });
+
+    expect(result).toMatchObject({ reason: "default", value: false, shadowValue: true });
+
+    const miss = evaluateFlag({
+      cfg,
+      ctx: baseCtx,
+      seeds: baseSeeds,
+      rolloutPct: ({ seed }) => {
+        void seed;
+        return 90;
+      },
+    });
+
+    expect(miss).toMatchObject({ reason: "default", value: false, shadowValue: false });
+  });
 });
