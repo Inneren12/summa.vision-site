@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
@@ -12,6 +12,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata();
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   let snapshotId = "";
