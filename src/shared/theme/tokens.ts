@@ -1,7 +1,7 @@
 /* eslint-disable */
 /**
  * Do not edit directly
- * Generated on Sat, 25 Oct 2025 08:20:35 GMT
+ * Generated on Sat, 25 Oct 2025 21:16:59 GMT
  */
 
 export const tokens = {

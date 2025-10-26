@@ -1,68 +1,84 @@
 import type { Metadata } from "next";
+import Image from "next/image";
+import { notFound } from "next/navigation";
 
-import Step from "@/components/scrolly/Step";
 import StickyPanel from "@/components/scrolly/StickyPanel";
 import Story from "@/components/scrolly/Story";
 import StoryShareButton from "@/components/scrolly/StoryShareButton";
+import { getStoryBySlug, getStoryIndex } from "@/lib/stories/story-loader";
 
 import "../scrolly.css";
 
-type StoryStep = {
-  id: string;
-  title: string;
-  body: string;
+type StoryPageParams = {
+  slug: string;
 };
 
-const demoSteps: StoryStep[] = [
-  {
-    id: "introduction",
-    title: "Введение",
-    body: "Скроллителлинг объединяет визуализацию и повествование, позволяя раскрыть сложные идеи шаг за шагом.",
-  },
-  {
-    id: "insight",
-    title: "Наблюдение",
-    body: "Фокус на одном утверждении за раз помогает читателю удерживать внимание и воспринимать информацию в нужном темпе.",
-  },
-  {
-    id: "interaction",
-    title: "Вовлечение",
-    body: "Стики-панель поддерживает контекст, тогда как поток шагов раскрывает детали истории по мере прокрутки.",
-  },
-  {
-    id: "summary",
-    title: "Итог",
-    body: "Каркас S6 обеспечивает единые токены, адаптивность и доступность, сокращая время на запуск новых историй.",
-  },
-];
+export async function generateStaticParams() {
+  const stories = await getStoryIndex();
+  return stories.map((story) => ({ slug: story.slug }));
+}
 
-export const metadata: Metadata = {
-  title: "S6 Story — демо",
-  description: "Базовый каркас для историй с двухпанельным скроллителлингом.",
-};
+export async function generateMetadata({ params }: { params: StoryPageParams }): Promise<Metadata> {
+  const stories = await getStoryIndex();
+  const story = stories.find((entry) => entry.slug === params.slug);
 
-export default function StoryPage({ params }: { params: { slug: string } }) {
-  const storyId = params?.slug ?? "story-demo";
+  if (!story) {
+    return {
+      title: "История не найдена",
+    };
+  }
+
+  return {
+    title: story.title,
+    description: story.description,
+  } satisfies Metadata;
+}
+
+export default async function StoryPage({ params }: { params: StoryPageParams }) {
+  const story = await getStoryBySlug(params.slug);
+
+  if (!story) {
+    notFound();
+  }
+
+  const { frontMatter, content } = story;
+
   return (
-    <Story stickyTop="calc(var(--space-8) * 3)" storyId={storyId}>
+    <Story stickyTop="calc(var(--space-8) * 3)" storyId={frontMatter.slug}>
       <StickyPanel>
         <figure aria-labelledby="story-figure-title story-figure-caption">
-          <div aria-hidden="true" className="scrolly-demo-graphic" />
+          <div className="story-cover">
+            <Image
+              alt={frontMatter.cover.alt}
+              className="story-cover__image"
+              fill
+              priority
+              sizes="(min-width: 1024px) 420px, 100vw"
+              src={frontMatter.cover.src}
+            />
+          </div>
           <h2 className="scrolly-step__title" id="story-figure-title">
-            Визуализация истории
+            {frontMatter.title}
           </h2>
           <figcaption className="scrolly-step__body" id="story-figure-caption">
-            Закреплённая панель отображает интерактив или иллюстрацию и остаётся в пределах
-            вьюпорта.
+            {frontMatter.description}
           </figcaption>
+          <nav aria-label="Шаги истории" className="story-step-nav">
+            <ol className="story-step-nav__list">
+              {frontMatter.steps.map((step, index) => (
+                <li key={step.id} className="story-step-nav__item">
+                  <a className="story-step-nav__link" href={`#${step.hash}`}>
+                    <span className="story-step-nav__index">{index + 1}</span>
+                    <span className="story-step-nav__title">{step.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
           <StoryShareButton />
         </figure>
       </StickyPanel>
-      {demoSteps.map((step) => (
-        <Step key={step.id} id={step.id} title={step.title}>
-          <p>{step.body}</p>
-        </Step>
-      ))}
+      {content}
     </Story>
   );
 }
