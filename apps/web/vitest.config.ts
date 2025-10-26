@@ -65,14 +65,16 @@ export default defineConfig({
     restoreMocks: true,
     mockReset: true,
 
-    deps: {
-      external: [
-        /^@deck\.gl\/.*/,
-        /^echarts(?:\/.*)?$/,
-        /^maplibre-gl(?:\/.*)?$/,
-        /^vega-embed(?:\/.*)?$/,
-        /^vega(?:-lite)?(?:\/.*)?$/,
-      ],
+    server: {
+      deps: {
+        external: [
+          /^@deck\.gl\/.*/,
+          /^echarts(?:\/.*)?$/,
+          /^maplibre-gl(?:\/.*)?$/,
+          /^vega-embed(?:\/.*)?$/,
+          /^vega(?:-lite)?(?:\/.*)?$/,
+        ],
+      },
     },
 
     coverage: {

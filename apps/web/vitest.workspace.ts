@@ -52,14 +52,16 @@ export default defineWorkspace([
           execArgv: ["--max-old-space-size=8192", "--expose-gc"],
         },
       },
-      deps: {
-        external: [
-          /^@deck\.gl\/.*/,
-          /^echarts(?:\/.*)?$/,
-          /^maplibre-gl(?:\/.*)?$/,
-          /^vega-embed(?:\/.*)?$/,
-          /^vega(?:-lite)?(?:\/.*)?$/,
-        ],
+      server: {
+        deps: {
+          external: [
+            /^@deck\.gl\/.*/,
+            /^echarts(?:\/.*)?$/,
+            /^maplibre-gl(?:\/.*)?$/,
+            /^vega-embed(?:\/.*)?$/,
+            /^vega(?:-lite)?(?:\/.*)?$/,
+          ],
+        },
       },
       coverage: { enabled: false },
     },
