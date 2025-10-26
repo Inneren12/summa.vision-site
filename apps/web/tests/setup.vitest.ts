@@ -9,29 +9,40 @@ process.env.NEXT_PUBLIC_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-// matchMedia — нужен next-themes (старое API с addListener/removeListener)
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  value: (query: string): any => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener() {},
-    removeEventListener() {},
-    addListener() {},
-    removeListener() {},
-    dispatchEvent: () => false,
-  }),
-});
+const globalWithWindow = globalThis as typeof globalThis & { window?: Window; document?: Document };
+const hasWindow =
+  typeof globalWithWindow.window !== "undefined" &&
+  typeof globalWithWindow.document !== "undefined";
 
-// scrollIntoView — jsdom не реализует
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(Element.prototype as any).scrollIntoView ||= function () {};
+if (hasWindow) {
+  // matchMedia — нужен next-themes (старое API с addListener/removeListener)
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    value: (query: string): any => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    }),
+  });
+
+  // scrollIntoView — jsdom не реализует
+  const elementProto = (window.Element?.prototype ?? undefined) as
+    | { scrollIntoView?: () => void }
+    | undefined;
+  if (elementProto && typeof elementProto.scrollIntoView !== "function") {
+    elementProto.scrollIntoView = () => {};
+  }
+}
 
 // IntersectionObserver — стаб: при observe считаем элемент видимым.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (typeof (globalThis as any).IntersectionObserver === "undefined") {
+if (typeof (globalThis as any).IntersectionObserver === "undefined" && hasWindow) {
   class IO implements IntersectionObserver {
     readonly root: Element | Document | null = null;
     readonly rootMargin = "0px";
@@ -40,12 +51,13 @@ if (typeof (globalThis as any).IntersectionObserver === "undefined") {
     constructor(private readonly callback: IntersectionObserverCallback) {}
 
     observe(element: Element) {
+      const rect = element.getBoundingClientRect();
       const entry: IntersectionObserverEntry = {
         isIntersecting: true,
         target: element,
         intersectionRatio: 1,
-        boundingClientRect: element.getBoundingClientRect(),
-        intersectionRect: element.getBoundingClientRect(),
+        boundingClientRect: rect,
+        intersectionRect: rect,
         rootBounds: null,
         time: Date.now(),
       };

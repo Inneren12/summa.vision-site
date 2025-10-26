@@ -32,6 +32,7 @@ export default defineConfig({
       ["**/*.test.tsx", "jsdom"],
       ["app/**", "jsdom"],
       ["components/**", "jsdom"],
+      ["tests/telemetry/**", "jsdom"],
     ],
     sequence: { concurrent: false, shuffle: false },
 
@@ -48,7 +49,9 @@ export default defineConfig({
     setupFiles: ["tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
     isolate: true,
+    clearMocks: true,
     restoreMocks: true,
+    mockReset: true,
 
     coverage: {
       provider: "istanbul",
