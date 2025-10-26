@@ -8,8 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:cov",
-    "test:cov": "NODE_OPTIONS=--max-old-space-size=6144 vitest -c ./vitest.config.ts run --coverage --pool=forks --reporter=basic",
-    "test:quick": "vitest -c ./vitest.config.ts run --pool=forks --reporter=basic",
+    "test:cov": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest -c ./vitest.config.ts run --coverage --pool=forks --reporter=basic --maxWorkers=1 --shard=1/2 && NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest -c ./vitest.config.ts run --coverage --pool=forks --reporter=basic --maxWorkers=1 --shard=2/2",
+    "test:quick": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest -c ./vitest.config.ts run --pool=forks --reporter=basic --maxWorkers=1 --shard=1/2 && NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest -c ./vitest.config.ts run --pool=forks --reporter=basic --maxWorkers=1 --shard=2/2",
     "viz:check": "eslint --ext .ts,.tsx lib/viz && tsc --project tsconfig.viz.json --noEmit",
     "viz:size": "node ./scripts/viz-size.mjs"
   },

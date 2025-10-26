@@ -1,6 +1,8 @@
 // jest-dom матчеры (toBeInTheDocument / toHaveClass / toBeDisabled / ...)
 import "@testing-library/jest-dom/vitest";
 
+import { afterEach, vi } from "vitest";
+
 // Публичные ENV, чтобы модули не падали в тестах
 process.env.NEXT_PUBLIC_APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "App";
 process.env.NEXT_PUBLIC_API_BASE_URL =
@@ -63,9 +65,20 @@ if (typeof (globalThis as any).IntersectionObserver === "undefined") {
 }
 
 // Перестраховка: мок vega-embed, если где-то импортируется напрямую
-import { vi } from "vitest";
 vi.mock(
   "vega-embed",
   () => ({ default: async () => ({ view: { runAsync: async () => {}, finalize: () => {} } }) }),
   { virtual: true },
 );
+
+// Сбрасываем память между тестами (работает при --expose-gc)
+afterEach(() => {
+  const withGc = globalThis as typeof globalThis & { gc?: () => void };
+  const gc = withGc.gc;
+  if (typeof gc !== "function") return;
+  try {
+    gc();
+  } catch (error) {
+    void error; // игнорируем сбои сборщика мусора в тестах
+  }
+});

@@ -25,24 +25,36 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
-    // Переходим на процессы — устойчивее по памяти в CI
+    // По умолчанию Node; jsdom подключаем только для React-рендеров
+    environment: "node",
+    environmentMatchGlobs: [
+      ["**/*.spec.tsx", "jsdom"],
+      ["**/*.test.tsx", "jsdom"],
+      ["app/**", "jsdom"],
+      ["components/**", "jsdom"],
+    ],
+    sequence: { concurrent: false, shuffle: false },
+
+    // Процессы вместо worker'ов + увеличенный heap и принудительный GC
     pool: "forks",
     poolOptions: {
       forks: {
         minForks: 1,
         maxForks: 1,
-        execArgv: ["--max-old-space-size=6144"],
+        execArgv: ["--max-old-space-size=8192", "--expose-gc"],
       },
     },
+
     setupFiles: ["tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
     isolate: true,
     restoreMocks: true,
+
     coverage: {
       provider: "istanbul",
       reporter: ["text", "json-summary"],
       reportsDirectory: "./coverage",
+      cleanOnRerun: false,
       all: false,
       include: ["components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
       exclude: [
