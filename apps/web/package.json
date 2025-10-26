@@ -12,6 +12,9 @@
     "viz:size": "node ./scripts/viz-size.mjs"
   },
   "dependencies": {
+    "@deck": {
+      "gl/core": "^9"
+    },
     "@sentry/nextjs": "^7.120.4",
     "next": "^14.2.8",
     "next-mdx-remote": "^5.0.0",
