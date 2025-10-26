@@ -179,35 +179,16 @@ export default function Story({
     }
   }, [activeStepId]);
 
-  // stickyTop css var
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || typeof window === "undefined") return;
-    const updateVH = () => {
-      const vh = window.visualViewport?.height ?? window.innerHeight;
-      container.style.setProperty("--scrolly-viewport-height", `${vh}px`);
-    };
-    updateVH();
-    window.addEventListener("resize", updateVH);
-    window.addEventListener("orientationchange", updateVH);
-    window.visualViewport?.addEventListener("resize", updateVH);
-    return () => {
-      window.removeEventListener("resize", updateVH);
-      window.removeEventListener("orientationchange", updateVH);
-      window.visualViewport?.removeEventListener("resize", updateVH);
-    };
-  }, []);
-
   // stickyTop var (offset)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     if (stickyTop == null) {
-      container.style.removeProperty("--scrolly-sticky-top");
+      container.style.removeProperty("--sticky-top");
       return;
     }
     const value = typeof stickyTop === "number" ? `${stickyTop}px` : stickyTop;
-    container.style.setProperty("--scrolly-sticky-top", value);
+    container.style.setProperty("--sticky-top", value);
   }, [stickyTop]);
 
   // hash sync

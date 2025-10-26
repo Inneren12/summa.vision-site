@@ -89,9 +89,7 @@ describe("Scrollytelling Story", () => {
 
     const storySection = container.querySelector("section.scrolly") as HTMLElement;
     expect(storySection).toBeInTheDocument();
-    expect(storySection.style.getPropertyValue("--scrolly-sticky-top")).toBe(
-      "calc(var(--space-8) * 2)",
-    );
+    expect(storySection.style.getPropertyValue("--sticky-top")).toBe("calc(var(--space-8) * 2)");
 
     const steps = screen.getAllByRole("article");
     expect(steps).toHaveLength(2);

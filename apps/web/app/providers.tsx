@@ -19,6 +19,7 @@ import type { RequestCorrelation } from "../../../lib/metrics/correlation";
 import { getClientEventBuffer } from "./telemetry/client-buffer";
 
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
+import installVHVar from "@/lib/viewport/installVHVar";
 
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -100,6 +101,8 @@ function createJsErrorReporter(correlation: RequestCorrelation): JsErrorReporter
 
 export function Providers({ children, correlation }: ProvidersProps) {
   const reporter = useMemo(() => createJsErrorReporter(correlation), [correlation]);
+
+  useEffect(installVHVar, []);
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
