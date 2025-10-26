@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "lib/viz/**/*.ts",
+    "lib/viz/**/*.tsx",
+    "types/viz-libs.d.ts"
+  ]
+}

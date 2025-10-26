@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
-type FakeChartState = {
+import { fakeChartAdapter, type FakeChartSpec } from "@/lib/viz/adapters/fake";
+import { useVizMount } from "@/lib/viz/useVizMount";
+
+export type FakeChartProps = {
   activeStepId: string | null;
-  history: Array<string | null>;
-  ready: boolean;
 };
 
 type FakeChartHandle = {
-  state: FakeChartState;
+  state: FakeChartSpec;
 };
 
 declare global {
@@ -30,75 +31,86 @@ function ensureHandle(): FakeChartHandle {
   return globalThis.__fakeChart;
 }
 
-function resetState(state: FakeChartState): void {
-  state.activeStepId = null;
-  state.history = [];
-  state.ready = false;
+function resetHandle(handle: FakeChartHandle): void {
+  handle.state = {
+    activeStepId: null,
+    history: [],
+    ready: false,
+  };
 }
 
-export type FakeChartProps = {
-  activeStepId: string | null;
-};
-
 export function FakeChart({ activeStepId }: FakeChartProps) {
-  const handleRef = useRef<FakeChartHandle>();
-  const [isReady, setIsReady] = useState(false);
+  const initialSpec = useMemo<FakeChartSpec>(
+    () => ({ activeStepId: null, history: [], ready: false }),
+    [],
+  );
 
+  const handleRef = useRef<FakeChartHandle | null>(null);
   if (!handleRef.current) {
     handleRef.current = ensureHandle();
   }
 
-  const activeStep = activeStepId ?? null;
-  const handle = handleRef.current;
-  if (handle) {
-    handle.state.ready = true;
-  }
+  const { ref, currentSpec, applyState, isReady } = useVizMount({
+    adapter: fakeChartAdapter,
+    lib: "fake",
+    initialSpec,
+  });
 
   useEffect(() => {
-    const currentHandle = handleRef.current;
-    if (!currentHandle) {
-      return;
-    }
-    currentHandle.state.history = [];
-    currentHandle.state.ready = true;
-    setIsReady(true);
-    return () => {
-      if (!currentHandle) {
-        return;
+    const handle = handleRef.current;
+    if (!handle) return;
+    handle.state = currentSpec;
+  }, [currentSpec]);
+
+  useEffect(
+    () => () => {
+      const handle = handleRef.current;
+      if (handle) {
+        resetHandle(handle);
       }
-      resetState(currentHandle.state);
-      setIsReady(false);
-    };
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    const currentHandle = handleRef.current;
-    if (!currentHandle) {
-      return;
-    }
-    const { history } = currentHandle.state;
-    if (history.length === 0 || history[history.length - 1] !== activeStep) {
-      history.push(activeStep);
-    }
-    currentHandle.state.activeStepId = activeStep;
-  }, [activeStep]);
+    const step = activeStepId ?? null;
+    applyState(
+      (prev) => {
+        const history = prev.history.slice();
+        if (history.length === 0 || history[history.length - 1] !== step) {
+          history.push(step);
+        }
+        return {
+          activeStepId: step,
+          history,
+          ready: true,
+        } satisfies FakeChartSpec;
+      },
+      { stepId: step ?? undefined },
+    );
+  }, [activeStepId, applyState]);
 
   const label = useMemo(
-    () => (activeStep ? `Active story step: ${activeStep}` : "No active story step"),
-    [activeStep],
+    () =>
+      currentSpec.activeStepId
+        ? `Active story step: ${currentSpec.activeStepId}`
+        : "No active story step",
+    [currentSpec.activeStepId],
   );
 
   return (
     <div
+      ref={ref}
       aria-hidden="true"
       className="flex h-48 w-full items-center justify-center rounded-2xl border border-muted/30 bg-gradient-to-br from-primary/20 to-primary/5 text-center"
-      data-active-step={activeStep ?? ""}
-      data-ready={isReady ? "true" : "false"}
+      data-active-step={currentSpec.activeStepId ?? ""}
+      data-ready={currentSpec.ready || isReady ? "true" : "false"}
+      data-history={currentSpec.history.join(",")}
       data-testid="fake-chart"
     >
       <span className="sr-only">{label}</span>
       <span aria-hidden="true" className="text-sm font-medium text-fg">
-        {activeStep ? `Step: ${activeStep}` : "Awaiting step"}
+        {currentSpec.activeStepId ? `Step: ${currentSpec.activeStepId}` : "Awaiting step"}
       </span>
     </div>
   );

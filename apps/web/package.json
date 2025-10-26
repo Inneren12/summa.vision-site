@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "viz:check": "eslint --ext .ts,.tsx lib/viz && tsc --project tsconfig.viz.json --noEmit",
+    "viz:size": "node ./scripts/viz-size.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^7.120.4",
+    "gray-matter": "^4.0.3",
     "next": "^14.2.8",
     "next-mdx-remote": "^5.0.0",
     "next-themes": "^0.3.0",
@@ -34,5 +37,7 @@
     "typescript": "~5.5.4",
     "vitest": "^2.1.1"
   },
-  "version": "0.1.1"
+  "version": "0.1.1",
+  "overrides": {},
+  "resolutions": {}
 }
