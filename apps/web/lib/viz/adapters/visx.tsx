@@ -19,6 +19,14 @@ interface VisxInstance<TProps extends object = Record<string, unknown>> {
   spec: VisxSpec<TProps>;
 }
 
+function cloneSpec<TProps extends object>(spec: VisxSpec<TProps>): VisxSpec<TProps> {
+  const props = spec.props ? { ...(spec.props as Record<string, unknown>) } : undefined;
+  return {
+    component: spec.component,
+    props: props as TProps | undefined,
+  };
+}
+
 function render<TProps extends object>(
   instance: VisxInstance<TProps>,
   spec: VisxSpec<TProps>,
@@ -38,14 +46,15 @@ export const visxAdapter: VizAdapter<VisxInstance, VisxSpec> = {
     const instance: VisxInstance = {
       container: el,
       root,
-      spec,
+      spec: cloneSpec(spec),
     };
-    render(instance, spec, opts.discrete);
+    render(instance, instance.spec, opts.discrete);
     return instance;
   },
   applyState(instance, next, opts) {
-    const spec = typeof next === "function" ? next(instance.spec) : next;
-    render(instance, spec, opts.discrete);
+    const previous = cloneSpec(instance.spec);
+    const spec = typeof next === "function" ? next(previous) : next;
+    render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
     instance.root.unmount();

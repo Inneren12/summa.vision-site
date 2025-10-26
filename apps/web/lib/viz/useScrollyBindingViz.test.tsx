@@ -19,7 +19,7 @@ declare global {
 
 function TestChart() {
   const { ref, currentSpec, activeStepId } = useScrollyBindingViz({
-    adapter: fakeChartAdapter,
+    adapter: async () => fakeChartAdapter,
     lib: "fake",
     states: {
       alpha: ({ previous }) => ({

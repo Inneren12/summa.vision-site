@@ -71,6 +71,26 @@ describe("viz adapters contract", () => {
     expect(instance.result).toBeNull();
   });
 
+  it("vega-lite adapter treats previous spec as immutable", async () => {
+    const element = document.createElement("div");
+    const spec = { mark: "bar", data: { values: [] } } as Parameters<typeof embedMock>[0];
+    const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
+    const previous = instance.spec;
+
+    vegaLiteAdapter.applyState(
+      instance,
+      (prev) => {
+        expect(prev.mark).toBe("bar");
+        // @ts-expect-error intentional mutation attempt
+        prev.mark = "line";
+        return { ...prev, mark: "area" };
+      },
+      { discrete: true },
+    );
+
+    expect(previous.mark).toBe("bar");
+  });
+
   it("echarts adapter mounts and updates options", async () => {
     const element = document.createElement("div");
     const spec = { series: [] };
@@ -84,6 +104,25 @@ describe("viz adapters contract", () => {
 
     echartsAdapter.destroy(instance);
     expect(echartsDispose).toHaveBeenCalled();
+  });
+
+  it("echarts adapter treats previous spec as immutable", async () => {
+    const element = document.createElement("div");
+    const spec = { series: [] };
+    const instance = await echartsAdapter.mount(element, spec, { discrete: false });
+    const previous = instance.spec;
+
+    echartsAdapter.applyState(
+      instance,
+      (prev) => {
+        expect(prev.series).toEqual([]);
+        (prev.series as unknown[]).push({ type: "line" });
+        return { ...prev, legend: { show: true } };
+      },
+      { discrete: true },
+    );
+
+    expect(previous.series).toEqual([]);
   });
 
   it("maplibre adapter mounts and applies view state", async () => {
@@ -101,6 +140,26 @@ describe("viz adapters contract", () => {
     expect(mapSetBearing).toHaveBeenCalledWith(30, { duration: 0 });
     mapLibreAdapter.destroy(instance);
     expect(mapRemove).toHaveBeenCalled();
+  });
+
+  it("maplibre adapter treats previous spec as immutable", async () => {
+    const element = document.createElement("div");
+    const spec = { style: "style.json", center: [0, 0], zoom: 2 };
+    const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
+    const previous = instance.spec;
+
+    mapLibreAdapter.applyState(
+      instance,
+      (prev) => {
+        expect(prev.zoom).toBe(2);
+        // @ts-expect-error mutation attempt
+        prev.zoom = 3;
+        return { ...prev, pitch: 20 };
+      },
+      { discrete: true },
+    );
+
+    expect(previous.zoom).toBe(2);
   });
 
   it("visx adapter renders react components", () => {
@@ -125,6 +184,39 @@ describe("viz adapters contract", () => {
     expect(element.innerHTML).toBe("");
   });
 
+  it("visx adapter treats previous spec as immutable", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+
+    const component = ({ label }: { label: string; discrete: boolean }) => (
+      <span data-testid="label">{label}</span>
+    );
+    const instance = visxAdapter.mount(
+      element,
+      { component, props: { label: "alpha" } },
+      { discrete: false },
+    );
+
+    const previous = instance.spec;
+
+    visxAdapter.applyState(
+      instance,
+      (prev) => {
+        expect(prev.props?.label).toBe("alpha");
+        if (prev.props) {
+          (prev.props as { label: string }).label = "gamma";
+        }
+        return { component, props: { label: "beta" } };
+      },
+      { discrete: true },
+    );
+
+    expect(previous.props?.label).toBe("alpha");
+
+    visxAdapter.destroy(instance);
+    expect(element.innerHTML).toBe("");
+  });
+
   it("deck adapter mounts and updates props", async () => {
     const element = document.createElement("div");
     const spec = { layers: [] };
@@ -137,5 +229,24 @@ describe("viz adapters contract", () => {
 
     deckAdapter.destroy(instance);
     expect(deckFinalize).toHaveBeenCalled();
+  });
+
+  it("deck adapter treats previous spec as immutable", async () => {
+    const element = document.createElement("div");
+    const spec = { layers: [] };
+    const instance = await deckAdapter.mount(element, spec, { discrete: false });
+    const previous = instance.spec;
+
+    deckAdapter.applyState(
+      instance,
+      (prev) => {
+        expect(prev.layers).toEqual([]);
+        (prev.layers as unknown[]).push({ id: "temp" });
+        return { ...prev, views: [] };
+      },
+      { discrete: true },
+    );
+
+    expect(previous.layers).toEqual([]);
   });
 });

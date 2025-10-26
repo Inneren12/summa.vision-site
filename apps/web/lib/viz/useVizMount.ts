@@ -3,17 +3,78 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
 import { emitVizEvent } from "./events";
-import type { VizAdapter, VizStateMeta, VizLibraryTag } from "./types";
+import type {
+  MotionMode,
+  VizAdapter,
+  VizAdapterLoader,
+  VizAdapterModule,
+  VizLibraryTag,
+  VizStateMeta,
+} from "./types";
 
 import { usePrefersReducedMotion } from "@/components/motion/prefersReducedMotion";
 
-type InitialSpecResolver<TSpec> = TSpec | ((context: { discrete: boolean }) => TSpec);
+type InitialSpecResolver<TSpec extends object> =
+  | TSpec
+  | ((context: { discrete: boolean }) => TSpec);
 
-type PendingState<TSpec> = {
+type PendingState<TSpec extends object> = {
   value: TSpec;
   wasFunction: boolean;
   meta?: VizStateMeta;
 };
+
+type AdapterSource<TInstance, TSpec extends object> =
+  | VizAdapter<TInstance, TSpec>
+  | VizAdapterLoader<TInstance, TSpec>;
+
+function toMotion(discrete: boolean): MotionMode {
+  return discrete ? "discrete" : "animated";
+}
+
+function isAdapterLoader<TInstance, TSpec extends object>(
+  source: AdapterSource<TInstance, TSpec>,
+): source is VizAdapterLoader<TInstance, TSpec> {
+  return typeof source === "function";
+}
+
+function hasDefaultExport<TInstance, TSpec extends object>(
+  module: VizAdapterModule<TInstance, TSpec>,
+): module is { default: VizAdapter<TInstance, TSpec> } {
+  return typeof (module as { default?: unknown }).default !== "undefined";
+}
+
+function normalizeAdapterModule<TInstance, TSpec extends object>(
+  module: VizAdapterModule<TInstance, TSpec>,
+): VizAdapter<TInstance, TSpec> {
+  if (hasDefaultExport(module)) {
+    return module.default;
+  }
+  return module as VizAdapter<TInstance, TSpec>;
+}
+
+function freezeSpec<TSpec extends object>(spec: TSpec): Readonly<TSpec> {
+  if (typeof Object.freeze === "function") {
+    return Object.freeze(spec);
+  }
+  return spec;
+}
+
+function cloneSpec<TSpec extends object>(spec: TSpec): TSpec {
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec);
+    } catch {
+      // fall through to shallow copy
+    }
+  }
+
+  if (Array.isArray(spec)) {
+    return spec.slice() as unknown as TSpec;
+  }
+
+  return { ...(spec as Record<string, unknown>) } as TSpec;
+}
 
 function asError(error: unknown): Error {
   if (error instanceof Error) {
@@ -39,13 +100,13 @@ function buildErrorMessage(error: unknown): string {
   }
 }
 
-export interface UseVizMountOptions<TInstance, TSpec> {
-  readonly adapter: VizAdapter<TInstance, TSpec>;
+export interface UseVizMountOptions<TInstance, TSpec extends object> {
+  readonly adapter: AdapterSource<TInstance, TSpec>;
   readonly lib: VizLibraryTag;
   readonly initialSpec: InitialSpecResolver<TSpec>;
 }
 
-export interface UseVizMountResult<TInstance, TSpec> {
+export interface UseVizMountResult<TInstance, TSpec extends object> {
   readonly ref: (element: HTMLElement | null) => void;
   readonly elementRef: MutableRefObject<HTMLElement | null>;
   readonly instance: TInstance | null;
@@ -53,16 +114,26 @@ export interface UseVizMountResult<TInstance, TSpec> {
   readonly isReady: boolean;
   readonly discrete: boolean;
   readonly error: Error | null;
-  readonly applyState: (next: TSpec | ((prev: TSpec) => TSpec), meta?: VizStateMeta) => void;
+  readonly applyState: (
+    next: TSpec | ((prev: Readonly<TSpec>) => TSpec),
+    meta?: VizStateMeta,
+  ) => void;
 }
 
-export function useVizMount<TInstance, TSpec>(
+export function useVizMount<TInstance, TSpec extends object>(
   options: UseVizMountOptions<TInstance, TSpec>,
 ): UseVizMountResult<TInstance, TSpec> {
-  const { adapter, lib, initialSpec } = options;
+  const { adapter: adapterSource, lib, initialSpec } = options;
   const prefersReducedMotion = usePrefersReducedMotion();
   const discreteRef = useRef(prefersReducedMotion);
   discreteRef.current = prefersReducedMotion;
+
+  const adapterRef = useRef<VizAdapter<TInstance, TSpec> | null>(
+    isAdapterLoader(adapterSource) ? null : adapterSource,
+  );
+  const [adapterState, setAdapterState] = useState<VizAdapter<TInstance, TSpec> | null>(
+    adapterRef.current,
+  );
 
   const elementStateRef = useRef<HTMLElement | null>(null);
   const [element, setElement] = useState<HTMLElement | null>(null);
@@ -95,10 +166,59 @@ export function useVizMount<TInstance, TSpec>(
 
   const pendingStatesRef = useRef<PendingState<TSpec>[]>([]);
 
+  useEffect(() => {
+    if (!isAdapterLoader(adapterSource)) {
+      adapterRef.current = adapterSource;
+      setAdapterState(adapterSource);
+      setError(null);
+      return;
+    }
+
+    adapterRef.current = null;
+    setAdapterState(null);
+
+    let cancelled = false;
+    const loadAdapter = async () => {
+      try {
+        const loadedModule = await adapterSource();
+        if (cancelled) {
+          return;
+        }
+        const resolved = normalizeAdapterModule(loadedModule);
+        adapterRef.current = resolved;
+        setAdapterState(resolved);
+        setError(null);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        const nextError = asError(err);
+        setError(nextError);
+        emitVizEvent("viz_error", {
+          lib,
+          motion: toMotion(discreteRef.current),
+          reason: "adapter-load",
+          error: buildErrorMessage(err),
+        });
+      }
+    };
+
+    loadAdapter();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adapterSource, lib]);
+
   const applyToInstance = useCallback(
     (instance: TInstance, payload: PendingState<TSpec>) => {
+      const adapter = adapterRef.current;
+      if (!adapter) {
+        return;
+      }
       try {
         const discrete = discreteRef.current;
+        const motion = toMotion(discrete);
         if (payload.wasFunction) {
           const value = payload.value;
           adapter.applyState(instance, () => value, { discrete });
@@ -107,7 +227,7 @@ export function useVizMount<TInstance, TSpec>(
         }
         emitVizEvent("viz_state", {
           lib,
-          discrete: discreteRef.current,
+          motion,
           stepId: payload.meta?.stepId,
           reason: payload.meta?.reason ?? "update",
         });
@@ -116,21 +236,21 @@ export function useVizMount<TInstance, TSpec>(
         setError(nextError);
         emitVizEvent("viz_error", {
           lib,
-          discrete: discreteRef.current,
+          motion: toMotion(discreteRef.current),
           stepId: payload.meta?.stepId,
           reason: payload.meta?.reason ?? "apply",
           error: buildErrorMessage(err),
         });
       }
     },
-    [adapter, lib],
+    [lib],
   );
 
   const applyState = useCallback(
-    (next: TSpec | ((prev: TSpec) => TSpec), meta?: VizStateMeta) => {
+    (next: TSpec | ((prev: Readonly<TSpec>) => TSpec), meta?: VizStateMeta) => {
       const wasFunction = typeof next === "function";
       const value = wasFunction
-        ? (next as (prev: TSpec) => TSpec)(specRef.current)
+        ? (next as (prev: Readonly<TSpec>) => TSpec)(freezeSpec(cloneSpec(specRef.current)))
         : (next as TSpec);
 
       specRef.current = value;
@@ -183,7 +303,8 @@ export function useVizMount<TInstance, TSpec>(
 
   useEffect(() => {
     const target = element;
-    if (!target) {
+    const adapter = adapterRef.current;
+    if (!target || !adapter) {
       return;
     }
 
@@ -191,7 +312,7 @@ export function useVizMount<TInstance, TSpec>(
     let mountedInstance: TInstance | null = null;
 
     const discrete = discreteRef.current;
-    emitVizEvent("viz_init", { lib, discrete, reason: "mount" });
+    emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
 
     const runMount = async () => {
       try {
@@ -203,14 +324,14 @@ export function useVizMount<TInstance, TSpec>(
         mountedInstance = result;
         instanceRef.current = result;
         setIsReady(true);
-        emitVizEvent("viz_ready", { lib, discrete: discreteRef.current });
+        emitVizEvent("viz_ready", { lib, motion: toMotion(discreteRef.current) });
         flushPendingStates(result);
       } catch (err) {
         const nextError = asError(err);
         setError(nextError);
         emitVizEvent("viz_error", {
           lib,
-          discrete: discreteRef.current,
+          motion: toMotion(discreteRef.current),
           reason: "mount",
           error: buildErrorMessage(err),
         });
@@ -229,7 +350,7 @@ export function useVizMount<TInstance, TSpec>(
         } catch (err) {
           emitVizEvent("viz_error", {
             lib,
-            discrete: discreteRef.current,
+            motion: toMotion(discreteRef.current),
             reason: "destroy",
             error: buildErrorMessage(err),
           });
@@ -239,7 +360,7 @@ export function useVizMount<TInstance, TSpec>(
         }
       }
     };
-  }, [adapter, element, flushPendingStates, lib]);
+  }, [element, flushPendingStates, lib, adapterState]);
 
   useEffect(() => {
     const instance = instanceRef.current;
