@@ -61,11 +61,19 @@ describe("viz adapters contract", () => {
     const element = document.createElement("div");
     const spec = { mark: "bar" } as Parameters<typeof embedMock>[0];
     const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
-    expect(embedMock).toHaveBeenCalledWith(element, spec, expect.any(Object));
+    expect(embedMock).toHaveBeenCalledWith(
+      element,
+      expect.objectContaining({ mark: "bar" }),
+      expect.objectContaining({ renderer: "svg" }),
+    );
 
     const nextSpec = { mark: "line" } as Parameters<typeof embedMock>[0];
     vegaLiteAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(embedMock).toHaveBeenCalledWith(element, nextSpec, expect.any(Object));
+    expect(embedMock).toHaveBeenLastCalledWith(
+      element,
+      expect.objectContaining({ mark: "line" }),
+      expect.objectContaining({ renderer: "svg", hover: false }),
+    );
 
     vegaLiteAdapter.destroy(instance);
     expect(instance.result).toBeNull();

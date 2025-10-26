@@ -25,9 +25,6 @@
       ],
       "maplibre-gl": [
         "lib/viz/stubs/maplibre-gl"
-      ],
-      "vega-embed": [
-        "lib/viz/stubs/vega-embed"
       ]
     },
     "jsx": "preserve",

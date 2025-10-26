@@ -1,14 +1,3 @@
-declare module "vega-embed" {
-  export type VisualizationSpec = Record<string, unknown>;
-  type Embed = (
-    element: HTMLElement,
-    spec: VisualizationSpec,
-    options?: Record<string, unknown>,
-  ) => Promise<{ view?: { finalize?: () => void } }>;
-  const embed: Embed;
-  export default embed;
-}
-
 declare module "echarts" {
   export type EChartsOption = Record<string, unknown>;
   export type ECharts = {
