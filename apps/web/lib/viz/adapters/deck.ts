@@ -11,7 +11,7 @@ export const deckAdapter: VizAdapter<DeckInstance, DeckProps> = {
   async mount(el, spec) {
     const deckModule = await import("@deck.gl/core");
     const DeckCtor = deckModule.Deck;
-    const deck = new DeckCtor({ parent: el, ...spec });
+    const deck = new DeckCtor({ parent: el as HTMLDivElement, ...spec });
     return { deck, spec };
   },
   applyState(instance, next) {
