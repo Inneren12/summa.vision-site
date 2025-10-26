@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  esbuild: { sourcemap: false },
   plugins: [react()],
   resolve: {
     alias: {
@@ -25,43 +26,37 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    // Один воркер для стабильной памяти в CI
-    pool: "threads",
+    // Переходим на процессы — устойчивее по памяти в CI
+    pool: "forks",
     poolOptions: {
-      threads: { maxThreads: 1, minThreads: 1 },
+      forks: {
+        minForks: 1,
+        maxForks: 1,
+        execArgv: ["--max-old-space-size=6144"],
+      },
     },
     setupFiles: ["tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
     isolate: true,
     restoreMocks: true,
-    // Покрытие через istanbul + агрессивные exclude
     coverage: {
       provider: "istanbul",
-      reporter: ["text", "json-summary", "lcov"],
+      reporter: ["text", "json-summary"],
       reportsDirectory: "./coverage",
       all: false,
-      include: [
-        "lib/scrolly/**/*.{ts,tsx}",
-        "lib/viz/adapters/**/*.{ts,tsx}",
-        "lib/viz/events.ts",
-        "lib/viz/registry.ts",
-        "lib/viz/useVizMount.ts",
-        "lib/viz/useScrollyBindingViz.ts",
-      ],
+      include: ["components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
       exclude: [
         "**/*.stories.*",
         "lib/viz/stubs/**",
         "lib/viz/bootstrap.client.ts",
         "lib/stories/**",
         "scripts/**",
-        "app/**/page.tsx",
-        "app/**/layout.tsx",
-        "app/**/not-found.tsx",
-        "app/**/(visual)/**",
         "next.config.mjs",
         "postcss.config.cjs",
         "tailwind.config.ts",
         "vitest.setup.ts",
+        "coverage/**",
+        "node_modules/**",
       ],
     },
   },
