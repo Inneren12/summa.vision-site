@@ -1,21 +1,37 @@
-/* eslint-disable import/order */
 "use client";
 
-import type { ComponentPropsWithoutRef } from "react";
-
+import type { HTMLAttributes } from "react";
 import { usePrefersReducedMotion } from "./motion/prefersReducedMotion";
 
-export type SpinnerProps = ComponentPropsWithoutRef<"div">;
-
-export function Spinner({ className = "", ...props }: SpinnerProps) {
+export function Spinner({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   const prefersReducedMotion = usePrefersReducedMotion();
-  const classes = [
-    "h-5 w-5 rounded-full border-2 border-muted/30 border-t-primary",
-    prefersReducedMotion ? "" : "animate-spin",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
 
-  return <div role="progressbar" aria-label="Loading" className={classes} {...props} />;
+  return (
+    <div
+      data-testid="spinner"
+      className={["inline-block", "align-middle", className].filter(Boolean).join(" ")}
+      aria-hidden="true"
+      {...props}
+    >
+      <svg
+        data-testid="spinner-icon"
+        viewBox="0 0 50 50"
+        width="20"
+        height="20"
+        role="presentation"
+        className={prefersReducedMotion ? "" : "animate-spin"}
+      >
+        <circle
+          cx="25"
+          cy="25"
+          r="20"
+          stroke="currentColor"
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray="31.4 31.4"
+        />
+      </svg>
+    </div>
+  );
 }

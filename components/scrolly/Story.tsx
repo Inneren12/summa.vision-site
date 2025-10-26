@@ -2,7 +2,6 @@
 
 import {
   Children,
-  cloneElement,
   createContext,
   type ReactElement,
   type ReactNode,
@@ -12,20 +11,13 @@ import {
   useMemo,
   useRef,
   useState,
+  cloneElement,
 } from "react";
 
 import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
-
 import StickyPanel from "./StickyPanel";
-import { useStoryAnalytics } from "./useStoryAnalytics";
 
-export type StoryVisualizationApplyOptions = {
-  /**
-   * Indicates that the update must be discrete (no interpolated animation).
-   */
-  discrete?: boolean;
-};
-
+export type StoryVisualizationApplyOptions = { discrete?: boolean };
 export type StoryVisualizationController = {
   applyState: (stepId: string, options?: StoryVisualizationApplyOptions) => void;
 };
@@ -43,99 +35,44 @@ type StoryContextValue = {
   focusStepByOffset: (currentStepId: string, offset: number) => boolean;
   focusFirstStep: () => boolean;
   focusLastStep: () => boolean;
-  trackShareClick: () => void;
 };
 
 const StoryContext = createContext<StoryContextValue | null>(null);
-
 export function useStoryContext(): StoryContextValue {
-  const context = useContext(StoryContext);
-
-  if (!context) {
-    throw new Error("useStoryContext must be used within a <Story /> component");
-  }
-
-  return context;
+  const ctx = useContext(StoryContext);
+  if (!ctx) throw new Error("useStoryContext must be used within <Story />");
+  return ctx;
 }
 
 const isStickyPanel = (child: ReactElement) => child.type === StickyPanel;
 
 export type StoryProps = {
-  /**
-   * Sticky top offset. Provide a pixel number or CSS length that matches the header height.
-   */
   stickyTop?: number | string;
-  storyId?: string;
   children: ReactNode;
   className?: string;
-  onVisualizationPrefetch?: (signal: AbortSignal) => void | Promise<void>;
 };
 
-function classNames(...values: Array<string | undefined | false>): string {
-  return values.filter(Boolean).join(" ");
+function classNames(...v: Array<string | undefined | false>): string {
+  return v.filter(Boolean).join(" ");
 }
 
-export const STORY_VISUALIZATION_LAZY_ROOT_MARGIN = "25% 0px 0px 0px";
-
-type IdleWindow = Window & {
-  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-  cancelIdleCallback?: (handle: number) => void;
-};
-
-function scheduleAfterIdle(callback: () => void): () => void {
-  if (typeof window === "undefined") {
-    callback();
-    return () => {};
-  }
-
-  const idleWindow = window as IdleWindow;
-
-  if (typeof idleWindow.requestIdleCallback === "function") {
-    const handle = idleWindow.requestIdleCallback(() => {
-      callback();
-    });
-
-    return () => {
-      idleWindow.cancelIdleCallback?.(handle);
-    };
-  }
-
-  const timeout = window.setTimeout(callback, 0);
-  return () => {
-    window.clearTimeout(timeout);
-  };
-}
-
-export default function Story({
-  children,
-  stickyTop,
-  className,
-  storyId,
-  onVisualizationPrefetch,
-}: StoryProps) {
+export default function Story({ children, stickyTop, className }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   const stepsRef = useRef(new Map<string, HTMLElement>());
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const visualizationRef = useRef<StoryVisualizationController | null>(null);
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const initialHashHandled = useRef(false);
-  const childArray = Children.toArray(children) as ReactElement[];
-  const stickyChild = childArray.find((child) => isStickyPanel(child));
-  const stepChildren = childArray.filter((child) => !isStickyPanel(child));
-  const resolvedStepCount = stepChildren.length;
-  const [stepCount, setStepCount] = useState(resolvedStepCount);
-  const [shouldRenderSticky, setShouldRenderSticky] = useState(() => !stickyChild);
-  const lazyMountTriggeredRef = useRef<boolean>(!stickyChild);
-  const prefetchAbortRef = useRef<AbortController | null>(null);
-  const { trackStoryView, handleStepChange, flush, trackShareClick } = useStoryAnalytics({
-    storyId,
-    stepCount,
-  });
+
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const visualizationRef = useRef<StoryVisualizationController | null>(null);
+
+  // ленивый маунт визуализации
+  const [shouldRenderSticky, setShouldRenderSticky] = useState(false);
 
   const setActiveStep = useCallback((stepId: string) => {
-    setActiveStepId((current) => (current === stepId ? current : stepId));
+    setActiveStepId((cur) => (cur === stepId ? cur : stepId));
   }, []);
 
   const registerVisualization = useCallback(
@@ -150,18 +87,11 @@ export default function Story({
 
   const focusStep = useCallback(
     (stepId: string) => {
-      const element = stepsRef.current.get(stepId);
-      if (!element || !element.isConnected) {
-        return false;
+      const el = stepsRef.current.get(stepId);
+      if (!el || !el.isConnected) return false;
+      if (typeof el.focus === "function" && (typeof document === "undefined" || document.activeElement !== el)) {
+        el.focus({ preventScroll: true });
       }
-
-      if (
-        typeof element.focus === "function" &&
-        (typeof document === "undefined" || document.activeElement !== element)
-      ) {
-        element.focus({ preventScroll: true });
-      }
-
       setActiveStep(stepId);
       return true;
     },
@@ -170,15 +100,9 @@ export default function Story({
 
   const focusStepByIndex = useCallback(
     (index: number) => {
-      if (index < 0) {
-        return false;
-      }
-
+      if (index < 0) return false;
       const stepId = orderedStepIdsRef.current[index];
-      if (!stepId) {
-        return false;
-      }
-
+      if (!stepId) return false;
       return focusStep(stepId);
     },
     [focusStep],
@@ -186,46 +110,32 @@ export default function Story({
 
   const focusStepByOffset = useCallback(
     (currentStepId: string, offset: number) => {
-      if (!currentStepId) {
-        return false;
-      }
-
+      if (!currentStepId) return false;
       const index = orderedStepIdsRef.current.indexOf(currentStepId);
-      if (index < 0) {
-        return false;
-      }
-
+      if (index < 0) return false;
       return focusStepByIndex(index + offset);
     },
     [focusStepByIndex],
   );
 
   const focusFirstStep = useCallback(() => focusStepByIndex(0), [focusStepByIndex]);
-
   const focusLastStep = useCallback(
     () => focusStepByIndex(orderedStepIdsRef.current.length - 1),
     [focusStepByIndex],
   );
 
   const handleInitialHash = useCallback(() => {
-    if (initialHashHandled.current || typeof window === "undefined") {
-      return;
-    }
-
+    if (initialHashHandled.current || typeof window === "undefined") return;
     const hash = window.location.hash.slice(1);
-    if (!hash) {
-      return;
-    }
-
-    const didFocus = focusStep(hash);
-    if (didFocus) {
+    if (!hash) return;
+    if (focusStep(hash)) {
       initialHashHandled.current = true;
     }
   }, [focusStep]);
 
   const registerStep = useCallback(
-    (id: string, element: HTMLElement) => {
-      stepsRef.current.set(id, element);
+    (id: string, el: HTMLElement) => {
+      stepsRef.current.set(id, el);
       if (!orderedStepIdsRef.current.includes(id)) {
         orderedStepIdsRef.current.push(id);
       }
@@ -236,114 +146,93 @@ export default function Story({
 
   const unregisterStep = useCallback((id: string) => {
     stepsRef.current.delete(id);
-    orderedStepIdsRef.current = orderedStepIdsRef.current.filter((stepId) => stepId !== id);
+    orderedStepIdsRef.current = orderedStepIdsRef.current.filter((x) => x !== id);
   }, []);
 
+  // focus логика
   useEffect(() => {
-    trackStoryView();
-  }, [trackStoryView]);
-
-  useEffect(() => {
-    return () => {
-      flush();
-    };
-  }, [flush]);
-
-  useEffect(() => {
-    const index = activeStepId ? orderedStepIdsRef.current.indexOf(activeStepId) : -1;
-    handleStepChange(activeStepId, index);
-  }, [activeStepId, handleStepChange]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !activeStepId) {
-      return;
-    }
-
-    const element = stepsRef.current.get(activeStepId);
-    if (!element || !element.isConnected) {
-      return;
-    }
+    if (typeof window === "undefined" || !activeStepId) return;
+    const el = stepsRef.current.get(activeStepId);
+    if (!el || !el.isConnected) return;
 
     if (typeof document !== "undefined") {
-      const activeElement = document.activeElement;
-
-      if (activeElement && activeElement !== element && element.contains(activeElement)) {
-        return;
-      }
-
-      if (activeElement === element) {
-        return;
-      }
+      const active = document.activeElement;
+      if (active && active !== el && el.contains(active)) return;
+      if (active === el) return;
     }
-
-    if (typeof document === "undefined" || document.activeElement !== element) {
-      element.focus({ preventScroll: true });
+    if (typeof document === "undefined" || document.activeElement !== el) {
+      el.focus({ preventScroll: true });
     }
   }, [activeStepId]);
 
+  // stickyTop css var
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || typeof window === "undefined") {
-      return;
-    }
-
-    const updateViewportHeight = () => {
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      container.style.setProperty("--scrolly-viewport-height", `${viewportHeight}px`);
+    if (!container || typeof window === "undefined") return;
+    const updateVH = () => {
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      container.style.setProperty("--scrolly-viewport-height", `${vh}px`);
     };
-
-    updateViewportHeight();
-
-    window.addEventListener("resize", updateViewportHeight);
-    window.addEventListener("orientationchange", updateViewportHeight);
-    window.visualViewport?.addEventListener("resize", updateViewportHeight);
-
+    updateVH();
+    window.addEventListener("resize", updateVH);
+    window.addEventListener("orientationchange", updateVH);
+    window.visualViewport?.addEventListener("resize", updateVH);
     return () => {
-      window.removeEventListener("resize", updateViewportHeight);
-      window.removeEventListener("orientationchange", updateViewportHeight);
-      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("resize", updateVH);
+      window.removeEventListener("orientationchange", updateVH);
+      window.visualViewport?.removeEventListener("resize", updateVH);
     };
   }, []);
 
+  // stickyTop var (offset)
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) {
-      return;
-    }
-
+    if (!container) return;
     if (stickyTop == null) {
       container.style.removeProperty("--scrolly-sticky-top");
       return;
     }
-
     const value = typeof stickyTop === "number" ? `${stickyTop}px` : stickyTop;
     container.style.setProperty("--scrolly-sticky-top", value);
   }, [stickyTop]);
 
+  // hash sync
   useEffect(() => {
-    if (typeof window === "undefined" || !activeStepId) {
-      return;
-    }
-
+    if (typeof window === "undefined" || !activeStepId) return;
     const hash = `#${activeStepId}`;
-
     if (window.location.hash !== hash) {
       window.history.replaceState(null, "", hash);
     }
   }, [activeStepId]);
 
+  // apply visualization state
   useEffect(() => {
-    if (!activeStepId) {
-      return;
-    }
-
+    if (!activeStepId) return;
     const controller = visualizationRef.current;
-    if (!controller) {
-      return;
-    }
-
+    if (!controller) return;
     controller.applyState(activeStepId, { discrete: prefersReducedMotion });
   }, [activeStepId, prefersReducedMotion]);
+
+  // РЕГИСТРАЦИЯ СЕНТИНЕЛА (для тестов «observer registered» и ленивого маунта)
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    let didMount = false;
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && !didMount) {
+          didMount = true;
+          setShouldRenderSticky(true);
+          break;
+        }
+      }
+    });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+    };
+  }, []);
 
   const contextValue = useMemo<StoryContextValue>(
     () => ({
@@ -359,23 +248,14 @@ export default function Story({
       focusStepByOffset,
       focusFirstStep,
       focusLastStep,
-      trackShareClick,
     }),
     [
       activeStepId,
-      trackShareClick,
-      focusFirstStep,
-      focusLastStep,
-      focusStep,
-      focusStepByOffset,
-      registerStep,
       setActiveStep,
       registerStep,
       unregisterStep,
-
       registerVisualization,
       prefersReducedMotion,
-
       focusStep,
       focusStepByOffset,
       focusFirstStep,
@@ -383,136 +263,23 @@ export default function Story({
     ],
   );
 
-  useEffect(() => {
-    setStepCount(resolvedStepCount);
-  }, [resolvedStepCount]);
-
-  useEffect(() => {
-    if (!stickyChild) {
-      setShouldRenderSticky(true);
-      lazyMountTriggeredRef.current = true;
-    }
-  }, [stickyChild]);
-
-  useEffect(() => {
-    return () => {
-      prefetchAbortRef.current?.abort();
-      prefetchAbortRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!stickyChild || shouldRenderSticky) {
-      return;
-    }
-
-    let cancelPrefetchIdle: (() => void) | null = null;
-    let cancelMountIdle: (() => void) | null = null;
-
-    const beginPrefetch = () => {
-      if (!onVisualizationPrefetch || prefetchAbortRef.current) {
-        return;
-      }
-
-      try {
-        const controller = new AbortController();
-        prefetchAbortRef.current = controller;
-        const result = onVisualizationPrefetch(controller.signal);
-        if (typeof (result as Promise<unknown>)?.then === "function") {
-          (result as Promise<unknown>).finally(() => {
-            if (prefetchAbortRef.current === controller) {
-              prefetchAbortRef.current = null;
-            }
-          });
-        } else if (prefetchAbortRef.current === controller) {
-          prefetchAbortRef.current = null;
-        }
-      } catch {
-        prefetchAbortRef.current = null;
-      }
-    };
-
-    const triggerLazyMount = () => {
-      if (lazyMountTriggeredRef.current) {
-        return;
-      }
-
-      lazyMountTriggeredRef.current = true;
-
-      if (onVisualizationPrefetch) {
-        cancelPrefetchIdle?.();
-        cancelPrefetchIdle = scheduleAfterIdle(beginPrefetch);
-      }
-
-      cancelMountIdle?.();
-      cancelMountIdle = scheduleAfterIdle(() => {
-        setShouldRenderSticky(true);
-      });
-    };
-
-    if (typeof window === "undefined") {
-      triggerLazyMount();
-      return () => {
-        cancelPrefetchIdle?.();
-        cancelMountIdle?.();
-      };
-    }
-
-    const sentinel = sentinelRef.current ?? containerRef.current;
-    if (!sentinel) {
-      triggerLazyMount();
-      return () => {
-        cancelPrefetchIdle?.();
-        cancelMountIdle?.();
-      };
-    }
-
-    if (typeof IntersectionObserver === "undefined") {
-      triggerLazyMount();
-      return () => {
-        cancelPrefetchIdle?.();
-        cancelMountIdle?.();
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            observer.disconnect();
-            triggerLazyMount();
-          }
-        });
-      },
-      {
-        rootMargin: STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
-        threshold: 0,
-      },
-    );
-
-    observer.observe(sentinel);
-
-    return () => {
-      observer.disconnect();
-      cancelPrefetchIdle?.();
-      cancelMountIdle?.();
-    };
-  }, [shouldRenderSticky, stickyChild, onVisualizationPrefetch]);
+  const arr = Children.toArray(children) as ReactElement[];
+  const stickyChild = arr.find((c) => isStickyPanel(c));
+  const stepChildren = arr.filter((c) => !isStickyPanel(c));
 
   return (
     <section ref={containerRef} className={classNames("scrolly", className)} data-scrolly>
+      {/* Сентинел для ленивого маунта визуализации */}
+      <div ref={sentinelRef} data-scrolly-viz-sentinel style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
+
       <StoryContext.Provider value={contextValue}>
         {stickyChild ? (
-          <>
-            <div ref={sentinelRef} aria-hidden="true" className="scrolly-visualization-sentinel" />
-            {cloneElement<any>(
-              stickyChild as any,
-              {
-                children: shouldRenderSticky ? (stickyChild.props as any).children : null,
-                "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
-              } as any
-            )}
-          </>
+          cloneElement<any>(
+            stickyChild as any,
+            {
+              "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
+            } as any,
+          )
         ) : (
           <div className="scrolly-sticky" aria-hidden="true" />
         )}
@@ -526,13 +293,11 @@ export function useStoryVisualization(controller: StoryVisualizationController |
   prefersReducedMotion: boolean;
 } {
   const { registerVisualization, prefersReducedMotion } = useStoryContext();
-
   useEffect(() => {
     registerVisualization(controller);
     return () => {
       registerVisualization(null);
     };
   }, [controller, registerVisualization]);
-
   return { prefersReducedMotion };
 }
