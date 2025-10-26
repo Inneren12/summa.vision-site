@@ -51,6 +51,7 @@ export function useStepController(options: StepControllerOptions = {}) {
   const [activeStepId, setActiveStep] = useState<string | null>(initialActive);
   const activeRef = useRef<string | null>(initialActive);
   const initializedRef = useRef(initialActive !== null);
+  const initialStepCleanupRef = useRef<(() => void) | null>(null);
   const ratiosRef = useRef(new Map<string, number>());
 
   useEffect(() => {
@@ -96,6 +97,83 @@ export function useStepController(options: StepControllerOptions = {}) {
     [emitChange],
   );
 
+  const emitStepInitEvent = useCallback((id: string, visibility: number) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const event = new CustomEvent("step_init_detected", {
+      detail: {
+        stepId: id,
+        visibility,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    window.dispatchEvent(event);
+  }, []);
+
+  const computeAndSetInitialStep = useCallback(() => {
+    if (initializedRef.current) {
+      return;
+    }
+    if (steps.length === 0) {
+      return;
+    }
+
+    let candidateId: string | null = null;
+    let candidateRatio = -1;
+    let candidateTop = Infinity;
+
+    const viewportHeight =
+      typeof window !== "undefined"
+        ? window.innerHeight || document.documentElement?.clientHeight || 0
+        : 0;
+
+    for (const step of steps) {
+      if (!step.element) {
+        continue;
+      }
+      const rect = step.element.getBoundingClientRect();
+      const height = rect.height || step.element.offsetHeight || 0;
+      if (height <= 0) {
+        continue;
+      }
+
+      let ratio = 0;
+      if (viewportHeight > 0) {
+        const viewportTop = 0;
+        const viewportBottom = viewportTop + viewportHeight;
+        const intersectionTop = Math.max(rect.top, viewportTop);
+        const intersectionBottom = Math.min(rect.bottom, viewportBottom);
+        const visible = Math.max(0, intersectionBottom - intersectionTop);
+        ratio = Math.max(0, Math.min(1, visible / height));
+      }
+
+      ratiosRef.current.set(step.id, ratio);
+
+      if (
+        ratio > candidateRatio ||
+        (ratio === candidateRatio && ratio > 0 && rect.top < candidateTop)
+      ) {
+        candidateId = step.id;
+        candidateRatio = ratio;
+        candidateTop = rect.top;
+      }
+    }
+
+    if (!candidateId) {
+      const first = steps[0];
+      if (!first) {
+        return;
+      }
+      candidateId = first.id;
+      candidateRatio = ratiosRef.current.get(first.id) ?? 0;
+    }
+
+    initializedRef.current = true;
+    emitStepInitEvent(candidateId, Math.max(0, candidateRatio));
+    commitActive(candidateId);
+  }, [commitActive, emitStepInitEvent, steps]);
+
   useEffect(() => {
     if (initializedRef.current) {
       return;
@@ -103,15 +181,21 @@ export function useStepController(options: StepControllerOptions = {}) {
     if (steps.length === 0) {
       return;
     }
-    const first = steps[0];
-    if (!first) {
-      return;
-    }
-    initializedRef.current = true;
-    activeRef.current = first.id;
-    setActiveStep(first.id);
-    emitChange(first.id, null);
-  }, [emitChange, steps]);
+
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        initialStepCleanupRef.current = null;
+        computeAndSetInitialStep();
+      });
+      initialStepCleanupRef.current = () => cancelAnimationFrame(raf2);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      initialStepCleanupRef.current?.();
+      initialStepCleanupRef.current = null;
+    };
+  }, [computeAndSetInitialStep, steps]);
 
   useEffect(() => {
     const validIds = new Set(steps.map((step) => step.id));
