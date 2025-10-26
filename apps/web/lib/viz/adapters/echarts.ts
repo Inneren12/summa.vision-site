@@ -1,15 +1,15 @@
+import type { EChartsSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
-type EChartsOption = import("echarts").EChartsOption;
 
 interface EChartsInstance {
   element: HTMLElement;
   chart: ECharts;
-  spec: EChartsOption;
+  spec: EChartsSpec;
 }
 
-function cloneSpec(spec: EChartsOption): EChartsOption {
+function cloneSpec(spec: EChartsSpec): EChartsSpec {
   if (typeof globalThis.structuredClone === "function") {
     try {
       return globalThis.structuredClone(spec);
@@ -18,12 +18,12 @@ function cloneSpec(spec: EChartsOption): EChartsOption {
     }
   }
   if (Array.isArray(spec)) {
-    return spec.slice() as unknown as EChartsOption;
+    return spec.slice() as unknown as EChartsSpec;
   }
-  return { ...(spec as Record<string, unknown>) } as EChartsOption;
+  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
 }
 
-function applyOption(chart: ECharts, option: EChartsOption, discrete: boolean) {
+function applyOption(chart: ECharts, option: EChartsSpec, discrete: boolean) {
   chart.setOption(option, {
     notMerge: false,
     lazyUpdate: !discrete,
@@ -33,7 +33,7 @@ function applyOption(chart: ECharts, option: EChartsOption, discrete: boolean) {
   } as never);
 }
 
-export const echartsAdapter: VizAdapter<EChartsInstance, EChartsOption> = {
+export const echartsAdapter: VizAdapter<EChartsInstance, EChartsSpec> = {
   async mount(el, spec, opts) {
     const echarts = await import("echarts");
     const chart = echarts.init(el, undefined, { renderer: "canvas" });
