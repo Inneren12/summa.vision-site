@@ -44,6 +44,19 @@ export default function Progress({ className, label = "Прогресс исто
     return { "--scrolly-progress-ratio": `${ratio}` } as CSSProperties;
   }, [activeIndex, total]);
 
+  const ariaValueNow = useMemo(
+    () => (activeIndex >= 0 ? activeIndex + 1 : undefined),
+    [activeIndex],
+  );
+  const ariaValueText = useMemo(() => {
+    if (activeIndex < 0) {
+      return undefined;
+    }
+    const currentStep = steps[activeIndex];
+    const trimmedLabel = currentStep?.label?.trim();
+    return trimmedLabel || `Шаг ${activeIndex + 1}`;
+  }, [activeIndex, steps]);
+
   if (total <= 1) {
     return null;
   }
@@ -59,7 +72,8 @@ export default function Progress({ className, label = "Прогресс исто
         aria-label={label}
         aria-valuemin={1}
         aria-valuemax={total}
-        aria-valuenow={activeIndex >= 0 ? activeIndex + 1 : undefined}
+        aria-valuenow={ariaValueNow}
+        aria-valuetext={ariaValueText}
         style={meterStyle}
       />
       <ol className="scrolly-progress__list">

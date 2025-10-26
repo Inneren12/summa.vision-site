@@ -12,10 +12,11 @@ export default defineConfig({
     jsxImportSource: "react",
   },
   resolve: {
-    alias: {
-      "server-only": path.resolve(__dirname, "tests/mocks/server-only.ts"),
-      "@": path.resolve(__dirname, "."),
-    },
+    alias: [
+      { find: "server-only", replacement: path.resolve(__dirname, "tests/mocks/server-only.ts") },
+      { find: "@/lib", replacement: path.resolve(__dirname, "apps/web/lib") },
+      { find: "@", replacement: path.resolve(__dirname, ".") },
+    ],
   },
   test: {
     globals: true,

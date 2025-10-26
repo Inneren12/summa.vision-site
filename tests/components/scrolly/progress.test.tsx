@@ -70,6 +70,7 @@ describe("scrolly progress", () => {
     expect(progressbar).toHaveAttribute("aria-valuemin", "1");
     expect(progressbar).toHaveAttribute("aria-valuemax", "2");
     expect(progressbar).not.toHaveAttribute("aria-valuenow");
+    expect(progressbar).not.toHaveAttribute("aria-valuetext");
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();
@@ -80,5 +81,6 @@ describe("scrolly progress", () => {
     });
 
     expect(progressbar).toHaveAttribute("aria-valuenow", "2");
+    expect(progressbar).toHaveAttribute("aria-valuetext", "Step 2");
   });
 });
