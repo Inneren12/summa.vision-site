@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
