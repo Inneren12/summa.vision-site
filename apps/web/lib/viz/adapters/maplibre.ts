@@ -31,10 +31,6 @@ interface MapLibreMap {
   setStyle(style: string | object, options?: { diff?: boolean }): void;
 }
 
-interface MapLibreModule {
-  Map: new (options: MapOptions) => MapLibreMap;
-}
-
 interface MapLibreInstance {
   map: MapLibreMap;
   spec: MapLibreSpec;
@@ -151,9 +147,31 @@ function applyMapState(
   applyLayers(map, spec.layers);
 }
 
+function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLibreMap {
+  if (typeof mod === "function") {
+    return mod as new (options: MapOptions) => MapLibreMap;
+  }
+
+  if (mod && typeof (mod as { Map?: unknown }).Map === "function") {
+    return (mod as { Map: new (options: MapOptions) => MapLibreMap }).Map;
+  }
+
+  const defaultExport = (mod as { default?: unknown }).default;
+
+  if (typeof defaultExport === "function") {
+    return defaultExport as new (options: MapOptions) => MapLibreMap;
+  }
+
+  if (defaultExport && typeof (defaultExport as { Map?: unknown }).Map === "function") {
+    return (defaultExport as { Map: new (options: MapOptions) => MapLibreMap }).Map;
+  }
+
+  throw new Error("MapLibre constructor not found");
+}
+
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
-    const maplibre = (await import("maplibre-gl")) as MapLibreModule;
+    const mod = await import("maplibre-gl");
     const clone = cloneSpec(spec);
     const mapOptions: MapOptions = {
       container: el,
@@ -164,8 +182,9 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
       pitch: clone.camera?.pitch,
       padding: clone.camera?.padding as PaddingOptions | undefined,
     };
-    // Явно указываем тип, чтобы TS не подставил ES Map<>
-    const map: MapLibreMap = new maplibre.Map(mapOptions);
+    // Универсально получаем конструктор (ESM/CJS/стаб)
+    const MapCtor = resolveMapConstructor(mod);
+    const map: MapLibreMap = new MapCtor(mapOptions);
     applyMapState(map, clone, opts.discrete);
     return { map, spec: clone } as MapLibreInstance;
   },
