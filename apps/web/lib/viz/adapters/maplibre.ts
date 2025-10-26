@@ -1,6 +1,8 @@
-import type { LngLatLike, Map as MapLibreMap, MapOptions } from "maplibre-gl";
-
 import type { VizAdapter } from "../types";
+
+type MapLibreMap = import("maplibre-gl").Map;
+type MapOptions = import("maplibre-gl").MapOptions;
+type LngLatLike = import("maplibre-gl").LngLatLike;
 
 export type MapLibreSpec = MapOptions & {
   readonly center?: LngLatLike;

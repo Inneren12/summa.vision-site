@@ -1,6 +1,6 @@
-import type { DeckProps } from "@deck.gl/core";
-
 import type { VizAdapter } from "../types";
+
+type DeckProps = import("@deck.gl/core").DeckProps;
 
 type DeckLike = { setProps?: (p: Partial<DeckProps>) => void; finalize?: () => void };
 type Instance = { deck: DeckLike; spec: DeckProps };

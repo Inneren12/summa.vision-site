@@ -1,6 +1,7 @@
-import type { ECharts, EChartsOption } from "echarts";
-
 import type { VizAdapter } from "../types";
+
+type ECharts = import("echarts").ECharts;
+type EChartsOption = import("echarts").EChartsOption;
 
 interface EChartsInstance {
   element: HTMLElement;

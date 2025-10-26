@@ -1,6 +1,6 @@
-import type { VisualizationSpec } from "vega-embed";
-
 import type { VizAdapter } from "../types";
+
+type VisualizationSpec = import("vega-embed").VisualizationSpec;
 
 interface VegaEmbedResult {
   view?: {
