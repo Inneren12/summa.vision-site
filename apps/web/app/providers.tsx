@@ -1,5 +1,7 @@
 "use client";
 
+import "@/lib/viz/bootstrap";
+
 import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
@@ -138,7 +140,7 @@ export function Providers({ children, correlation }: ProvidersProps) {
       reporter.send({
         message: error?.message,
         stack: error?.stack,
-        componentStack: (info?.componentStack ?? undefined),
+        componentStack: info?.componentStack ?? undefined,
         source: "boundary",
       });
     },
