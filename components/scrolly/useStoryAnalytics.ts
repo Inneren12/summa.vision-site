@@ -2,12 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-export type StoryAnalyticsEventName = "story_view" | "step_view" | "step_exit" | "share_click";
+export type StoryAnalyticsEventName =
+  | "story_view"
+  | "step_view"
+  | "step_exit"
+  | "share_click"
+  | "progress_render"
+  | "progress_click";
 
 export type StoryAnalyticsController = {
   trackStoryView: () => void;
   handleStepChange: (stepId: string | null, stepIndex: number) => void;
   trackShareClick: () => void;
+  trackProgressRender: () => void;
+  trackProgressClick: (stepId: string, stepIndex: number) => void;
   flush: () => void;
 };
 
@@ -152,6 +160,7 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
   const pendingExitRef = useRef<PendingStep | null>(null);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storyViewedRef = useRef(false);
+  const progressRenderedRef = useRef(false);
   const dntEnabled = useMemo(() => hasClientDoNotTrackEnabled(), []);
 
   useEffect(() => {
@@ -237,6 +246,21 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
     sendEvent("share_click");
   }, [sendEvent]);
 
+  const trackProgressRender = useCallback(() => {
+    if (progressRenderedRef.current) {
+      return;
+    }
+    progressRenderedRef.current = true;
+    sendEvent("progress_render", {});
+  }, [sendEvent]);
+
+  const trackProgressClick = useCallback(
+    (stepId: string, stepIndex: number) => {
+      sendEvent("progress_click", { stepId, stepIndex });
+    },
+    [sendEvent],
+  );
+
   useEffect(
     () => () => {
       flushExit();
@@ -249,8 +273,17 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
       trackStoryView,
       handleStepChange,
       trackShareClick,
+      trackProgressRender,
+      trackProgressClick,
       flush: flushExit,
     }),
-    [flushExit, handleStepChange, trackShareClick, trackStoryView],
+    [
+      flushExit,
+      handleStepChange,
+      trackProgressClick,
+      trackProgressRender,
+      trackShareClick,
+      trackStoryView,
+    ],
   );
 }

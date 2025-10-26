@@ -17,10 +17,17 @@ import {
 import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
 
 import StickyPanel from "./StickyPanel";
+import { useStoryAnalytics } from "./useStoryAnalytics";
 
 export type StoryVisualizationApplyOptions = { discrete?: boolean };
 export type StoryVisualizationController = {
   applyState: (stepId: string, options?: StoryVisualizationApplyOptions) => void;
+};
+
+export type StoryProgressStep = {
+  id: string;
+  hash: string;
+  label?: string;
 };
 
 type StoryContextValue = {
@@ -28,6 +35,9 @@ type StoryContextValue = {
   setActiveStep: (stepId: string) => void;
   registerStep: (id: string, element: HTMLElement) => void;
   unregisterStep: (id: string) => void;
+  updateStepMetadata: (id: string) => void;
+
+  steps: StoryProgressStep[];
 
   registerVisualization: (controller: StoryVisualizationController | null) => void;
   prefersReducedMotion: boolean;
@@ -36,6 +46,10 @@ type StoryContextValue = {
   focusStepByOffset: (currentStepId: string, offset: number) => boolean;
   focusFirstStep: () => boolean;
   focusLastStep: () => boolean;
+
+  trackShareClick: () => void;
+  trackProgressRender: () => void;
+  trackProgressClick: (stepId: string, stepIndex: number) => void;
 };
 
 const StoryContext = createContext<StoryContextValue | null>(null);
@@ -54,6 +68,7 @@ export type StoryProps = {
   children: ReactNode;
   className?: string;
   onVisualizationPrefetch?: (signal: AbortSignal) => Promise<void> | void;
+  storyId?: string;
 };
 
 function classNames(...v: Array<string | undefined | false>): string {
@@ -65,6 +80,7 @@ export default function Story({
   stickyTop,
   className,
   onVisualizationPrefetch,
+  storyId,
 }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -72,6 +88,7 @@ export default function Story({
   const stepsRef = useRef(new Map<string, HTMLElement>());
   const orderedStepIdsRef = useRef<string[]>([]);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [steps, setSteps] = useState<StoryProgressStep[]>([]);
   const initialHashHandled = useRef(false);
 
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -147,21 +164,65 @@ export default function Story({
     }
   }, [focusStep]);
 
+  const syncSteps = useCallback(() => {
+    setSteps(() => {
+      const result: StoryProgressStep[] = [];
+      for (const stepId of orderedStepIdsRef.current) {
+        const element = stepsRef.current.get(stepId);
+        if (!element) continue;
+        const hash = element.id || stepId;
+        let label = element.dataset.scrollyStepLabel?.trim();
+        if (!label) {
+          const ariaLabel = element.getAttribute("aria-label")?.trim();
+          if (ariaLabel) {
+            label = ariaLabel;
+          } else {
+            const labelledBy = element.getAttribute("aria-labelledby");
+            if (labelledBy && typeof document !== "undefined") {
+              const parts = labelledBy
+                .split(" ")
+                .map((token) => document.getElementById(token)?.textContent?.trim())
+                .filter((value): value is string => Boolean(value));
+              if (parts.length > 0) {
+                label = parts.join(" ");
+              }
+            }
+          }
+        }
+        result.push({ id: stepId, hash, label: label || undefined });
+      }
+      return result;
+    });
+  }, []);
+
   const registerStep = useCallback(
     (id: string, el: HTMLElement) => {
       stepsRef.current.set(id, el);
       if (!orderedStepIdsRef.current.includes(id)) {
         orderedStepIdsRef.current.push(id);
       }
+      syncSteps();
       handleInitialHash();
     },
-    [handleInitialHash],
+    [handleInitialHash, syncSteps],
   );
 
-  const unregisterStep = useCallback((id: string) => {
-    stepsRef.current.delete(id);
-    orderedStepIdsRef.current = orderedStepIdsRef.current.filter((x) => x !== id);
-  }, []);
+  const unregisterStep = useCallback(
+    (id: string) => {
+      stepsRef.current.delete(id);
+      orderedStepIdsRef.current = orderedStepIdsRef.current.filter((x) => x !== id);
+      syncSteps();
+    },
+    [syncSteps],
+  );
+
+  const updateStepMetadata = useCallback(
+    (id: string) => {
+      if (!stepsRef.current.has(id)) return;
+      syncSteps();
+    },
+    [syncSteps],
+  );
 
   // focus логика
   useEffect(() => {
@@ -273,12 +334,34 @@ export default function Story({
     };
   }, [runPrefetch]);
 
+  const stepCount = steps.length;
+
+  const {
+    trackStoryView,
+    handleStepChange,
+    trackShareClick,
+    trackProgressRender,
+    trackProgressClick,
+  } = useStoryAnalytics({ storyId, stepCount });
+
+  useEffect(() => {
+    trackStoryView();
+  }, [trackStoryView]);
+
+  useEffect(() => {
+    const index = activeStepId ? steps.findIndex((step) => step.id === activeStepId) : -1;
+    handleStepChange(activeStepId, index);
+  }, [activeStepId, handleStepChange, steps]);
+
   const contextValue = useMemo<StoryContextValue>(
     () => ({
       activeStepId,
       setActiveStep,
       registerStep,
       unregisterStep,
+      updateStepMetadata,
+
+      steps,
 
       registerVisualization,
       prefersReducedMotion,
@@ -287,18 +370,27 @@ export default function Story({
       focusStepByOffset,
       focusFirstStep,
       focusLastStep,
+
+      trackShareClick,
+      trackProgressRender,
+      trackProgressClick,
     }),
     [
       activeStepId,
       setActiveStep,
       registerStep,
       unregisterStep,
+      updateStepMetadata,
+      steps,
       registerVisualization,
       prefersReducedMotion,
       focusStep,
       focusStepByOffset,
       focusFirstStep,
       focusLastStep,
+      trackShareClick,
+      trackProgressRender,
+      trackProgressClick,
     ],
   );
 
