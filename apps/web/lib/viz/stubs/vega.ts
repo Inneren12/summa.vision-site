@@ -1,3 +1,4 @@
 // Лёгкий стаб для 'vega'
 export const parse = () => ({});
-export default {};
+const vegaStub = {};
+export default vegaStub;

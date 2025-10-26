@@ -18,21 +18,45 @@ const mapSetCenter = vi.fn();
 const mapSetZoom = vi.fn();
 const mapSetPitch = vi.fn();
 const mapSetBearing = vi.fn();
+const mapSetPadding = vi.fn();
+const mapAddLayer = vi.fn();
+const mapRemoveLayer = vi.fn();
+const mapGetLayer = vi.fn();
 const mapRemove = vi.fn();
 class MapMock {
   constructor(options: Record<string, unknown>) {
     this.options = options;
+    this.layers = new Map();
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: Record<string, any>;
+  layers: Map<string, unknown>;
   getStyle() {
-    return { sprite: this.options.style };
+    return typeof this.options.style === "string"
+      ? { sprite: this.options.style }
+      : ((this.options.style as Record<string, unknown> | undefined) ?? null);
   }
-  setStyle = mapSetStyle;
+  setStyle = (style: unknown, opts?: unknown) => {
+    this.options.style = style;
+    mapSetStyle(style, opts);
+  };
   setCenter = mapSetCenter;
   setZoom = mapSetZoom;
   setPitch = mapSetPitch;
   setBearing = mapSetBearing;
+  setPadding = mapSetPadding;
+  getLayer = (id: string) => {
+    mapGetLayer(id);
+    return this.layers.get(id);
+  };
+  addLayer = (layer: { id: string }) => {
+    this.layers.set(layer.id, layer);
+    mapAddLayer(layer);
+  };
+  removeLayer = (id: string) => {
+    this.layers.delete(id);
+    mapRemoveLayer(id);
+  };
   remove = mapRemove;
 }
 vi.mock("maplibre-gl", () => ({
@@ -135,39 +159,59 @@ describe("viz adapters contract", () => {
 
   it("maplibre adapter mounts and applies view state", async () => {
     const element = document.createElement("div");
-    const spec = { style: "style.json", center: [0, 0], zoom: 2 };
+    const spec = { style: "style.json", camera: { center: [0, 0], zoom: 2 } };
     const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
     expect(instance.map).toBeInstanceOf(MapMock);
     mapLibreAdapter.applyState(
       instance,
-      { ...spec, zoom: 4, pitch: 20, bearing: 30 },
+      {
+        ...spec,
+        camera: { ...spec.camera, zoom: 4, pitch: 20, bearing: 30, padding: { top: 10 } },
+        layers: [
+          { id: "layer", op: "add", def: { id: "layer", type: "fill" } },
+          { id: "layer", op: "update", def: { id: "layer", type: "line" } },
+          { id: "layer", op: "remove" },
+        ],
+      },
       { discrete: true },
     );
+    expect(mapSetStyle).not.toHaveBeenCalled();
     expect(mapSetZoom).toHaveBeenCalledWith(4);
     expect(mapSetPitch).toHaveBeenCalledWith(20, { duration: 0 });
     expect(mapSetBearing).toHaveBeenCalledWith(30, { duration: 0 });
+    expect(mapSetPadding).toHaveBeenCalledWith({ top: 10 });
+    expect(mapAddLayer).toHaveBeenCalledWith({ id: "layer", type: "fill" });
+    expect(mapRemoveLayer).toHaveBeenCalledWith("layer");
     mapLibreAdapter.destroy(instance);
     expect(mapRemove).toHaveBeenCalled();
   });
 
   it("maplibre adapter treats previous spec as immutable", async () => {
     const element = document.createElement("div");
-    const spec = { style: "style.json", center: [0, 0], zoom: 2 };
+    const spec = { style: "style.json", camera: { center: [0, 0], zoom: 2 }, layers: [] as const };
     const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
     const previous = instance.spec;
 
     mapLibreAdapter.applyState(
       instance,
       (prev) => {
-        expect(prev.zoom).toBe(2);
+        expect(prev.camera?.zoom).toBe(2);
         // @ts-expect-error mutation attempt
-        prev.zoom = 3;
-        return { ...prev, pitch: 20 };
+        prev.camera = { ...prev.camera, zoom: 3 };
+        if (prev.layers) {
+          (prev.layers as Array<{ id: string; op: "add" }>).push({ id: "layer", op: "add" });
+        }
+        return {
+          ...prev,
+          camera: { ...prev.camera, pitch: 20 },
+          layers: [{ id: "layer", op: "remove" }],
+        };
       },
       { discrete: true },
     );
 
-    expect(previous.zoom).toBe(2);
+    expect(previous.camera?.zoom).toBe(2);
+    expect(previous.layers).toHaveLength(0);
   });
 
   it("visx adapter renders react components", () => {

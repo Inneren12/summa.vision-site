@@ -1,3 +1,4 @@
+import type { VegaLiteSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
 type VegaLiteSpec = import("vega-lite").TopLevelSpec;
@@ -62,6 +63,12 @@ function cloneDatasets(datasets: unknown): unknown {
       }
       clone[key] = next;
       continue;
+function cloneSpec(spec: VegaLiteSpec): VegaLiteSpec {
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec);
+    } catch {
+      // fall through
     }
     clone[key] = value;
   }

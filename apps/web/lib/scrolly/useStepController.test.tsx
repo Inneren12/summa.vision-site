@@ -178,4 +178,45 @@ describe("useStepController", () => {
     expect(onEnter).toHaveBeenLastCalledWith("step-3");
     expect(onChange).toHaveBeenLastCalledWith("step-3", "step-2");
   });
+
+  it("computes initial step after a double animation frame", async () => {
+    const steps = [createStep("step-1", 0), createStep("step-2", 400)];
+    const callbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      const index = id - 1;
+      if (callbacks[index]) {
+        callbacks[index] = () => undefined;
+      }
+    });
+
+    render(
+      <ScrollyProvider steps={steps}>
+        <TestController />
+      </ScrollyProvider>,
+    );
+
+    expect(screen.getByTestId("active-step").textContent).toBe("none");
+
+    expect(callbacks).toHaveLength(1);
+    const first = callbacks.shift();
+    await act(async () => {
+      first?.(0);
+    });
+
+    expect(screen.getByTestId("active-step").textContent).toBe("none");
+    expect(callbacks).toHaveLength(1);
+
+    const second = callbacks.shift();
+    await act(async () => {
+      second?.(16);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-step").textContent).toBe("step-1");
+    });
+  });
 });
