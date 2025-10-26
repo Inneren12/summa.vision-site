@@ -1,3 +1,4 @@
+import type { EChartsSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
 type ECharts = import("echarts/core").EChartsType;
