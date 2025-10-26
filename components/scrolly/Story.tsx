@@ -19,6 +19,9 @@ import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
 import StickyPanel from "./StickyPanel";
 import { useStoryAnalytics } from "./useStoryAnalytics";
 
+import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
+import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
+
 export type StoryVisualizationApplyOptions = { discrete?: boolean };
 export type StoryVisualizationController = {
   applyState: (stepId: string, options?: StoryVisualizationApplyOptions) => void;
@@ -141,6 +144,14 @@ export default function Story({
   const [shouldRenderSticky, setShouldRenderSticky] = useState(false);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const hasPrefetchedRef = useRef(false);
+
+  const viewportScale = useVisualViewportScale();
+  const sentinelRootMargin = useMemo(
+    () =>
+      scaleRootMargin(STORY_VISUALIZATION_LAZY_ROOT_MARGIN, viewportScale) ??
+      STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
+    [viewportScale],
+  );
 
   const setActiveStep = useCallback((stepId: string) => {
     setActiveStepId((cur) => (cur === stepId ? cur : stepId));
@@ -456,13 +467,13 @@ export default function Story({
           }
         }
       },
-      { rootMargin: STORY_VISUALIZATION_LAZY_ROOT_MARGIN },
+      { rootMargin: sentinelRootMargin },
     );
     io.observe(el);
     return () => {
       io.disconnect();
     };
-  }, [runPrefetch]);
+  }, [runPrefetch, sentinelRootMargin]);
 
   const stepCount = steps.length;
 
