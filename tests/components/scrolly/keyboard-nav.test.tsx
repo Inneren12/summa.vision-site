@@ -54,6 +54,9 @@ describe("scrolly keyboard navigation", () => {
         <Step id="step-2" title="Step 2">
           <label htmlFor="step-2-input">Editable</label>
           <input id="step-2-input" aria-label="Editable" />
+          <div data-accepts-keys="true">
+            <button type="button">Chart control</button>
+          </div>
         </Step>
         <Step id="step-3" title="Step 3">
           <p>Third body</p>
@@ -135,6 +138,13 @@ describe("scrolly keyboard navigation", () => {
 
     const secondStep = screen.getByRole("article", { name: "Step 2" });
     const input = within(secondStep).getByLabelText("Editable");
+    const ignoredEvents: CustomEvent[] = [];
+    const handler = (event: Event) => {
+      if (event instanceof CustomEvent) {
+        ignoredEvents.push(event);
+      }
+    };
+    window.addEventListener("kbd_ignored_target", handler);
 
     await act(async () => {
       input.focus();
@@ -150,5 +160,89 @@ describe("scrolly keyboard navigation", () => {
     });
 
     expect(secondStep).toHaveAttribute("aria-current", "step");
+
+    await waitFor(() => {
+      expect(ignoredEvents).toHaveLength(1);
+      expect(ignoredEvents[0].type).toBe("kbd_ignored_target");
+      expect(ignoredEvents[0].detail).toMatchObject({
+        key: "ArrowDown",
+        stepId: "step-2",
+        reason: "editable",
+      });
+    });
+
+    window.removeEventListener("kbd_ignored_target", handler);
+  });
+
+  it("does not intercept keyboard events inside containers that accept keys", async () => {
+    renderStory();
+
+    const secondStep = screen.getByRole("article", { name: "Step 2" });
+    const chartButton = within(secondStep).getByRole("button", { name: "Chart control" });
+    const ignoredEvents: CustomEvent[] = [];
+    const handler = (event: Event) => {
+      if (event instanceof CustomEvent) {
+        ignoredEvents.push(event);
+      }
+    };
+    window.addEventListener("kbd_ignored_target", handler);
+
+    await act(async () => {
+      chartButton.focus();
+    });
+    expect(chartButton).toHaveFocus();
+
+    await act(async () => {
+      fireEvent.keyDown(chartButton, { key: "ArrowDown" });
+    });
+
+    await waitFor(() => {
+      expect(chartButton).toHaveFocus();
+    });
+
+    expect(secondStep).toHaveAttribute("aria-current", "step");
+    await waitFor(() => {
+      expect(ignoredEvents).toHaveLength(1);
+      expect(ignoredEvents[0].detail).toMatchObject({
+        key: "ArrowDown",
+        stepId: "step-2",
+        reason: "accepts_keys",
+      });
+    });
+
+    window.removeEventListener("kbd_ignored_target", handler);
+  });
+
+  it("emits a navigation event when a step change occurs", async () => {
+    renderStory();
+
+    const firstStep = screen.getByRole("article", { name: "Step 1" });
+    const navEvents: CustomEvent[] = [];
+    const handler = (event: Event) => {
+      if (event instanceof CustomEvent) {
+        navEvents.push(event);
+      }
+    };
+    window.addEventListener("kbd_nav", handler);
+
+    await act(async () => {
+      firstStep.focus();
+    });
+    expect(firstStep).toHaveFocus();
+
+    await act(async () => {
+      fireEvent.keyDown(firstStep, { key: "ArrowDown" });
+    });
+
+    await waitFor(() => {
+      expect(navEvents).toHaveLength(1);
+      expect(navEvents[0].detail).toMatchObject({
+        key: "ArrowDown",
+        stepId: "step-1",
+        direction: "next",
+      });
+    });
+
+    window.removeEventListener("kbd_nav", handler);
   });
 });

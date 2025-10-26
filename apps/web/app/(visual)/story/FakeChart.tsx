@@ -101,14 +101,18 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
   return (
     <div
       ref={ref}
-      aria-hidden="true"
       className="flex h-48 w-full items-center justify-center rounded-2xl border border-muted/30 bg-gradient-to-br from-primary/20 to-primary/5 text-center"
       data-active-step={currentSpec.activeStepId ?? ""}
+      data-accepts-keys="true"
       data-ready={currentSpec.ready || isReady ? "true" : "false"}
       data-history={currentSpec.history.join(",")}
       data-testid="fake-chart"
+      aria-label={label}
+      role="application"
+      // Keyboard interactions inside the chart should not bubble to story navigation.
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
     >
-      <span className="sr-only">{label}</span>
       <span aria-hidden="true" className="text-sm font-medium text-fg">
         {currentSpec.activeStepId ? `Step: ${currentSpec.activeStepId}` : "Awaiting step"}
       </span>
