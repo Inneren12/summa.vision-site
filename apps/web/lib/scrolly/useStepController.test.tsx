@@ -104,6 +104,8 @@ function TestController({ options }: { options?: StepControllerOptions }) {
 }
 
 describe("useStepController", () => {
+  let replaceStateMock: ReturnType<typeof vi.spyOn> | null = null;
+
   beforeEach(() => {
     MockIntersectionObserver.instances = [];
     vi.stubGlobal(
@@ -115,12 +117,49 @@ describe("useStepController", () => {
       return 0;
     });
     vi.stubGlobal("cancelAnimationFrame", () => {});
+    vi.stubGlobal("scrollTo", vi.fn());
+    try {
+      window.history.replaceState({}, "", "http://localhost/");
+    } catch {
+      window.location.hash = "";
+    }
+    replaceStateMock = vi.spyOn(window.history, "replaceState").mockImplementation((_, __, url) => {
+      const href =
+        typeof url === "string" ? url : url instanceof URL ? url.toString() : window.location.href;
+      const resolved = new URL(href, window.location.href);
+      if (resolved.hash !== window.location.hash) {
+        window.location.hash = resolved.hash;
+      }
+      if (resolved.search !== window.location.search) {
+        try {
+          Object.defineProperty(window.location, "search", {
+            configurable: true,
+            value: resolved.search,
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+      if (resolved.pathname !== window.location.pathname) {
+        try {
+          Object.defineProperty(window.location, "pathname", {
+            configurable: true,
+            value: resolved.pathname,
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+    });
   });
 
   afterEach(() => {
     MockIntersectionObserver.instances = [];
     elementRects.clear();
     document.body.innerHTML = "";
+    replaceStateMock?.mockRestore();
+    replaceStateMock = null;
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -218,5 +257,118 @@ describe("useStepController", () => {
     await waitFor(() => {
       expect(screen.getByTestId("active-step").textContent).toBe("step-1");
     });
+  });
+
+  it("prioritizes step from hash and scrolls with scroll-margin", async () => {
+    try {
+      window.history.replaceState({}, "", "http://localhost/#step-beta");
+    } catch {
+      window.location.hash = "#step-beta";
+    }
+    const steps = [createStep("alpha", 0), createStep("beta", 400)];
+    steps[0].element!.id = "step-alpha";
+    steps[1].element!.id = "step-beta";
+
+    const scrollToMock = window.scrollTo as unknown as ReturnType<typeof vi.fn>;
+    const getComputedStyleSpy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation((element: Element) => {
+        if (element === steps[1].element) {
+          return {
+            scrollMarginTop: "120px",
+            scrollMarginBlockStart: "",
+          } as unknown as CSSStyleDeclaration;
+        }
+        return {
+          scrollMarginTop: "0px",
+          scrollMarginBlockStart: "",
+        } as unknown as CSSStyleDeclaration;
+      });
+
+    try {
+      render(
+        <ScrollyProvider steps={steps}>
+          <TestController />
+        </ScrollyProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-step").textContent).toBe("beta");
+      });
+
+      expect(scrollToMock).toHaveBeenCalled();
+      expect(scrollToMock).toHaveBeenCalledWith({ behavior: "auto", top: 280 });
+    } finally {
+      getComputedStyleSpy.mockRestore();
+    }
+  });
+
+  it("throttles URL updates and emits analytics event", async () => {
+    const steps = [createStep("step-1", 0), createStep("step-2", 400), createStep("step-3", 800)];
+    steps.forEach((step) => {
+      step.element!.id = step.id;
+    });
+
+    const events: CustomEvent[] = [];
+    const handler = (event: Event) => {
+      events.push(event as CustomEvent);
+    };
+    window.addEventListener("url_sync_throttled", handler);
+
+    try {
+      render(
+        <ScrollyProvider steps={steps}>
+          <TestController />
+        </ScrollyProvider>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("active-step").textContent).toBe("step-1");
+
+      await waitFor(() => {
+        expect(window.location.hash).toBe("#step-1");
+      });
+
+      const observer = MockIntersectionObserver.instances[0];
+      setRect(steps[0].element!, createRect(-150, 200));
+      setRect(steps[1].element!, createRect(100, 200));
+      await act(async () => {
+        observer.trigger([
+          { target: steps[0].element!, intersectionRatio: 0.3 },
+          { target: steps[1].element!, intersectionRatio: 0.75 },
+        ]);
+      });
+
+      await waitFor(() => {
+        expect(window.location.hash).toBe("#step-2");
+      });
+
+      setRect(steps[1].element!, createRect(-200, 200));
+      setRect(steps[2].element!, createRect(100, 200));
+      await act(async () => {
+        observer.trigger([
+          { target: steps[1].element!, intersectionRatio: 0.2 },
+          { target: steps[2].element!, intersectionRatio: 0.8 },
+        ]);
+      });
+
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      const lastEvent = events.at(-1)!;
+      expect(lastEvent.detail.stepId).toBe("step-3");
+      expect(lastEvent.detail.delayMs).toBeGreaterThan(0);
+      expect(window.location.hash).toBe("#step-2");
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      });
+
+      await waitFor(() => {
+        expect(window.location.hash).toBe("#step-3");
+      });
+    } finally {
+      window.removeEventListener("url_sync_throttled", handler);
+    }
   });
 });
