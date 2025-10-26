@@ -1,9 +1,35 @@
 import type { MapLibreSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
-type MapLibreMap = import("maplibre-gl").Map;
-type MapOptions = import("maplibre-gl").MapOptions;
-type PaddingOptions = import("maplibre-gl").PaddingOptions;
+// Лёгкие локальные типы: не завязываемся на версию maplibre-gl
+type PaddingOptions = number | { top: number; right: number; bottom: number; left: number };
+interface MapOptions {
+  container: HTMLElement;
+  style: string | object;
+  center?: [number, number];
+  zoom?: number;
+  bearing?: number;
+  pitch?: number;
+  padding?: PaddingOptions;
+  [key: string]: unknown;
+}
+interface MapLibreMap {
+  on(event: string, handler: (...args: unknown[]) => void): void;
+  off(event: string, handler: (...args: unknown[]) => void): void;
+  getCanvas(): HTMLCanvasElement;
+  fitBounds(bounds: unknown, options?: { padding?: PaddingOptions; duration?: number }): void;
+  resize(): void;
+  remove(): void;
+  setCenter(center: [number, number]): void;
+  setZoom(zoom: number): void;
+  setPitch(pitch: number, options?: { duration?: number }): void;
+  setBearing(bearing: number, options?: { duration?: number }): void;
+  setPadding?(padding: PaddingOptions): void;
+  getLayer?(id: string): unknown;
+  removeLayer?(id: string): void;
+  addLayer?(definition: unknown): void;
+  setStyle(style: string | object, options?: { diff?: boolean }): void;
+}
 
 interface MapLibreInstance {
   map: MapLibreMap;
@@ -56,7 +82,7 @@ function applyCamera(map: MapLibreMap, camera: MapLibreSpec["camera"], discrete:
   }
 
   if (camera.center) {
-    map.setCenter(camera.center as MapOptions["center"]);
+    map.setCenter(camera.center);
   }
 
   if (typeof camera.zoom === "number") {
