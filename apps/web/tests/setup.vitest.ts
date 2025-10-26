@@ -1,53 +1,96 @@
-// Подключаем матчеры jest-dom (toBeInTheDocument / toHaveClass / toBeDisabled …)
+// jest-dom матчеры (toBeInTheDocument / toHaveClass / toBeDisabled / ...)
 import "@testing-library/jest-dom/vitest";
 
-// polyfill: scrollIntoView (jsdom его не реализует)
-if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Element.prototype as any).scrollIntoView = function () {};
-}
+import { afterEach, vi } from "vitest";
 
-// polyfill: matchMedia (нужен next-themes)
-if (typeof window !== "undefined" && !("matchMedia" in window)) {
+// Публичные ENV, чтобы модули не падали в тестах
+process.env.NEXT_PUBLIC_APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "App";
+process.env.NEXT_PUBLIC_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+process.env.NEXT_PUBLIC_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+const globalWithWindow = globalThis as typeof globalThis & { window?: Window; document?: Document };
+const hasWindow =
+  typeof globalWithWindow.window !== "undefined" &&
+  typeof globalWithWindow.document !== "undefined";
+
+if (hasWindow) {
+  // matchMedia — нужен next-themes (старое API с addListener/removeListener)
   Object.defineProperty(window, "matchMedia", {
     writable: true,
-    value: (query: string) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    value: (query: string): any => ({
       matches: false,
       media: query,
       onchange: null,
       addEventListener() {},
       removeEventListener() {},
-      addListener() {},       // deprecated — на всякий
-      removeListener() {},    // deprecated — на всякий
+      addListener() {},
+      removeListener() {},
       dispatchEvent: () => false,
     }),
   });
-}
 
-// polyfill: IntersectionObserver (если тесты не подменяют сами)
-if (typeof globalThis !== "undefined" && !(globalThis as any).IntersectionObserver) {
-  class IO {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    constructor(_cb: IntersectionObserverCallback, _opts?: IntersectionObserverInit) {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    observe(_el: Element) {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    unobserve(_el: Element) {}
-    disconnect() {}
-    takeRecords(): IntersectionObserverEntry[] { return []; }
+  // scrollIntoView — jsdom не реализует
+  const elementProto = (window.Element?.prototype ?? undefined) as
+    | { scrollIntoView?: () => void }
+    | undefined;
+  if (elementProto && typeof elementProto.scrollIntoView !== "function") {
+    elementProto.scrollIntoView = () => {};
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).IntersectionObserver = IO;
 }
 
-// лёгкий мок для vega-embed: тестам не нужен настоящий рантайм
-import { vi } from "vitest";
+// IntersectionObserver — стаб: при observe считаем элемент видимым.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof (globalThis as any).IntersectionObserver === "undefined" && hasWindow) {
+  class IO implements IntersectionObserver {
+    readonly root: Element | Document | null = null;
+    readonly rootMargin = "0px";
+    readonly thresholds = [0, 1];
+
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+
+    observe(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const entry: IntersectionObserverEntry = {
+        isIntersecting: true,
+        target: element,
+        intersectionRatio: 1,
+        boundingClientRect: rect,
+        intersectionRect: rect,
+        rootBounds: null,
+        time: Date.now(),
+      };
+
+      this.callback([entry], this);
+    }
+
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+
+  const globalWithIO = globalThis as typeof globalThis & { IntersectionObserver?: typeof IO };
+  globalWithIO.IntersectionObserver = IO;
+}
+
+// Перестраховка: мок vega-embed, если где-то импортируется напрямую
 vi.mock(
   "vega-embed",
-  () => ({
-    default: async (_el: HTMLElement, _spec: unknown, _opts?: unknown) => ({
-      view: { runAsync: async () => {}, finalize: () => {} },
-    }),
-  }),
+  () => ({ default: async () => ({ view: { runAsync: async () => {}, finalize: () => {} } }) }),
   { virtual: true },
 );
+
+// Сбрасываем память между тестами (работает при --expose-gc)
+afterEach(() => {
+  const withGc = globalThis as typeof globalThis & { gc?: () => void };
+  const gc = withGc.gc;
+  if (typeof gc !== "function") return;
+  try {
+    gc();
+  } catch (error) {
+    void error; // игнорируем сбои сборщика мусора в тестах
+  }
+});

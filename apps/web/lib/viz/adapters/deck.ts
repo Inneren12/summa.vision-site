@@ -1,25 +1,33 @@
-import type { DeckProps } from "@deck.gl/core";
-
 import type { VizAdapter } from "../types";
 
-interface DeckInstance {
-  deck: import("@deck.gl/core").Deck;
-  spec: DeckProps;
+type DeckProps = import("@deck.gl/core").DeckProps;
+
+type DeckLike = { setProps?: (p: Partial<DeckProps>) => void; finalize?: () => void };
+type Instance = { deck: DeckLike; spec: DeckProps };
+
+async function createDeck(el: HTMLDivElement, spec: DeckProps): Promise<Instance> {
+  const { Deck } = await import("@deck.gl/core");
+  const deck = new Deck({ parent: el, ...spec });
+  return { deck: deck as DeckLike, spec };
 }
 
-export const deckAdapter: VizAdapter<DeckInstance, DeckProps> = {
+const baseAdapter: VizAdapter<Instance, DeckProps> = {
   async mount(el, spec) {
-    const deckModule = await import("@deck.gl/core");
-    const DeckCtor = deckModule.Deck;
-    const deck = new DeckCtor({ parent: el as HTMLDivElement, ...spec });
-    return { deck, spec };
+    return createDeck(el as HTMLDivElement, spec);
   },
   applyState(instance, next) {
     const props = typeof next === "function" ? next(instance.spec) : next;
     instance.spec = props;
-    instance.deck.setProps(props);
+    instance.deck.setProps?.(props);
   },
   destroy(instance) {
-    instance.deck.finalize();
+    instance.deck.finalize?.();
   },
 };
+
+export const deckAdapter = Object.assign(baseAdapter, {
+  name: "deck",
+  create: createDeck,
+});
+
+export default deckAdapter;

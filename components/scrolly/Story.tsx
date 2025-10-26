@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
+
 import StickyPanel from "./StickyPanel";
 
 export type StoryVisualizationApplyOptions = { discrete?: boolean };
@@ -46,17 +47,25 @@ export function useStoryContext(): StoryContextValue {
 
 const isStickyPanel = (child: ReactElement) => child.type === StickyPanel;
 
+export const STORY_VISUALIZATION_LAZY_ROOT_MARGIN = "25% 0px 25% 0px";
+
 export type StoryProps = {
   stickyTop?: number | string;
   children: ReactNode;
   className?: string;
+  onVisualizationPrefetch?: (signal: AbortSignal) => Promise<void> | void;
 };
 
 function classNames(...v: Array<string | undefined | false>): string {
   return v.filter(Boolean).join(" ");
 }
 
-export default function Story({ children, stickyTop, className }: StoryProps) {
+export default function Story({
+  children,
+  stickyTop,
+  className,
+  onVisualizationPrefetch,
+}: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,8 +77,10 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const visualizationRef = useRef<StoryVisualizationController | null>(null);
 
-  // ленивый маунт визуализации
+  // ленивый маунт: изначально pending, после пересечения — mounted
   const [shouldRenderSticky, setShouldRenderSticky] = useState(false);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
+  const hasPrefetchedRef = useRef(false);
 
   const setActiveStep = useCallback((stepId: string) => {
     setActiveStepId((cur) => (cur === stepId ? cur : stepId));
@@ -89,7 +100,10 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
     (stepId: string) => {
       const el = stepsRef.current.get(stepId);
       if (!el || !el.isConnected) return false;
-      if (typeof el.focus === "function" && (typeof document === "undefined" || document.activeElement !== el)) {
+      if (
+        typeof el.focus === "function" &&
+        (typeof document === "undefined" || document.activeElement !== el)
+      ) {
         el.focus({ preventScroll: true });
       }
       setActiveStep(stepId);
@@ -213,26 +227,51 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
     controller.applyState(activeStepId, { discrete: prefersReducedMotion });
   }, [activeStepId, prefersReducedMotion]);
 
-  // РЕГИСТРАЦИЯ СЕНТИНЕЛА (для тестов «observer registered» и ленивого маунта)
+  const runPrefetch = useCallback(() => {
+    if (!onVisualizationPrefetch || hasPrefetchedRef.current) {
+      return;
+    }
+
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
+    hasPrefetchedRef.current = true;
+
+    Promise.resolve(onVisualizationPrefetch(controller.signal)).catch(() => {
+      /* ignore */
+    });
+  }, [onVisualizationPrefetch]);
+
+  useEffect(() => {
+    return () => {
+      prefetchAbortRef.current?.abort();
+      prefetchAbortRef.current = null;
+    };
+  }, []);
+
+  // Сентинел для ленивого маунта визуализации
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
 
-    let didMount = false;
-    const io = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting && !didMount) {
-          didMount = true;
-          setShouldRenderSticky(true);
-          break;
+    let mounted = false;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !mounted) {
+            mounted = true;
+            runPrefetch();
+            setShouldRenderSticky(true);
+            break;
+          }
         }
-      }
-    });
+      },
+      { rootMargin: STORY_VISUALIZATION_LAZY_ROOT_MARGIN },
+    );
     io.observe(el);
     return () => {
       io.disconnect();
     };
-  }, []);
+  }, [runPrefetch]);
 
   const contextValue = useMemo<StoryContextValue>(
     () => ({
@@ -267,22 +306,29 @@ export default function Story({ children, stickyTop, className }: StoryProps) {
   const stickyChild = arr.find((c) => isStickyPanel(c));
   const stepChildren = arr.filter((c) => !isStickyPanel(c));
 
+  let stickyContent: ReactNode;
+  if (stickyChild) {
+    const stickyElement = stickyChild as ReactElement<
+      Record<string, unknown> & { children?: ReactNode }
+    >;
+    stickyContent = cloneElement(stickyElement, {
+      "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
+      children: shouldRenderSticky ? stickyElement.props.children : null,
+    });
+  } else {
+    stickyContent = <div className="scrolly-sticky" aria-hidden="true" />;
+  }
+
   return (
     <section ref={containerRef} className={classNames("scrolly", className)} data-scrolly>
-      {/* Сентинел для ленивого маунта визуализации */}
-      <div ref={sentinelRef} data-scrolly-viz-sentinel style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
+      <div
+        ref={sentinelRef}
+        data-scrolly-viz-sentinel
+        style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+      />
 
       <StoryContext.Provider value={contextValue}>
-        {stickyChild ? (
-          cloneElement<any>(
-            stickyChild as any,
-            {
-              "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
-            } as any,
-          )
-        ) : (
-          <div className="scrolly-sticky" aria-hidden="true" />
-        )}
+        {stickyContent}
         <div className="scrolly-steps">{stepChildren}</div>
       </StoryContext.Provider>
     </section>

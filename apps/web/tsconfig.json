@@ -14,8 +14,20 @@
       "@/*": [
         "./*"
       ],
+      "@deck.gl/core": [
+        "lib/viz/stubs/deckgl-core"
+      ],
       "@root/*": [
         "../../*"
+      ],
+      "echarts": [
+        "lib/viz/stubs/echarts"
+      ],
+      "maplibre-gl": [
+        "lib/viz/stubs/maplibre-gl"
+      ],
+      "vega-embed": [
+        "lib/viz/stubs/vega-embed"
       ]
     },
     "jsx": "preserve",
@@ -41,13 +53,19 @@
     "app",
     "components",
     "lib",
-    "tests",
+    "types/**/*.d.ts",
     "*.ts",
     "*.tsx",
     "*.d.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": [
+    "tests",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "vitest.config.*",
+    "playwright.config.*",
+    "vitest.workspace.ts",
     "vitest.config.ts"
   ]
 }

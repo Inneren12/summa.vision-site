@@ -1,5 +1,15 @@
 "use client";
 
+if (typeof window !== "undefined") {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require("@/lib/viz/bootstrap.client");
+  } catch (err) {
+    // В тестах ок — просто пропускаем. В проде — бросаем дальше.
+    if (process.env.NODE_ENV !== "test") throw err;
+  }
+}
+
 import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
@@ -89,10 +99,7 @@ function createJsErrorReporter(correlation: RequestCorrelation): JsErrorReporter
 }
 
 export function Providers({ children, correlation }: ProvidersProps) {
-  const reporter = useMemo(
-    () => createJsErrorReporter(correlation),
-    [correlation.namespace, correlation.requestId, correlation.sessionId],
-  );
+  const reporter = useMemo(() => createJsErrorReporter(correlation), [correlation]);
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
@@ -138,7 +145,7 @@ export function Providers({ children, correlation }: ProvidersProps) {
       reporter.send({
         message: error?.message,
         stack: error?.stack,
-        componentStack: (info?.componentStack ?? undefined),
+        componentStack: info?.componentStack ?? undefined,
         source: "boundary",
       });
     },
