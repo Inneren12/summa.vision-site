@@ -45,6 +45,7 @@ export default defineWorkspace([
       pool: "forks",
       maxWorkers: 1,
       isolate: false,
+      setupFiles: ["tests/viz.setup.ts"],
       poolOptions: {
         forks: {
           minForks: 1,
@@ -60,6 +61,7 @@ export default defineWorkspace([
             /^maplibre-gl(?:\/.*)?$/,
             /^vega-embed(?:\/.*)?$/,
             /^vega(?:-lite)?(?:\/.*)?$/,
+            /^zrender(?:\/.*)?$/,
           ],
         },
       },
@@ -91,8 +93,20 @@ export default defineWorkspace([
           find: /^vega-lite(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/vega-lite.ts"),
         },
+        {
+          find: /^zrender(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/zrender.ts"),
+        },
       ],
-      dedupe: ["@deck.gl/core", "echarts", "maplibre-gl", "vega-embed", "vega", "vega-lite"],
+      dedupe: [
+        "@deck.gl/core",
+        "echarts",
+        "maplibre-gl",
+        "vega-embed",
+        "vega",
+        "vega-lite",
+        "zrender",
+      ],
     },
   },
   {

@@ -23,6 +23,7 @@ export default defineConfig({
       { find: /^vega-embed(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-embed.ts") },
       { find: /^vega(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega.ts") },
       { find: /^vega-lite(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-lite.ts") },
+      { find: /^zrender(?:\/.*)?$/, replacement: r("lib/viz/stubs/zrender.ts") },
     ],
   },
   optimizeDeps: {
@@ -35,6 +36,7 @@ export default defineConfig({
       "vega",
       "vega-lite",
       "vega-embed",
+      "zrender",
     ],
   },
   test: {
@@ -73,6 +75,7 @@ export default defineConfig({
           /^maplibre-gl(?:\/.*)?$/,
           /^vega-embed(?:\/.*)?$/,
           /^vega(?:-lite)?(?:\/.*)?$/,
+          /^zrender(?:\/.*)?$/,
         ],
       },
     },
