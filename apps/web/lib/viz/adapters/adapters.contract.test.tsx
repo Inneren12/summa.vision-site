@@ -1,5 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const embedMock = vi.fn(async () => ({ view: { finalize: vi.fn() } }));
 vi.mock("vega-embed", () => ({
@@ -27,20 +28,67 @@ const mapSetPadding = vi.fn();
 const mapAddLayer = vi.fn();
 const mapRemoveLayer = vi.fn();
 const mapGetLayer = vi.fn();
+const mapGetSource = vi.fn();
 const mapRemove = vi.fn();
+const mapEaseTo = vi.fn();
+const mapJumpTo = vi.fn();
+const mapResize = vi.fn();
+
 class MapMock {
   constructor(options: Record<string, unknown>) {
     this.options = options;
     this.layers = new Map();
+    this.listeners = new Map();
+    this.container = options.container as HTMLElement;
+    this.canvas = document.createElement("canvas");
+    this.container.appendChild(this.canvas);
+    queueMicrotask(() => {
+      this.emit("load");
+    });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: Record<string, any>;
   layers: Map<string, unknown>;
+  listeners: Map<string, Set<(...args: unknown[]) => void>>;
+  container: HTMLElement;
+  canvas: HTMLCanvasElement;
+  on(event: string, handler: (...args: unknown[]) => void) {
+    const collection = this.listeners.get(event) ?? new Set();
+    collection.add(handler);
+    this.listeners.set(event, collection);
+  }
+  off(event: string, handler: (...args: unknown[]) => void) {
+    this.listeners.get(event)?.delete(handler);
+  }
+  emit(event: string, payload?: unknown) {
+    const handlers = this.listeners.get(event);
+    if (!handlers) {
+      return;
+    }
+    for (const handler of [...handlers]) {
+      handler(payload);
+    }
+  }
+  getCanvas() {
+    return this.canvas;
+  }
+  getContainer() {
+    return this.container;
+  }
   getStyle() {
     return typeof this.options.style === "string"
       ? { sprite: this.options.style }
       : ((this.options.style as Record<string, unknown> | undefined) ?? null);
   }
+  resize = () => {
+    mapResize();
+  };
+  easeTo = (options: unknown) => {
+    mapEaseTo(options);
+  };
+  jumpTo = (options: unknown) => {
+    mapJumpTo(options);
+  };
   setStyle = (style: unknown, opts?: unknown) => {
     this.options.style = style;
     mapSetStyle(style, opts);
@@ -54,6 +102,10 @@ class MapMock {
     mapGetLayer(id);
     return this.layers.get(id);
   };
+  getSource = (id: string) => {
+    mapGetSource(id);
+    return undefined;
+  };
   addLayer = (layer: { id: string }) => {
     this.layers.set(layer.id, layer);
     mapAddLayer(layer);
@@ -63,9 +115,17 @@ class MapMock {
     mapRemoveLayer(id);
   };
   remove = mapRemove;
+  isStyleLoaded() {
+    return false;
+  }
 }
+
 vi.mock("maplibre-gl", () => ({
   Map: MapMock,
+}));
+
+vi.mock("../events", () => ({
+  emitVizEvent: vi.fn(),
 }));
 
 const deckSetProps = vi.fn();
@@ -79,11 +139,17 @@ vi.mock("@deck.gl/core", () => ({
   Deck: DeckMock,
 }));
 
+import { emitVizEvent } from "../events";
+
 import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts";
 import { mapLibreAdapter } from "./maplibre";
 import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("viz adapters contract", () => {
   beforeEach(() => {
@@ -217,9 +283,13 @@ describe("viz adapters contract", () => {
 
   it("maplibre adapter mounts and applies view state", async () => {
     const element = document.createElement("div");
+    element.style.setProperty("--sticky-top", "24px");
     const spec = { style: "style.json", camera: { center: [0, 0], zoom: 2 } };
     const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
     expect(instance.map).toBeInstanceOf(MapMock);
+    expect(mapEaseTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [0, 0], zoom: 2, padding: { top: 24 } }),
+    );
     mapLibreAdapter.applyState(
       instance,
       {
@@ -234,12 +304,17 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
     expect(mapSetStyle).not.toHaveBeenCalled();
-    expect(mapSetZoom).toHaveBeenCalledWith(4);
-    expect(mapSetPitch).toHaveBeenCalledWith(20, { duration: 0 });
-    expect(mapSetBearing).toHaveBeenCalledWith(30, { duration: 0 });
-    expect(mapSetPadding).toHaveBeenCalledWith({ top: 10 });
-    expect(mapAddLayer).toHaveBeenCalledWith({ id: "layer", type: "fill" });
-    expect(mapRemoveLayer).toHaveBeenCalledWith("layer");
+    expect(mapJumpTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zoom: 4,
+        pitch: 20,
+        bearing: 30,
+        padding: { top: 34 },
+      }),
+    );
+    expect(mapAddLayer).toHaveBeenNthCalledWith(1, { id: "layer", type: "fill" });
+    expect(mapAddLayer).toHaveBeenNthCalledWith(2, { id: "layer", type: "line" });
+    expect(mapRemoveLayer).toHaveBeenCalledTimes(2);
     mapLibreAdapter.destroy(instance);
     expect(mapRemove).toHaveBeenCalled();
   });
@@ -270,6 +345,26 @@ describe("viz adapters contract", () => {
 
     expect(previous.camera?.zoom).toBe(2);
     expect(previous.layers).toHaveLength(0);
+  });
+
+  it("maplibre adapter emits viz_error on runtime errors", async () => {
+    const element = document.createElement("div");
+    const spec = { style: "style.json" };
+    const instance = await mapLibreAdapter.mount(element, spec, { discrete: true });
+
+    (instance.map as MapMock).emit("error", { error: new Error("tile failed") });
+
+    expect(emitVizEvent).toHaveBeenCalledWith(
+      "viz_error",
+      expect.objectContaining({
+        lib: "maplibre",
+        motion: "discrete",
+        reason: "runtime",
+        error: "tile failed",
+      }),
+    );
+
+    mapLibreAdapter.destroy(instance);
   });
 
   it("visx adapter renders react components", () => {
