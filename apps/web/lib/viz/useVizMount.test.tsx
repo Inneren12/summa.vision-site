@@ -55,7 +55,7 @@ describe("useVizMount", () => {
 
     const { result, unmount } = renderHook(() =>
       useVizMount({
-        adapter,
+        adapter: async () => adapter,
         lib: "fake",
         initialSpec: { value: 1 },
       }),
@@ -103,7 +103,7 @@ describe("useVizMount", () => {
     const applyState = vi.fn();
     const destroy = vi.fn();
 
-    const adapter: VizAdapter<{ apply: typeof applyState }, number> = {
+    const adapter: VizAdapter<{ apply: typeof applyState }, { value: number }> = {
       mount: vi.fn().mockImplementation((_, spec) => ({ apply: applyState, spec })),
       applyState,
       destroy,
@@ -112,15 +112,15 @@ describe("useVizMount", () => {
     const element = document.createElement("div");
 
     const { result } = renderHook(() =>
-      useVizMount<number, number>({
-        adapter,
+      useVizMount<{ apply: typeof applyState }, { value: number }>({
+        adapter: async () => adapter,
         lib: "fake",
-        initialSpec: 1,
+        initialSpec: { value: 1 },
       }),
     );
 
     act(() => {
-      result.current.applyState(2);
+      result.current.applyState({ value: 2 });
       result.current.ref(element);
     });
 
@@ -128,8 +128,57 @@ describe("useVizMount", () => {
       expect(result.current.isReady).toBe(true);
     });
 
-    expect(applyState).toHaveBeenCalledWith(expect.objectContaining({ apply: applyState }), 2, {
-      discrete: false,
+    expect(applyState).toHaveBeenCalledWith(
+      expect.objectContaining({ apply: applyState }),
+      { value: 2 },
+      {
+        discrete: false,
+      },
+    );
+  });
+
+  it("freezes previous spec when updater function is used", async () => {
+    const mount = vi.fn(() => ({ spec: { count: 1 } }));
+    const applyState = vi.fn();
+    const destroy = vi.fn();
+
+    const adapter: VizAdapter<{ spec: { count: number } }, { count: number }> = {
+      mount,
+      applyState,
+      destroy,
+    };
+
+    const { result } = renderHook(() =>
+      useVizMount<{ spec: { count: number } }, { count: number }>({
+        adapter: async () => adapter,
+        lib: "fake",
+        initialSpec: { count: 1 },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalled();
     });
+
+    const element = document.createElement("div");
+    act(() => {
+      result.current.ref(element);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isReady).toBe(true);
+    });
+
+    expect(() => {
+      act(() => {
+        result.current.applyState((prev) => {
+          expect(Object.isFrozen(prev)).toBe(true);
+          expect(() => {
+            (prev as { count: number }).count += 1;
+          }).toThrow();
+          return { count: prev.count + 1 };
+        });
+      });
+    }).not.toThrow();
   });
 });

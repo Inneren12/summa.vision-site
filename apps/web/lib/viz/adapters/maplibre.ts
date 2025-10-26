@@ -16,6 +16,17 @@ interface MapLibreInstance {
   spec: MapLibreSpec;
 }
 
+function cloneSpec(spec: MapLibreSpec): MapLibreSpec {
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec);
+    } catch {
+      // ignore
+    }
+  }
+  return Object.assign({}, spec);
+}
+
 function applyMapState(map: MapLibreMap, spec: MapLibreSpec, discrete: boolean) {
   if (spec.style) {
     const currentStyle = map.getStyle()?.sprite;
@@ -44,14 +55,17 @@ function applyMapState(map: MapLibreMap, spec: MapLibreSpec, discrete: boolean) 
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
     const maplibre = await import("maplibre-gl");
-    const map = new maplibre.Map({ container: el, ...spec });
-    applyMapState(map, spec, opts.discrete);
-    return { map, spec };
+    const clone = cloneSpec(spec);
+    const map = new maplibre.Map({ container: el, ...clone });
+    applyMapState(map, clone, opts.discrete);
+    return { map, spec: clone };
   },
   applyState(instance, next, opts) {
-    const spec = typeof next === "function" ? next(instance.spec) : next;
-    instance.spec = spec;
-    applyMapState(instance.map, spec, opts.discrete);
+    const previous = cloneSpec(instance.spec);
+    const spec = typeof next === "function" ? next(previous) : next;
+    const clone = cloneSpec(spec);
+    instance.spec = clone;
+    applyMapState(instance.map, clone, opts.discrete);
   },
   destroy(instance) {
     instance.map.remove();

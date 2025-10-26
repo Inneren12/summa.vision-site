@@ -7,8 +7,20 @@ type Instance = { deck: DeckLike; spec: DeckProps };
 
 async function createDeck(el: HTMLDivElement, spec: DeckProps): Promise<Instance> {
   const { Deck } = await import("@deck.gl/core");
-  const deck = new Deck({ parent: el, ...spec });
-  return { deck: deck as DeckLike, spec };
+  const clone = cloneSpec(spec);
+  const deck = new Deck({ parent: el, ...clone });
+  return { deck: deck as DeckLike, spec: clone };
+}
+
+function cloneSpec(spec: DeckProps): DeckProps {
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec);
+    } catch {
+      // ignore
+    }
+  }
+  return { ...(spec as Record<string, unknown>) } as DeckProps;
 }
 
 const baseAdapter: VizAdapter<Instance, DeckProps> = {
@@ -16,9 +28,11 @@ const baseAdapter: VizAdapter<Instance, DeckProps> = {
     return createDeck(el as HTMLDivElement, spec);
   },
   applyState(instance, next) {
-    const props = typeof next === "function" ? next(instance.spec) : next;
-    instance.spec = props;
-    instance.deck.setProps?.(props);
+    const previous = cloneSpec(instance.spec);
+    const props = typeof next === "function" ? next(previous) : next;
+    const clone = cloneSpec(props);
+    instance.spec = clone;
+    instance.deck.setProps?.(clone);
   },
   destroy(instance) {
     instance.deck.finalize?.();

@@ -15,6 +15,17 @@ interface VegaLiteInstance {
   spec: VisualizationSpec;
 }
 
+function cloneSpec(spec: VisualizationSpec): VisualizationSpec {
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec);
+    } catch {
+      // fall through
+    }
+  }
+  return JSON.parse(JSON.stringify(spec)) as VisualizationSpec;
+}
+
 function animationConfig(discrete: boolean) {
   if (!discrete) {
     return undefined;
@@ -51,14 +62,15 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VisualizationSpec> = 
       element: el,
       embed,
       result: null,
-      spec,
+      spec: cloneSpec(spec),
     };
-    await render(instance, spec, opts.discrete);
+    await render(instance, instance.spec, opts.discrete);
     return instance;
   },
   applyState(instance, next, opts) {
-    const spec = typeof next === "function" ? next(instance.spec) : next;
-    void render(instance, spec, opts.discrete);
+    const previous = cloneSpec(instance.spec);
+    const spec = typeof next === "function" ? next(previous) : next;
+    void render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
     instance.result?.view?.finalize?.();

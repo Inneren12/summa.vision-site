@@ -14,16 +14,22 @@ function cloneHistory(history: Array<string | null>): Array<string | null> {
   return history.slice(0, Math.min(history.length, 100));
 }
 
+function cloneSpec(spec: FakeChartSpec): FakeChartSpec {
+  return {
+    activeStepId: spec.activeStepId,
+    ready: spec.ready,
+    history: cloneHistory(spec.history),
+  };
+}
+
 export const fakeChartAdapter: VizAdapter<FakeChartInstance, FakeChartSpec> = {
   mount(_el, spec) {
-    return { spec: { ...spec, history: cloneHistory(spec.history) } };
+    return { spec: cloneSpec(spec) };
   },
   applyState(instance, next) {
-    const spec = typeof next === "function" ? next(instance.spec) : next;
-    instance.spec = {
-      ...spec,
-      history: cloneHistory(spec.history),
-    };
+    const previous = cloneSpec(instance.spec);
+    const spec = typeof next === "function" ? next(previous) : next;
+    instance.spec = cloneSpec(spec);
   },
   destroy() {
     // no-op

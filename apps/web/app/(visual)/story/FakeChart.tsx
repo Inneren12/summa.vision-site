@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 
-import { fakeChartAdapter, type FakeChartSpec } from "@/lib/viz/adapters/fake";
+import type { FakeChartSpec } from "@/lib/viz/adapters/fake";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
 export type FakeChartProps = {
@@ -51,7 +51,7 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
   }
 
   const { ref, currentSpec, applyState, isReady } = useVizMount({
-    adapter: fakeChartAdapter,
+    adapter: loadFakeChartAdapter,
     lib: "fake",
     initialSpec,
   });
@@ -114,4 +114,8 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
       </span>
     </div>
   );
+}
+async function loadFakeChartAdapter() {
+  const adapterModule = await import("@/lib/viz/adapters/fake");
+  return adapterModule.fakeChartAdapter;
 }

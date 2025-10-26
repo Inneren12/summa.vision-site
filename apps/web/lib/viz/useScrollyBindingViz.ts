@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { VizAdapter, VizLibraryTag } from "./types";
+import type { VizAdapter, VizAdapterLoader, VizLibraryTag } from "./types";
 import type { UseVizMountResult } from "./useVizMount";
 import { useVizMount } from "./useVizMount";
 
@@ -16,14 +16,18 @@ export interface VizStateContext<TSpec> {
 
 export type VizStateProducer<TSpec> = TSpec | ((context: VizStateContext<TSpec>) => TSpec);
 
-export interface UseScrollyBindingVizOptions<TInstance, TSpec> {
-  readonly adapter: VizAdapter<TInstance, TSpec>;
+type AdapterSource<TInstance, TSpec extends object> =
+  | VizAdapter<TInstance, TSpec>
+  | VizAdapterLoader<TInstance, TSpec>;
+
+export interface UseScrollyBindingVizOptions<TInstance, TSpec extends object> {
+  readonly adapter: AdapterSource<TInstance, TSpec>;
   readonly lib: VizLibraryTag;
   readonly states: Record<string, VizStateProducer<TSpec>>;
   readonly initialStepId?: string | null;
 }
 
-export interface UseScrollyBindingVizResult<TInstance, TSpec>
+export interface UseScrollyBindingVizResult<TInstance, TSpec extends object>
   extends Omit<UseVizMountResult<TInstance, TSpec>, "applyState"> {
   readonly activeStepId: string | null;
   readonly applyStepState: (stepId: string) => void;
@@ -39,7 +43,7 @@ function resolveState<TSpec>(
   return producer;
 }
 
-export function useScrollyBindingViz<TInstance, TSpec>(
+export function useScrollyBindingViz<TInstance, TSpec extends object>(
   options: UseScrollyBindingVizOptions<TInstance, TSpec>,
 ): UseScrollyBindingVizResult<TInstance, TSpec> {
   const { adapter, lib, states, initialStepId = null } = options;

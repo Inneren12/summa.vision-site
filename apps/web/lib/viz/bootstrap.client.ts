@@ -8,9 +8,11 @@ import { visxAdapter } from "./adapters/visx";
 import { registerAdapter } from "./registry";
 import type { VizAdapter, VizLibraryTag } from "./types";
 
-type AnyAdapter = VizAdapter<unknown, unknown>;
+type AnyAdapter = VizAdapter<unknown, Record<string, unknown>>;
 
-function asAnyAdapter<TInstance, TSpec>(adapter: VizAdapter<TInstance, TSpec>): AnyAdapter {
+function asAnyAdapter<TInstance, TSpec extends object>(
+  adapter: VizAdapter<TInstance, TSpec>,
+): AnyAdapter {
   return adapter as unknown as AnyAdapter;
 }
 
