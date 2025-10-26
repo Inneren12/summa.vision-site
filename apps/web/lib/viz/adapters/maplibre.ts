@@ -1,5 +1,6 @@
-import type { MapLibreSpec } from "../spec-types";
-import type { VizAdapter } from "../types";
+import { emitVizEvent } from "../events";
+import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
+import type { MotionMode, VizAdapter } from "../types";
 
 // Лёгкие локальные типы: не завязываемся на версию maplibre-gl
 type PaddingOptions = number | { top: number; right: number; bottom: number; left: number };
@@ -13,10 +14,18 @@ interface MapOptions {
   padding?: PaddingOptions;
   [key: string]: unknown;
 }
+type CameraState = {
+  center?: [number, number];
+  zoom?: number;
+  bearing?: number;
+  pitch?: number;
+  padding?: MapLibrePadding;
+};
 interface MapLibreMap {
   on(event: string, handler: (...args: unknown[]) => void): void;
   off(event: string, handler: (...args: unknown[]) => void): void;
   getCanvas(): HTMLCanvasElement;
+  getContainer?(): HTMLElement;
   fitBounds(bounds: unknown, options?: { padding?: PaddingOptions; duration?: number }): void;
   resize(): void;
   remove(): void;
@@ -25,15 +34,26 @@ interface MapLibreMap {
   setPitch(pitch: number, options?: { duration?: number }): void;
   setBearing(bearing: number, options?: { duration?: number }): void;
   setPadding?(padding: PaddingOptions): void;
+  easeTo?(options: CameraState & { duration?: number }): void;
+  jumpTo?(options: CameraState): void;
   getLayer?(id: string): unknown;
+  getSource?(id: string): unknown;
   removeLayer?(id: string): void;
   addLayer?(definition: unknown): void;
   setStyle(style: string | object, options?: { diff?: boolean }): void;
+  isStyleLoaded?(): boolean;
 }
 
 interface MapLibreInstance {
   map: MapLibreMap;
+  container: HTMLElement;
   spec: MapLibreSpec;
+  discrete: boolean;
+  cleanup: Array<() => void>;
+}
+
+function toMotion(discrete: boolean): MotionMode {
+  return discrete ? "discrete" : "animated";
 }
 
 function cloneSpec(spec: MapLibreSpec): MapLibreSpec {
@@ -76,29 +96,129 @@ function isStyleEqual(previous: MapLibreSpec["style"], next: MapLibreSpec["style
   }
 }
 
-function applyCamera(map: MapLibreMap, camera: MapLibreSpec["camera"], discrete: boolean) {
+function parseCssLength(value: string | null | undefined, doc: Document | null): number {
+  const raw = value?.trim();
+  if (!raw) {
+    return 0;
+  }
+  if (raw === "0") {
+    return 0;
+  }
+  if (raw.endsWith("px")) {
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (!doc?.body) {
+    return 0;
+  }
+  const probe = doc.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.width = raw;
+  probe.style.height = "0";
+  probe.style.padding = "0";
+  probe.style.border = "0";
+  doc.body.appendChild(probe);
+  const width = probe.offsetWidth;
+  probe.remove();
+  return Number.isFinite(width) ? width : 0;
+}
+
+function resolveStickyTop(element: HTMLElement): number {
+  const doc = element.ownerDocument ?? null;
+  const win = doc?.defaultView ?? null;
+  if (!doc || !win) {
+    return 0;
+  }
+  const style = win.getComputedStyle(element);
+  const fromElement = style.getPropertyValue("--sticky-top");
+  if (fromElement.trim()) {
+    return parseCssLength(fromElement, doc);
+  }
+  const rootValue = win.getComputedStyle(doc.documentElement).getPropertyValue("--sticky-top");
+  return parseCssLength(rootValue, doc);
+}
+
+function resolveCameraPadding(
+  element: HTMLElement,
+  padding?: MapLibrePadding,
+): MapLibrePadding | undefined {
+  const stickyTop = resolveStickyTop(element);
+  if (!padding && stickyTop <= 0) {
+    return undefined;
+  }
+
+  const next: MapLibrePadding = padding ? { ...padding } : {};
+  if (stickyTop > 0) {
+    next.top = (next.top ?? 0) + stickyTop;
+  }
+
+  const entries = Object.entries(next).filter(
+    ([, value]) => typeof value === "number" && Number.isFinite(value),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(entries) as MapLibrePadding;
+}
+
+function applyCamera(
+  instance: MapLibreInstance,
+  camera: MapLibreSpec["camera"],
+  discrete: boolean,
+) {
   if (!camera) {
     return;
   }
 
+  const padding = resolveCameraPadding(instance.container, camera.padding);
+  const target: CameraState = {};
+
   if (camera.center) {
-    map.setCenter(camera.center);
+    target.center = camera.center;
   }
-
   if (typeof camera.zoom === "number") {
-    map.setZoom(camera.zoom);
+    target.zoom = camera.zoom;
   }
-
-  if (typeof camera.pitch === "number") {
-    map.setPitch(camera.pitch, { duration: discrete ? 0 : undefined });
-  }
-
   if (typeof camera.bearing === "number") {
-    map.setBearing(camera.bearing, { duration: discrete ? 0 : undefined });
+    target.bearing = camera.bearing;
+  }
+  if (typeof camera.pitch === "number") {
+    target.pitch = camera.pitch;
+  }
+  if (padding) {
+    target.padding = padding;
   }
 
-  if (camera.padding) {
-    map.setPadding?.(camera.padding as PaddingOptions);
+  if (Object.keys(target).length === 0) {
+    return;
+  }
+
+  if (!discrete && typeof instance.map.easeTo === "function") {
+    instance.map.easeTo({ ...target });
+    return;
+  }
+
+  if (typeof instance.map.jumpTo === "function") {
+    instance.map.jumpTo(target);
+    return;
+  }
+
+  if (target.center) {
+    instance.map.setCenter(target.center);
+  }
+  if (typeof target.zoom === "number") {
+    instance.map.setZoom(target.zoom);
+  }
+  if (typeof target.pitch === "number") {
+    instance.map.setPitch(target.pitch, { duration: discrete ? 0 : undefined });
+  }
+  if (typeof target.bearing === "number") {
+    instance.map.setBearing(target.bearing, { duration: discrete ? 0 : undefined });
+  }
+  if (target.padding) {
+    instance.map.setPadding?.(target.padding as PaddingOptions);
   }
 }
 
@@ -129,22 +249,136 @@ function applyLayers(map: MapLibreMap, layers: MapLibreSpec["layers"]) {
       map.removeLayer?.(layer.id);
     }
 
+    const sourceId =
+      typeof definition === "object" && definition !== null
+        ? ((definition as { source?: string }).source ?? undefined)
+        : undefined;
+    if (sourceId && typeof map.getSource === "function" && !map.getSource(sourceId)) {
+      continue;
+    }
+
     map.addLayer?.(definition);
   }
 }
 
 function applyMapState(
-  map: MapLibreMap,
+  instance: MapLibreInstance,
   spec: MapLibreSpec,
   discrete: boolean,
   previous?: MapLibreSpec,
 ) {
   if (previous && !isStyleEqual(previous.style, spec.style)) {
-    map.setStyle(spec.style, { diff: !discrete });
+    instance.map.setStyle(spec.style, { diff: !discrete });
   }
 
-  applyCamera(map, spec.camera, discrete);
-  applyLayers(map, spec.layers);
+  applyCamera(instance, spec.camera, discrete);
+  applyLayers(instance.map, spec.layers);
+}
+
+function setupResizeObserver(map: MapLibreMap, element: HTMLElement): (() => void) | null {
+  const ResizeObs = globalThis.ResizeObserver;
+  if (typeof ResizeObs !== "function") {
+    return null;
+  }
+
+  const win = element.ownerDocument?.defaultView ?? globalThis;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let pending = false;
+
+  const clear = () => {
+    if (timeoutId !== null) {
+      win.clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    pending = false;
+  };
+
+  const schedule = () => {
+    if (timeoutId === null) {
+      map.resize();
+      timeoutId = win.setTimeout(() => {
+        timeoutId = null;
+        if (pending) {
+          pending = false;
+          schedule();
+        }
+      }, 150);
+      return;
+    }
+    pending = true;
+  };
+
+  const observer = new ResizeObs(() => {
+    schedule();
+  });
+  observer.observe(element);
+
+  return () => {
+    observer.disconnect();
+    clear();
+  };
+}
+
+function waitForLoad(map: MapLibreMap): Promise<void> {
+  if (typeof map.isStyleLoaded === "function" && map.isStyleLoaded()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const handleLoad = () => {
+      map.off("load", handleLoad);
+      resolve();
+    };
+    map.on("load", handleLoad);
+  });
+}
+
+function extractErrorMessage(event: unknown): string | undefined {
+  if (!event) {
+    return undefined;
+  }
+  if (typeof event === "string") {
+    return event;
+  }
+  if (event instanceof Error) {
+    return event.message;
+  }
+  if (typeof event === "object") {
+    const message = (event as { message?: unknown }).message;
+    if (typeof message === "string") {
+      return message;
+    }
+    const error = (event as { error?: unknown }).error;
+    if (typeof error === "string") {
+      return error;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === "object" && error) {
+      const nested = (error as { message?: unknown }).message;
+      if (typeof nested === "string") {
+        return nested;
+      }
+    }
+  }
+  return undefined;
+}
+
+function setupErrorHandling(instance: MapLibreInstance): () => void {
+  const handler = (event: unknown) => {
+    const message = extractErrorMessage(event) ?? "Unknown MapLibre error";
+    emitVizEvent("viz_error", {
+      lib: "maplibre",
+      motion: toMotion(instance.discrete),
+      reason: "runtime",
+      error: message,
+    });
+  };
+  instance.map.on("error", handler);
+  return () => {
+    instance.map.off("error", handler);
+  };
 }
 
 function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLibreMap {
@@ -173,6 +407,7 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
     const mod = await import("maplibre-gl");
     const clone = cloneSpec(spec);
+    const initialPadding = resolveCameraPadding(el, clone.camera?.padding);
     const mapOptions: MapOptions = {
       container: el,
       style: clone.style,
@@ -180,13 +415,34 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
       zoom: clone.camera?.zoom,
       bearing: clone.camera?.bearing,
       pitch: clone.camera?.pitch,
-      padding: clone.camera?.padding as PaddingOptions | undefined,
+      padding: initialPadding as PaddingOptions | undefined,
     };
     // Универсально получаем конструктор (ESM/CJS/стаб)
     const MapCtor = resolveMapConstructor(mod);
     const map: MapLibreMap = new MapCtor(mapOptions);
-    applyMapState(map, clone, opts.discrete);
-    return { map, spec: clone } as MapLibreInstance;
+
+    const instance: MapLibreInstance = {
+      map,
+      container: el,
+      spec: clone,
+      discrete: opts.discrete,
+      cleanup: [],
+    };
+
+    const removeErrorHandler = setupErrorHandling(instance);
+    instance.cleanup.push(removeErrorHandler);
+
+    const stopResizeObserver = setupResizeObserver(map, el);
+    if (stopResizeObserver) {
+      instance.cleanup.push(stopResizeObserver);
+    }
+
+    await waitForLoad(map);
+
+    applyMapState(instance, clone, opts.discrete);
+    map.resize();
+
+    return instance;
   },
   applyState(instance, next, opts) {
     const previousForCallback = cloneSpec(instance.spec);
@@ -194,9 +450,18 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
     const clone = cloneSpec(spec);
     const previousStored = instance.spec;
     instance.spec = clone;
-    applyMapState(instance.map, clone, opts.discrete, previousStored);
+    instance.discrete = opts.discrete;
+    applyMapState(instance, clone, opts.discrete, previousStored);
   },
   destroy(instance) {
+    while (instance.cleanup.length > 0) {
+      const cleanup = instance.cleanup.pop();
+      try {
+        cleanup?.();
+      } catch {
+        // ignore cleanup errors
+      }
+    }
     instance.map.remove();
   },
 };
