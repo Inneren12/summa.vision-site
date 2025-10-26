@@ -20,6 +20,7 @@ import { getClientEventBuffer } from "./telemetry/client-buffer";
 
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
 import installVHVar from "@/lib/viewport/installVHVar";
+import installVisualViewportScale from "@/lib/viewport/visualViewportScale";
 
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -103,6 +104,7 @@ export function Providers({ children, correlation }: ProvidersProps) {
   const reporter = useMemo(() => createJsErrorReporter(correlation), [correlation]);
 
   useEffect(installVHVar, []);
+  useEffect(() => installVisualViewportScale(), []);
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {

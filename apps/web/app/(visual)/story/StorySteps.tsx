@@ -12,6 +12,8 @@ import {
 import { FakeChart } from "./FakeChart";
 
 import { scrollStepIntoView, useStepUrlSync } from "@/components/story/step-url";
+import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
+import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
 
 interface StoryStep {
   id: string;
@@ -54,6 +56,11 @@ export function StorySteps() {
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const observerRef = useRef<IntersectionObserver | null>(null);
   const activeRef = useRef(activeStep);
+  const viewportScale = useVisualViewportScale();
+  const observerRootMargin = useMemo(
+    () => scaleRootMargin("-45% 0px -45% 0px", viewportScale) ?? "-45% 0px -45% 0px",
+    [viewportScale],
+  );
 
   useEffect(() => {
     activeRef.current = activeStep;
@@ -124,7 +131,7 @@ export function StorySteps() {
           setActiveStep(id);
         }
       },
-      { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.2, 0.4, 0.6, 1] },
+      { rootMargin: observerRootMargin, threshold: [0, 0.2, 0.4, 0.6, 1] },
     );
     observerRef.current = observer;
     Object.values(sectionRefs.current).forEach((node) => {
@@ -134,7 +141,7 @@ export function StorySteps() {
       observer.disconnect();
       observerRef.current = null;
     };
-  }, []);
+  }, [observerRootMargin]);
 
   const handleStepClick = useCallback(
     (id: string) => {

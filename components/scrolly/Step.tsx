@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useStoryContext } from "./Story";
 import useKeyboardNav from "./useKeyboardNav";
 
+import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
+import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
+
 function classNames(...values: Array<string | undefined | false>): string {
   return values.filter(Boolean).join(" ");
 }
@@ -28,6 +31,12 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
   const handleKeyDown = useKeyboardNav(id);
   const domId = anchorId ?? id;
   const stepLabel = typeof title === "string" ? title : undefined;
+
+  const viewportScale = useVisualViewportScale();
+  const intersectionRootMargin = useMemo(
+    () => scaleRootMargin(INTERSECTION_ROOT_MARGIN, viewportScale) ?? INTERSECTION_ROOT_MARGIN,
+    [viewportScale],
+  );
 
   useEffect(() => {
     const element = articleRef.current;
@@ -66,7 +75,7 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
       },
       {
         threshold: INTERSECTION_THRESHOLD,
-        rootMargin: INTERSECTION_ROOT_MARGIN,
+        rootMargin: intersectionRootMargin,
       },
     );
 
@@ -76,7 +85,7 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [id, setActiveStep]);
+  }, [id, intersectionRootMargin, setActiveStep]);
 
   const titleMarkup = useMemo(() => {
     if (title == null) {

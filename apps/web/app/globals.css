@@ -12,6 +12,7 @@
   --muted: 107 114 128;
   --primary: 37 99 235;
   --radius: 12px;
+  --vv-scale: 1;
 }
 
 .dark {

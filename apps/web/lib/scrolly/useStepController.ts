@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useScrollyContext, type StepDefinition } from "./ScrollyContext";
 
+import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
+import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
+
 export type OnStepChange = (id: string, prevId: string | null) => void;
 export type StepEventHandler = (id: string) => void;
 
@@ -80,11 +83,37 @@ function findStepFromToken(steps: StepDefinition[], token: string): StepDefiniti
   return null;
 }
 
-function getViewportHeight(): number {
+function isFinitePositive(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function getViewportHeight(viewportScale?: number): number {
   if (typeof window === "undefined") {
     return 0;
   }
-  return window.innerHeight || document.documentElement?.clientHeight || 0;
+  const baseHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+  const visualViewport = window.visualViewport;
+
+  if (!visualViewport) {
+    return baseHeight;
+  }
+
+  const visualHeight = visualViewport.height;
+  if (isFinitePositive(visualHeight)) {
+    return visualHeight;
+  }
+
+  const scaleCandidate = isFinitePositive(viewportScale)
+    ? viewportScale
+    : isFinitePositive(visualViewport.scale)
+      ? visualViewport.scale
+      : undefined;
+
+  if (isFinitePositive(scaleCandidate) && baseHeight > 0) {
+    return baseHeight / scaleCandidate;
+  }
+
+  return baseHeight;
 }
 
 function getScrollMarginTop(element: HTMLElement): number {
@@ -249,6 +278,12 @@ export function useStepController(options: StepControllerOptions = {}) {
     onStepChange,
   } = options;
 
+  const viewportScale = useVisualViewportScale();
+  const resolvedRootMargin = useMemo(
+    () => (rootMargin ? (scaleRootMargin(rootMargin, viewportScale) ?? rootMargin) : undefined),
+    [rootMargin, viewportScale],
+  );
+
   const threshold = Math.min(Math.max(thresholdOption ?? DEFAULT_THRESHOLD, 0), 1);
   const exitThreshold = Math.max(
     Math.min(exitThresholdOption ?? DEFAULT_EXIT_THRESHOLD, threshold),
@@ -333,7 +368,7 @@ export function useStepController(options: StepControllerOptions = {}) {
       return;
     }
 
-    const viewportHeight = getViewportHeight();
+    const viewportHeight = getViewportHeight(viewportScale);
 
     if (typeof window !== "undefined") {
       const detectedMode = resolveInitialUrlMode(window.location);
@@ -391,7 +426,7 @@ export function useStepController(options: StepControllerOptions = {}) {
     initializedRef.current = true;
     emitStepInitEvent(candidateId, Math.max(0, candidateRatio ?? 0));
     commitActive(candidateId);
-  }, [commitActive, emitStepInitEvent, steps]);
+  }, [commitActive, emitStepInitEvent, steps, viewportScale]);
 
   useEffect(() => {
     if (initializedRef.current) {
@@ -598,7 +633,7 @@ export function useStepController(options: StepControllerOptions = {}) {
 
     const observer = new IntersectionObserver(handleIntersect, {
       root: null,
-      rootMargin,
+      rootMargin: resolvedRootMargin,
       threshold: [0, threshold],
     });
 
@@ -609,7 +644,7 @@ export function useStepController(options: StepControllerOptions = {}) {
     return () => {
       observer.disconnect();
     };
-  }, [handleIntersect, rootMargin, steps, threshold]);
+  }, [handleIntersect, resolvedRootMargin, steps, threshold]);
 
   return { activeStepId } as const;
 }
