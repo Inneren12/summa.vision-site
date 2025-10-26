@@ -93,6 +93,8 @@ export default function useKeyboardNav(stepId: string) {
         return;
       }
 
+      event.preventDefault();
+
       let handled = false;
 
       switch (key) {
@@ -115,7 +117,6 @@ export default function useKeyboardNav(stepId: string) {
       }
 
       if (handled) {
-        event.preventDefault();
         emitKeyboardNavEvent("kbd_nav", { key, stepId, direction: KEY_DIRECTION[key] });
       }
     },
