@@ -14,8 +14,20 @@
       "@/*": [
         "./*"
       ],
+      "@deck.gl/core": [
+        "lib/viz/stubs/deckgl-core"
+      ],
       "@root/*": [
         "../../*"
+      ],
+      "echarts": [
+        "lib/viz/stubs/echarts"
+      ],
+      "maplibre-gl": [
+        "lib/viz/stubs/maplibre-gl"
+      ],
+      "vega-embed": [
+        "lib/viz/stubs/vega-embed"
       ]
     },
     "jsx": "preserve",

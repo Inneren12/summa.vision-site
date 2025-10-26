@@ -1,6 +1,9 @@
 "use client";
 
-import "@/lib/viz/bootstrap";
+if (typeof window !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require("@/lib/viz/bootstrap.client");
+}
 
 import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
@@ -91,6 +94,7 @@ function createJsErrorReporter(correlation: RequestCorrelation): JsErrorReporter
 }
 
 export function Providers({ children, correlation }: ProvidersProps) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const reporter = useMemo(
     () => createJsErrorReporter(correlation),
     [correlation.namespace, correlation.requestId, correlation.sessionId],
