@@ -20,6 +20,8 @@ const STEP_QUERY_PARAM = "step";
 const STEP_HASH_PREFIX = "step-";
 const URL_SYNC_THROTTLE_MS = 300;
 
+type TimeoutHandle = ReturnType<typeof setTimeout>;
+
 type StepLocationSource = "hash" | "query" | null;
 
 function decodeStepToken(token: string | null | undefined): string | null {
@@ -263,7 +265,7 @@ export function useStepController(options: StepControllerOptions = {}) {
   const ratiosRef = useRef(new Map<string, number>());
   const urlModeRef = useRef<Exclude<StepLocationSource, null>>("hash");
   const lastUrlSyncRef = useRef(0);
-  const urlSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const urlSyncTimeoutRef = useRef<TimeoutHandle | null>(null);
   const lastSyncedHrefRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -569,7 +571,7 @@ export function useStepController(options: StepControllerOptions = {}) {
       clearTimeout(urlSyncTimeoutRef.current);
     }
     emitUrlSyncThrottled(currentStepId, remaining);
-    urlSyncTimeoutRef.current = window.setTimeout(() => {
+    urlSyncTimeoutRef.current = setTimeout(() => {
       applySync();
     }, remaining);
 
