@@ -42,31 +42,26 @@ export default defineWorkspace([
       name: "viz",
       include: ["lib/viz/**/*.test.{ts,tsx}", "tests/viz.*.spec.{ts,tsx}"],
       environment: "jsdom",
-      pool: "threads",
+      pool: "forks",
       maxWorkers: 1,
       isolate: false,
-      deps: {
-        optimizer: {
-          web: {
-            exclude: [
-              /^@deck\.gl\/.*/,
-              /^echarts(?:\/.*)?$/,
-              /^maplibre-gl(?:\/.*)?$/,
-              /^vega-embed(?:\/.*)?$/,
-              /^vega(?:-lite)?(?:\/.*)?$/,
-            ],
-          },
-          ssr: {
-            exclude: [
-              /^@deck\.gl\/.*/,
-              /^echarts(?:\/.*)?$/,
-              /^maplibre-gl(?:\/.*)?$/,
-              /^vega-embed(?:\/.*)?$/,
-              /^vega(?:-lite)?(?:\/.*)?$/,
-            ],
-          },
+      poolOptions: {
+        forks: {
+          minForks: 1,
+          maxForks: 1,
+          execArgv: ["--max-old-space-size=8192", "--expose-gc"],
         },
       },
+      deps: {
+        external: [
+          /^@deck\.gl\/.*/,
+          /^echarts(?:\/.*)?$/,
+          /^maplibre-gl(?:\/.*)?$/,
+          /^vega-embed(?:\/.*)?$/,
+          /^vega(?:-lite)?(?:\/.*)?$/,
+        ],
+      },
+      coverage: { enabled: false },
     },
     resolve: {
       alias: [
@@ -86,8 +81,16 @@ export default defineWorkspace([
           find: /^vega-embed(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
         },
+        {
+          find: /^vega(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/vega.ts"),
+        },
+        {
+          find: /^vega-lite(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-lite.ts"),
+        },
       ],
-      dedupe: ["@deck.gl/core", "echarts", "maplibre-gl", "vega-embed"],
+      dedupe: ["@deck.gl/core", "echarts", "maplibre-gl", "vega-embed", "vega", "vega-lite"],
     },
   },
   {

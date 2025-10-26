@@ -21,6 +21,8 @@ export default defineConfig({
       { find: /^echarts(?:\/.*)?$/, replacement: r("lib/viz/stubs/echarts.ts") },
       { find: /^maplibre-gl(?:\/.*)?$/, replacement: r("lib/viz/stubs/maplibre-gl.ts") },
       { find: /^vega-embed(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-embed.ts") },
+      { find: /^vega(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega.ts") },
+      { find: /^vega-lite(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-lite.ts") },
     ],
   },
   optimizeDeps: {
@@ -64,26 +66,13 @@ export default defineConfig({
     mockReset: true,
 
     deps: {
-      optimizer: {
-        web: {
-          exclude: [
-            /^@deck\.gl\/.*/,
-            /^echarts(?:\/.*)?$/,
-            /^maplibre-gl(?:\/.*)?$/,
-            /^vega-embed(?:\/.*)?$/,
-            /^vega(?:-lite)?(?:\/.*)?$/,
-          ],
-        },
-        ssr: {
-          exclude: [
-            /^@deck\.gl\/.*/,
-            /^echarts(?:\/.*)?$/,
-            /^maplibre-gl(?:\/.*)?$/,
-            /^vega-embed(?:\/.*)?$/,
-            /^vega(?:-lite)?(?:\/.*)?$/,
-          ],
-        },
-      },
+      external: [
+        /^@deck\.gl\/.*/,
+        /^echarts(?:\/.*)?$/,
+        /^maplibre-gl(?:\/.*)?$/,
+        /^vega-embed(?:\/.*)?$/,
+        /^vega(?:-lite)?(?:\/.*)?$/,
+      ],
     },
 
     coverage: {
@@ -96,6 +85,7 @@ export default defineConfig({
       include: ["lib/**"],
       exclude: [
         "**/*.stories.tsx",
+        "lib/viz/**",
         "lib/viz/stubs/**",
         "scripts/**",
         "app/(visual)/**",
