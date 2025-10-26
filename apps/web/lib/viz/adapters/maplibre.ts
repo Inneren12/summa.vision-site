@@ -31,6 +31,10 @@ interface MapLibreMap {
   setStyle(style: string | object, options?: { diff?: boolean }): void;
 }
 
+interface MapLibreModule {
+  Map: new (options: MapOptions) => MapLibreMap;
+}
+
 interface MapLibreInstance {
   map: MapLibreMap;
   spec: MapLibreSpec;
@@ -149,7 +153,7 @@ function applyMapState(
 
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
-    const maplibre = await import("maplibre-gl");
+    const maplibre = (await import("maplibre-gl")) as MapLibreModule;
     const clone = cloneSpec(spec);
     const mapOptions: MapOptions = {
       container: el,
@@ -160,9 +164,10 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
       pitch: clone.camera?.pitch,
       padding: clone.camera?.padding as PaddingOptions | undefined,
     };
-    const map = new maplibre.Map(mapOptions);
+    // Явно указываем тип, чтобы TS не подставил ES Map<>
+    const map: MapLibreMap = new maplibre.Map(mapOptions);
     applyMapState(map, clone, opts.discrete);
-    return { map, spec: clone };
+    return { map, spec: clone } as MapLibreInstance;
   },
   applyState(instance, next, opts) {
     const previousForCallback = cloneSpec(instance.spec);
