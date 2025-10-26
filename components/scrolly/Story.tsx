@@ -63,6 +63,47 @@ const isStickyPanel = (child: ReactElement) => child.type === StickyPanel;
 
 export const STORY_VISUALIZATION_LAZY_ROOT_MARGIN = "25% 0px 25% 0px";
 
+const STEP_QUERY_PARAM = "step";
+const STEP_HASH_PREFIX = "step-";
+const URL_SYNC_THROTTLE_MS = 300;
+
+type UrlSyncEventDetail = {
+  stepId: string | null;
+  delayMs: number;
+  timestamp: string;
+};
+
+function emitUrlSyncThrottled(stepId: string | null, delayMs: number) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const event = new CustomEvent<UrlSyncEventDetail>("url_sync_throttled", {
+    detail: {
+      stepId,
+      delayMs,
+      timestamp: new Date().toISOString(),
+    },
+  });
+
+  window.dispatchEvent(event);
+}
+
+function decodeStepToken(token: string | null): string | null {
+  if (!token) {
+    return null;
+  }
+  const trimmed = token.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
 export type StoryProps = {
   stickyTop?: number | string;
   children: ReactNode;
@@ -90,6 +131,8 @@ export default function Story({
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [steps, setSteps] = useState<StoryProgressStep[]>([]);
   const initialHashHandled = useRef(false);
+  const urlSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastUrlSyncRef = useRef<number>(0);
 
   const prefersReducedMotion = usePrefersReducedMotion();
   const visualizationRef = useRef<StoryVisualizationController | null>(null);
@@ -155,14 +198,72 @@ export default function Story({
     [focusStepByIndex],
   );
 
+  const findStepFromToken = useCallback(
+    (token: string): { id: string; element: HTMLElement } | null => {
+      const normalized = token.trim();
+      if (!normalized) {
+        return null;
+      }
+
+      const direct = stepsRef.current.get(normalized);
+      if (direct) {
+        return { id: normalized, element: direct };
+      }
+
+      for (const [id, element] of stepsRef.current.entries()) {
+        if (!element) {
+          continue;
+        }
+        if (element.id === normalized) {
+          return { id, element };
+        }
+        if (
+          !normalized.startsWith(STEP_HASH_PREFIX) &&
+          element.id === `${STEP_HASH_PREFIX}${normalized}`
+        ) {
+          return { id, element };
+        }
+      }
+
+      return null;
+    },
+    [],
+  );
+
+  const scrollToStepElement = useCallback((element: HTMLElement) => {
+    if (typeof element.scrollIntoView !== "function") {
+      return;
+    }
+    try {
+      element.scrollIntoView({ block: "start", behavior: "auto" });
+    } catch {
+      element.scrollIntoView();
+    }
+  }, []);
+
   const handleInitialHash = useCallback(() => {
     if (initialHashHandled.current || typeof window === "undefined") return;
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    if (focusStep(hash)) {
+    const searchParams = new URLSearchParams(window.location.search ?? "");
+    const queryStep = decodeStepToken(searchParams.get(STEP_QUERY_PARAM));
+    const rawHash = window.location.hash.slice(1);
+    const decodedHash = decodeStepToken(rawHash);
+    const prefixedHash = decodedHash?.startsWith(STEP_HASH_PREFIX) ? decodedHash : null;
+
+    const candidates = [queryStep, prefixedHash, decodedHash].filter((value): value is string =>
+      Boolean(value),
+    );
+
+    for (const candidate of candidates) {
+      const match = findStepFromToken(candidate);
+      if (!match) {
+        continue;
+      }
       initialHashHandled.current = true;
+      scrollToStepElement(match.element);
+      focusStep(match.id);
+      break;
     }
-  }, [focusStep]);
+  }, [findStepFromToken, focusStep, scrollToStepElement]);
 
   const syncSteps = useCallback(() => {
     setSteps(() => {
@@ -254,12 +355,51 @@ export default function Story({
 
   // hash sync
   useEffect(() => {
-    if (typeof window === "undefined" || !activeStepId) return;
-    const hash = `#${activeStepId}`;
-    if (window.location.hash !== hash) {
-      window.history.replaceState(null, "", hash);
+    if (typeof window === "undefined") {
+      return;
     }
-  }, [activeStepId]);
+    if (!activeStepId) {
+      return;
+    }
+
+    const targetHash = `#${activeStepId}`;
+    if (window.location.hash === targetHash) {
+      lastUrlSyncRef.current = Date.now();
+      return;
+    }
+
+    const applySync = () => {
+      if (window.location.hash !== targetHash) {
+        window.history.replaceState(null, "", targetHash);
+      }
+      lastUrlSyncRef.current = Date.now();
+    };
+
+    const now = Date.now();
+    const elapsed = now - lastUrlSyncRef.current;
+
+    if (elapsed >= URL_SYNC_THROTTLE_MS) {
+      applySync();
+      return () => undefined;
+    }
+
+    const remaining = URL_SYNC_THROTTLE_MS - elapsed;
+    if (urlSyncTimeoutRef.current) {
+      clearTimeout(urlSyncTimeoutRef.current);
+    }
+    emitUrlSyncThrottled(activeStepId, remaining);
+    urlSyncTimeoutRef.current = setTimeout(() => {
+      urlSyncTimeoutRef.current = null;
+      applySync();
+    }, remaining);
+
+    return () => {
+      if (urlSyncTimeoutRef.current) {
+        clearTimeout(urlSyncTimeoutRef.current);
+        urlSyncTimeoutRef.current = null;
+      }
+    };
+  }, [activeStepId, emitUrlSyncThrottled]);
 
   // apply visualization state
   useEffect(() => {
@@ -287,6 +427,15 @@ export default function Story({
     return () => {
       prefetchAbortRef.current?.abort();
       prefetchAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (urlSyncTimeoutRef.current) {
+        clearTimeout(urlSyncTimeoutRef.current);
+        urlSyncTimeoutRef.current = null;
+      }
     };
   }, []);
 
