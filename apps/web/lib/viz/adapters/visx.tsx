@@ -7,14 +7,16 @@ import type { VizAdapter } from "../types";
 
 export type { VisxRenderer, VisxSpec } from "../spec-types";
 
-interface VisxInstance<TProps extends object = Record<string, unknown>> {
+interface VisxInstance<TProps extends Record<string, unknown> = Record<string, unknown>> {
   container: HTMLElement;
   root: Root;
   spec: VisxSpec<TProps>;
 }
 
-function cloneSpec<TProps extends object>(spec: VisxSpec<TProps>): VisxSpec<TProps> {
-  const props = spec.props ? { ...(spec.props as Record<string, unknown>) } : undefined;
+function cloneSpec<TProps extends Record<string, unknown>>(
+  spec: VisxSpec<TProps>,
+): VisxSpec<TProps> {
+  const props = spec.props ? { ...spec.props } : undefined;
   return {
     component: spec.component,
     props: props as TProps | undefined,
@@ -23,7 +25,7 @@ function cloneSpec<TProps extends object>(spec: VisxSpec<TProps>): VisxSpec<TPro
   };
 }
 
-function render<TProps extends object>(
+function render<TProps extends Record<string, unknown>>(
   instance: VisxInstance<TProps>,
   spec: VisxSpec<TProps>,
   discrete: boolean,

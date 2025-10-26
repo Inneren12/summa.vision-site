@@ -1,12 +1,44 @@
 import type { JSX } from "react";
-import type { TopLevelSpec as VegaLiteTopLevelSpec } from "vega-lite";
 
-export type VegaLiteSpec = VegaLiteTopLevelSpec;
+export interface VegaLiteSpec {
+  readonly $schema?: string;
+  readonly data?: Record<string, unknown> | undefined;
+  readonly mark?: string | Record<string, unknown>;
+  readonly encoding?: Record<string, unknown>;
+  readonly transform?: ReadonlyArray<Record<string, unknown>>;
+  readonly params?: ReadonlyArray<Record<string, unknown>>;
+  readonly projection?: Record<string, unknown>;
+  readonly layer?: ReadonlyArray<VegaLiteSpec>;
+  readonly hconcat?: ReadonlyArray<VegaLiteSpec>;
+  readonly vconcat?: ReadonlyArray<VegaLiteSpec>;
+  readonly repeat?: Record<string, unknown>;
+  readonly resolve?: Record<string, unknown>;
+  readonly config?: Record<string, unknown>;
+  readonly selection?: Record<string, unknown>;
+  readonly width?: number | "container";
+  readonly height?: number | "container";
+  readonly autosize?: string | Record<string, unknown>;
+  readonly description?: string;
+  readonly name?: string;
+  readonly title?: string | Record<string, unknown>;
+  readonly background?: string;
+  readonly [key: string]: unknown;
+}
 
-export type EChartsSpec = import("echarts").EChartsOption;
+export interface EChartsSpec extends Record<string, unknown> {
+  readonly title?: Record<string, unknown>;
+  readonly legend?: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
+  readonly tooltip?: Record<string, unknown>;
+  readonly dataset?: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
+  readonly grid?: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
+  readonly xAxis?: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
+  readonly yAxis?: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>;
+  readonly series?: ReadonlyArray<Record<string, unknown>>;
+  readonly color?: ReadonlyArray<string>;
+}
 
-export type MapLibreLayerDefinition = import("maplibre-gl").AnyLayer;
-export type MapLibreStyle = import("maplibre-gl").StyleSpecification;
+export type MapLibreLayerDefinition = Record<string, unknown>;
+export type MapLibreStyle = Record<string, unknown>;
 export type MapLibrePadding = Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 
 export interface MapLibreSpec {
