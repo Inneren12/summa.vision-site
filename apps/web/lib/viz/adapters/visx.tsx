@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import type { VizAdapter } from "../types";
@@ -25,7 +26,9 @@ function render<TProps extends object>(
 ) {
   const { component, props } = spec;
   const element = createElement(component, { ...(props as TProps), discrete });
-  instance.root.render(element);
+  flushSync(() => {
+    instance.root.render(element);
+  });
   instance.spec = spec;
 }
 

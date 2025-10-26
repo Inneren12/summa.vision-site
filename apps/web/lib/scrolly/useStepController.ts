@@ -10,13 +10,13 @@ export function useStepController({ onStepChange }: ControllerOptions = {}) {
   const entriesRef = useRef<Map<string, HTMLElement>>(new Map());
   const activeStepRef = useRef<string | null>(null);
 
-  // публичное состояние (для UI/тестов)
   const [activeStep, setActiveStep] = useState<string | null>(null);
+  const [entriesCount, setEntriesCount] = useState(0);
 
   const register = useCallback(
     (id: string, el: HTMLElement) => {
       entriesRef.current.set(id, el);
-      // если ещё нет активного шага — активируем первый же зарегистрированный
+      setEntriesCount(entriesRef.current.size);
       if (activeStepRef.current == null) {
         activeStepRef.current = id;
         setActiveStep(id);
@@ -28,6 +28,7 @@ export function useStepController({ onStepChange }: ControllerOptions = {}) {
 
   const unregister = useCallback((id: string) => {
     entriesRef.current.delete(id);
+    setEntriesCount(entriesRef.current.size);
     if (activeStepRef.current === id) {
       activeStepRef.current = null;
       setActiveStep(null);
@@ -41,15 +42,13 @@ export function useStepController({ onStepChange }: ControllerOptions = {}) {
         onStepChange?.(nextActiveStepId, prev ?? null);
         activeStepRef.current = nextActiveStepId;
         setActiveStep(nextActiveStepId);
-        return;
       }
-      // если nextActiveStepId === null — сохраняем предыдущее; тестам так удобнее
     },
     [onStepChange],
   );
 
-  // страховка: если по какой-то причине активный шаг не выставился после регистрации,
-  // но в коллекции уже есть элементы — активируем первый ключ на ближайшем тике
+  // fallback: если регистрация прошла, но актив не выставился из-за порядка —
+  // активируем первый зарегистрированный ключ при изменении количества шагов
   useEffect(() => {
     if (activeStepRef.current == null && entriesRef.current.size > 0) {
       const first = entriesRef.current.keys().next().value as string | undefined;
@@ -59,15 +58,7 @@ export function useStepController({ onStepChange }: ControllerOptions = {}) {
         onStepChange?.(first, null);
       }
     }
-  }, [onStepChange]);
-
-  // snapshot для cleanup, чтобы не ловить warning про ref-значение
-  useEffect(() => {
-    const entries = entriesRef.current;
-    return () => {
-      void entries;
-    };
-  }, []);
+  }, [entriesCount, onStepChange]);
 
   return { register, unregister, applyActive, activeStep, entriesRef, activeStepRef };
 }

@@ -1,7 +1,8 @@
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -9,17 +10,24 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // алиас под тесты: "@/..." → от корня apps/web
+      // "@/..." указывает в корень apps/web
       "@": path.resolve(__dirname, "./"),
-      // доступ к корню монорепы, если что-то импортится вверх
+      // "@root/..." — корень монорепы
       "@root": path.resolve(__dirname, "../../"),
+      // мок для deck.gl
+      "@deck.gl/core": path.resolve(__dirname, "tests/mocks/deck-gl-core.ts"),
+      // моки для карт и графиков
+      echarts: path.resolve(__dirname, "tests/mocks/echarts.ts"),
+      "maplibre-gl": path.resolve(__dirname, "tests/mocks/maplibre-gl.ts"),
+      // лёгкий мок для vega-embed в тестах
+      "vega-embed": path.resolve(__dirname, "tests/mocks/vega-embed.ts"),
     },
   },
   test: {
     environment: "jsdom",
     setupFiles: ["tests/setup.vitest.ts"],
-    globals: true,          // describe/it/vi глобально
-    threads: false,         // меньше OOM
+    globals: true, // describe/it/vi глобально
+    threads: false, // меньше OOM
     isolate: true,
     restoreMocks: true,
     coverage: { reporter: ["text", "lcov"] },
