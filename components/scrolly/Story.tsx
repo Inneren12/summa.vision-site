@@ -308,7 +308,9 @@ export default function Story({
 
   let stickyContent: ReactNode;
   if (stickyChild) {
-    const stickyElement = stickyChild as ReactElement<{ children?: ReactNode }>;
+    const stickyElement = stickyChild as ReactElement<
+      Record<string, unknown> & { children?: ReactNode }
+    >;
     stickyContent = cloneElement(stickyElement, {
       "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
       children: shouldRenderSticky ? stickyElement.props.children : null,
