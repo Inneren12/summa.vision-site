@@ -19,7 +19,7 @@ import type { RequestCorrelation } from "../../../lib/metrics/correlation";
 import { getClientEventBuffer } from "./telemetry/client-buffer";
 
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
-import { installVHVar } from "@/lib/viewport/installVHVar";
+import installVHVar from "@/lib/viewport/installVHVar";
 
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
