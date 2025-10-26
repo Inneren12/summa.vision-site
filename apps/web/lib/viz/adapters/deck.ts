@@ -35,7 +35,12 @@ const baseAdapter: VizAdapter<Instance, DeckProps> = {
     instance.deck.setProps?.(clone);
   },
   destroy(instance) {
-    instance.deck.finalize?.();
+    try {
+      instance.deck.finalize?.();
+    } finally {
+      (instance as { deck: DeckLike | null }).deck = null;
+      (instance as { spec: DeckProps | null }).spec = null;
+    }
   },
 };
 

@@ -128,7 +128,19 @@ export const echartsAdapter: VizAdapter<EChartsInstance, EChartsSpec> = {
     setNextOption(instance.chart, clone, opts.discrete);
   },
   destroy(instance) {
-    instance.cleanupResizeObserver?.();
-    instance.chart.dispose();
+    try {
+      instance.cleanupResizeObserver?.();
+    } finally {
+      instance.cleanupResizeObserver = null;
+    }
+
+    try {
+      instance.chart.dispose();
+    } finally {
+      (instance as { chart: ECharts | null }).chart = null;
+    }
+
+    (instance as { element: HTMLElement | null }).element = null;
+    (instance as { spec: EChartsSpec | null }).spec = null;
   },
 };

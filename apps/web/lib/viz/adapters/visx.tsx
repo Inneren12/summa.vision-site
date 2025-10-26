@@ -55,6 +55,12 @@ export const visxAdapter: VizAdapter<VisxInstance, VisxSpec> = {
     render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
-    instance.root.unmount();
+    try {
+      instance.root.unmount();
+    } finally {
+      (instance as { root: Root | null }).root = null;
+      (instance as { container: HTMLElement | null }).container = null;
+      (instance as { spec: VisxSpec | null }).spec = null;
+    }
   },
 };

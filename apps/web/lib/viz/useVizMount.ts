@@ -310,15 +310,36 @@ export function useVizMount<TInstance, TSpec extends object>(
 
     let cancelled = false;
     let mountedInstance: TInstance | null = null;
+    let hasDestroyed = false;
 
     const discrete = discreteRef.current;
     emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
+
+    const destroyInstance = (instance: TInstance) => {
+      try {
+        adapter.destroy(instance);
+      } catch (err) {
+        emitVizEvent("viz_error", {
+          lib,
+          motion: toMotion(discreteRef.current),
+          reason: "destroy",
+          error: buildErrorMessage(err),
+        });
+      } finally {
+        if (instanceRef.current === instance) {
+          instanceRef.current = null;
+        }
+        mountedInstance = null;
+        hasDestroyed = true;
+        emitVizEvent("viz_destroyed", { lib, motion: toMotion(discreteRef.current) });
+      }
+    };
 
     const runMount = async () => {
       try {
         const result = await adapter.mount(target, specRef.current, { discrete });
         if (cancelled) {
-          adapter.destroy(result);
+          destroyInstance(result);
           return;
         }
         mountedInstance = result;
@@ -343,21 +364,17 @@ export function useVizMount<TInstance, TSpec extends object>(
     return () => {
       cancelled = true;
       setIsReady(false);
+      pendingStatesRef.current.length = 0;
       const instance = mountedInstance ?? instanceRef.current;
       if (instance) {
-        try {
-          adapter.destroy(instance);
-        } catch (err) {
-          emitVizEvent("viz_error", {
-            lib,
-            motion: toMotion(discreteRef.current),
-            reason: "destroy",
-            error: buildErrorMessage(err),
-          });
-        }
-        if (instanceRef.current === instance) {
-          instanceRef.current = null;
-        }
+        destroyInstance(instance);
+        return;
+      }
+      if (!hasDestroyed) {
+        mountedInstance = null;
+        instanceRef.current = null;
+        hasDestroyed = true;
+        emitVizEvent("viz_destroyed", { lib, motion: toMotion(discreteRef.current) });
       }
     };
   }, [element, flushPendingStates, lib, adapterState]);

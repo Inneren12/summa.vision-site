@@ -454,14 +454,22 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
     applyMapState(instance, clone, opts.discrete, previousStored);
   },
   destroy(instance) {
-    while (instance.cleanup.length > 0) {
-      const cleanup = instance.cleanup.pop();
-      try {
-        cleanup?.();
-      } catch {
-        // ignore cleanup errors
+    try {
+      while (instance.cleanup.length > 0) {
+        const cleanup = instance.cleanup.pop();
+        try {
+          cleanup?.();
+        } catch {
+          // ignore cleanup errors
+        }
       }
+      instance.map.remove();
+    } finally {
+      instance.cleanup.length = 0;
+      (instance as { map: MapLibreMap | null }).map = null;
+      (instance as { container: HTMLElement | null }).container = null;
+      (instance as { spec: MapLibreSpec | null }).spec = null;
+      instance.discrete = false;
     }
-    instance.map.remove();
   },
 };

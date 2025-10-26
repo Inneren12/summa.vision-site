@@ -2,7 +2,12 @@ import { VizEventDetail, type VizEventName } from "./types";
 
 const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);
 
-const NECESSARY_EVENTS: ReadonlySet<VizEventName> = new Set(["viz_init", "viz_ready", "viz_error"]);
+const NECESSARY_EVENTS: ReadonlySet<VizEventName> = new Set([
+  "viz_init",
+  "viz_ready",
+  "viz_error",
+  "viz_destroyed",
+]);
 
 type ConsentLevel = "all" | "necessary";
 

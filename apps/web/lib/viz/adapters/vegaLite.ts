@@ -74,7 +74,13 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VegaLiteSpec> = {
     void render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
-    instance.result?.view?.finalize?.();
-    instance.result = null;
+    try {
+      instance.result?.view?.finalize?.();
+    } finally {
+      instance.result = null;
+      (instance as { embed: typeof import("vega-embed") | null }).embed = null;
+      (instance as { element: HTMLElement | null }).element = null;
+      (instance as { spec: VegaLiteSpec | null }).spec = null;
+    }
   },
 };

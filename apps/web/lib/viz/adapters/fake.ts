@@ -31,7 +31,7 @@ export const fakeChartAdapter: VizAdapter<FakeChartInstance, FakeChartSpec> = {
     const spec = typeof next === "function" ? next(previous) : next;
     instance.spec = cloneSpec(spec);
   },
-  destroy() {
-    // no-op
+  destroy(instance) {
+    (instance as { spec: FakeChartSpec | null }).spec = null;
   },
 };
