@@ -8,16 +8,38 @@ import { visxAdapter } from "@/lib/viz/adapters/visx";
 import { registerAdapter } from "@/lib/viz/registry";
 import type { VizAdapter, VizLibraryTag } from "@/lib/viz/types";
 
+type AnyAdapter = VizAdapter<unknown, unknown>;
+
 const ADAPTERS: Array<{
   flag: string;
   lib: VizLibraryTag;
-  adapter: VizAdapter<unknown, unknown>;
+  adapter: AnyAdapter;
 }> = [
-  { flag: "NEXT_PUBLIC_VIZ_DECK", lib: "deck", adapter: deckAdapter },
-  { flag: "NEXT_PUBLIC_VIZ_ECHARTS", lib: "echarts", adapter: echartsAdapter },
-  { flag: "NEXT_PUBLIC_VIZ_MAPLIBRE", lib: "maplibre", adapter: mapLibreAdapter },
-  { flag: "NEXT_PUBLIC_VIZ_VEGA", lib: "vega", adapter: vegaLiteAdapter },
-  { flag: "NEXT_PUBLIC_VIZ_VISX", lib: "visx", adapter: visxAdapter },
+  {
+    flag: "NEXT_PUBLIC_VIZ_DECK",
+    lib: "deck",
+    adapter: deckAdapter as unknown as AnyAdapter,
+  },
+  {
+    flag: "NEXT_PUBLIC_VIZ_ECHARTS",
+    lib: "echarts",
+    adapter: echartsAdapter as unknown as AnyAdapter,
+  },
+  {
+    flag: "NEXT_PUBLIC_VIZ_MAPLIBRE",
+    lib: "maplibre",
+    adapter: mapLibreAdapter as unknown as AnyAdapter,
+  },
+  {
+    flag: "NEXT_PUBLIC_VIZ_VEGA",
+    lib: "vega",
+    adapter: vegaLiteAdapter as unknown as AnyAdapter,
+  },
+  {
+    flag: "NEXT_PUBLIC_VIZ_VISX",
+    lib: "visx",
+    adapter: visxAdapter as unknown as AnyAdapter,
+  },
 ];
 
 function isEnabled(flag: string): boolean {
