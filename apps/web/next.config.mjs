@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
+import { createRequire } from "node:module";
 import { securityHeaders } from "./security/headers.mjs";
+
+const require = createRequire(import.meta.url);
 
 const isDev = process.env.NODE_ENV !== "production";
 const reportOnly = process.env.CSP_REPORT_ONLY === "1";
@@ -23,6 +26,15 @@ const nextConfig = {
       { source: "/:path*", headers },
       { source: "/api/:path*", headers },
     ];
+  },
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "d3-array": require.resolve("d3-array"),
+      "d3-scale": require.resolve("d3-scale"),
+    };
+
+    return config;
   },
 };
 
