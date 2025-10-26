@@ -10,7 +10,7 @@
     "test": "npm run test:cov",
     "test:proj:node-core": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project node-core --pool=forks --reporter=basic",
     "test:proj:scrolly": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project scrolly --pool=forks --reporter=basic",
-    "test:proj:viz:contract": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project viz --pool=forks --reporter=basic lib/viz/adapters/adapters.contract.test.tsx",
+    "test:proj:viz:contract": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project viz --pool=forks --reporter=basic lib/viz/adapters/adapters.contract.test.tsx lib/viz/adapters/vegaLite.dom.test.tsx",
     "test:proj:viz:events": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project viz --pool=forks --reporter=basic lib/viz/events.test.ts",
     "test:proj:viz:fake": "NODE_OPTIONS=\"--max-old-space-size=8192 --expose-gc\" vitest --workspace ./vitest.workspace.ts run --project viz --pool=forks --reporter=basic tests/viz.fake-chart.spec.tsx",
     "test:proj:viz": "npm run -s test:proj:viz:contract && npm run -s test:proj:viz:events && npm run -s test:proj:viz:fake",
@@ -28,6 +28,10 @@
     "next-themes": "^0.3.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "react-vega": "^8.0.0",
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -1,29 +1,6 @@
 import type { JSX } from "react";
 
-export interface VegaLiteSpec {
-  readonly $schema?: string;
-  readonly data?: Record<string, unknown> | undefined;
-  readonly mark?: string | Record<string, unknown>;
-  readonly encoding?: Record<string, unknown>;
-  readonly transform?: ReadonlyArray<Record<string, unknown>>;
-  readonly params?: ReadonlyArray<Record<string, unknown>>;
-  readonly projection?: Record<string, unknown>;
-  readonly layer?: ReadonlyArray<VegaLiteSpec>;
-  readonly hconcat?: ReadonlyArray<VegaLiteSpec>;
-  readonly vconcat?: ReadonlyArray<VegaLiteSpec>;
-  readonly repeat?: Record<string, unknown>;
-  readonly resolve?: Record<string, unknown>;
-  readonly config?: Record<string, unknown>;
-  readonly selection?: Record<string, unknown>;
-  readonly width?: number | "container";
-  readonly height?: number | "container";
-  readonly autosize?: string | Record<string, unknown>;
-  readonly description?: string;
-  readonly name?: string;
-  readonly title?: string | Record<string, unknown>;
-  readonly background?: string;
-  readonly [key: string]: unknown;
-}
+export type VegaLiteSpec = import("vega-lite").TopLevelSpec;
 
 export interface EChartsSpec extends Record<string, unknown> {
   readonly title?: Record<string, unknown>;
