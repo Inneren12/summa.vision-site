@@ -5,6 +5,10 @@
   "workspaces": [
     "apps/*"
   ],
+  "overrides": {
+    "d3-array": "^3.2.4",
+    "d3-scale": "^4.0.2"
+  },
   "scripts": {
     "dev": "npm run web:dev",
     "build": "npm run web:build",
