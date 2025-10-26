@@ -27,23 +27,39 @@ Object.defineProperty(window, "matchMedia", {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (Element.prototype as any).scrollIntoView ||= function () {};
 
-// IntersectionObserver — базовый мок
+// IntersectionObserver — стаб: при observe считаем элемент видимым.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (!(globalThis as any).IntersectionObserver) {
-  class IO {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    constructor(_cb: IntersectionObserverCallback, _opts?: IntersectionObserverInit) {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    observe(_el: Element) {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    unobserve(_el: Element) {}
-    disconnect() {}
+if (typeof (globalThis as any).IntersectionObserver === "undefined") {
+  class IO implements IntersectionObserver {
+    readonly root: Element | Document | null = null;
+    readonly rootMargin = "0px";
+    readonly thresholds = [0, 1];
+
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+
+    observe(element: Element) {
+      const entry: IntersectionObserverEntry = {
+        isIntersecting: true,
+        target: element,
+        intersectionRatio: 1,
+        boundingClientRect: element.getBoundingClientRect(),
+        intersectionRect: element.getBoundingClientRect(),
+        rootBounds: null,
+        time: Date.now(),
+      };
+
+      this.callback([entry], this);
+    }
+
+    unobserve(): void {}
+    disconnect(): void {}
     takeRecords(): IntersectionObserverEntry[] {
       return [];
     }
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).IntersectionObserver = IO;
+
+  const globalWithIO = globalThis as typeof globalThis & { IntersectionObserver?: typeof IO };
+  globalWithIO.IntersectionObserver = IO;
 }
 
 // Перестраховка: мок vega-embed, если где-то импортируется напрямую
