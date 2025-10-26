@@ -23,6 +23,7 @@ export type VizLibraryTag = "vega" | "echarts" | "maplibre" | "visx" | "deck" | 
 export type VizEventName = "viz_init" | "viz_ready" | "viz_state" | "viz_error";
 
 export interface VizEventDetail {
+  readonly [key: string]: unknown;
   readonly lib: VizLibraryTag;
   readonly motion: MotionMode;
   readonly stepId?: string | null;
