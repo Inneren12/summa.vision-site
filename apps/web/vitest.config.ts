@@ -27,7 +27,7 @@ export default defineConfig({
     environment: "jsdom",
     // Меньше воркеров → меньше памяти в CI
     poolOptions: {
-      threads: { maxThreads: 2, minThreads: 1 },
+      threads: { maxThreads: 1, minThreads: 1 },
     },
     setupFiles: ["tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
