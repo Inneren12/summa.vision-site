@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "NODE_OPTIONS=--max-old-space-size=6144 vitest run --coverage",
+    "test": "npm run test:cov",
+    "test:cov": "NODE_OPTIONS=--max-old-space-size=6144 vitest -c ./vitest.config.ts run --coverage --pool=forks --reporter=basic",
+    "test:quick": "vitest -c ./vitest.config.ts run --pool=forks --reporter=basic",
     "viz:check": "eslint --ext .ts,.tsx lib/viz && tsc --project tsconfig.viz.json --noEmit",
     "viz:size": "node ./scripts/viz-size.mjs"
   },
