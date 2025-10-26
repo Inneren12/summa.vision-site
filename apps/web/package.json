@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^7.120.4",
+    "echarts": "^5.6.0",
+    "echarts-for-react": "^3.0.2",
     "gray-matter": "^4.0.3",
     "next": "^14.2.8",
     "next-mdx-remote": "^5.0.0",

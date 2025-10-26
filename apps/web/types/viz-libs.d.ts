@@ -9,19 +9,6 @@ declare module "vega-embed" {
   export default embed;
 }
 
-declare module "echarts" {
-  export type EChartsOption = Record<string, unknown>;
-  export type ECharts = {
-    setOption(option: EChartsOption, opts?: Record<string, unknown>): void;
-    dispose(): void;
-  };
-  export function init(
-    element: HTMLElement,
-    theme?: string | object,
-    opts?: { renderer?: "canvas" | "svg" },
-  ): ECharts;
-}
-
 declare module "maplibre-gl" {
   export type LngLatLike = [number, number] | { lng: number; lat: number };
   export interface MapOptions {

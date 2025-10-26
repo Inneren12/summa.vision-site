@@ -20,9 +20,6 @@
       "@root/*": [
         "../../*"
       ],
-      "echarts": [
-        "lib/viz/stubs/echarts"
-      ],
       "maplibre-gl": [
         "lib/viz/stubs/maplibre-gl"
       ],

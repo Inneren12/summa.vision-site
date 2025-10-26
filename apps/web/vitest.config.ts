@@ -18,7 +18,6 @@ export default defineConfig({
       { find: "@root", replacement: path.resolve(__dirname, "../../") },
       // Жёстко подменяем тяжёлые визуальные зависимости на стабы
       { find: /^@deck\.gl\/.*$/, replacement: r("lib/viz/stubs/deckgl-core.ts") },
-      { find: /^echarts(?:\/.*)?$/, replacement: r("lib/viz/stubs/echarts.ts") },
       { find: /^maplibre-gl(?:\/.*)?$/, replacement: r("lib/viz/stubs/maplibre-gl.ts") },
       { find: /^vega-embed(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-embed.ts") },
       { find: /^vega(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega.ts") },

@@ -74,10 +74,6 @@ export default defineWorkspace([
           replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
         },
         {
-          find: /^echarts(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
-        },
-        {
           find: /^maplibre-gl(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
         },

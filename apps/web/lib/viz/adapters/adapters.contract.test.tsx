@@ -8,10 +8,21 @@ vi.mock("vega-embed", () => ({
 
 const echartsSetOption = vi.fn();
 const echartsDispose = vi.fn();
-const echartsInit = vi.fn(() => ({ setOption: echartsSetOption, dispose: echartsDispose }));
-vi.mock("echarts", () => ({
-  init: echartsInit,
+const echartsResize = vi.fn();
+const echartsUse = vi.fn();
+const echartsInit = vi.fn(() => ({
+  setOption: echartsSetOption,
+  dispose: echartsDispose,
+  resize: echartsResize,
 }));
+vi.mock("echarts/core", () => ({
+  init: echartsInit,
+  use: echartsUse,
+}));
+vi.mock("echarts/charts", () => ({}));
+vi.mock("echarts/components", () => ({}));
+vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
+vi.mock("echarts/features", () => ({}));
 
 const mapSetStyle = vi.fn();
 const mapSetCenter = vi.fn();
@@ -96,11 +107,15 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
-    expect(echartsSetOption).toHaveBeenCalledWith(spec, expect.any(Object));
+    expect(echartsSetOption).toHaveBeenCalledWith(spec, { lazyUpdate: true });
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(echartsSetOption).toHaveBeenCalledWith(nextSpec, expect.any(Object));
+    expect(echartsSetOption).toHaveBeenCalledWith(nextSpec, {
+      notMerge: true,
+      lazyUpdate: true,
+      animation: false,
+    });
 
     echartsAdapter.destroy(instance);
     expect(echartsDispose).toHaveBeenCalled();
