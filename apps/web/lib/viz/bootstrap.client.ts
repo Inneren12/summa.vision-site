@@ -1,10 +1,8 @@
 "use client";
 
-import { deckAdapter } from "./adapters/deck";
-import { echartsAdapter } from "./adapters/echarts";
-import { mapLibreAdapter } from "./adapters/maplibre";
 import { vegaLiteAdapter } from "./adapters/vegaLite";
 import { visxAdapter } from "./adapters/visx";
+import { lazyDeckAdapter, lazyEChartsAdapter, lazyMapLibreAdapter } from "./lazyAdapters.client";
 import { registerAdapter } from "./registry";
 import type { VizAdapter, VizLibraryTag } from "./types";
 
@@ -18,9 +16,17 @@ function asAnyAdapter<TInstance, TSpec extends object>(
 
 // Регистрация по фичфлагам; в тестах флаги обычно пустые → побочек нет.
 const CANDIDATES: Array<{ flag: string; lib: VizLibraryTag; adapter: AnyAdapter }> = [
-  { flag: "NEXT_PUBLIC_VIZ_DECK", lib: "deck", adapter: asAnyAdapter(deckAdapter) },
-  { flag: "NEXT_PUBLIC_VIZ_ECHARTS", lib: "echarts", adapter: asAnyAdapter(echartsAdapter) },
-  { flag: "NEXT_PUBLIC_VIZ_MAPLIBRE", lib: "maplibre", adapter: asAnyAdapter(mapLibreAdapter) },
+  { flag: "NEXT_PUBLIC_VIZ_DECK", lib: "deck", adapter: asAnyAdapter(lazyDeckAdapter.adapter) },
+  {
+    flag: "NEXT_PUBLIC_VIZ_ECHARTS",
+    lib: "echarts",
+    adapter: asAnyAdapter(lazyEChartsAdapter.adapter),
+  },
+  {
+    flag: "NEXT_PUBLIC_VIZ_MAPLIBRE",
+    lib: "maplibre",
+    adapter: asAnyAdapter(lazyMapLibreAdapter.adapter),
+  },
   { flag: "NEXT_PUBLIC_VIZ_VEGA", lib: "vega", adapter: asAnyAdapter(vegaLiteAdapter) },
   { flag: "NEXT_PUBLIC_VIZ_VISX", lib: "visx", adapter: asAnyAdapter(visxAdapter) },
 ];
