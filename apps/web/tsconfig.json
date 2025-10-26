@@ -41,7 +41,6 @@
     "app",
     "components",
     "lib",
-    "tests",
     "types/**/*.d.ts",
     "*.ts",
     "*.tsx",
@@ -49,6 +48,10 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "vitest.config.ts"
+    "tests",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "vitest.config.*",
+    "playwright.config.*"
   ]
 }
