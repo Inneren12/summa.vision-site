@@ -1,7 +1,6 @@
 @layer components {
   .scrolly {
-    --scrolly-sticky-top: var(--space-7);
-    --scrolly-viewport-height: 100vh;
+    --sticky-top: var(--space-7);
     display: grid;
     gap: var(--space-6);
     grid-template-columns: minmax(0, 1fr);
@@ -27,8 +26,8 @@
 
   .scrolly-sticky {
     position: sticky;
-    top: var(--scrolly-sticky-top);
-    height: calc(var(--scrolly-viewport-height) - var(--scrolly-sticky-top));
+    top: var(--sticky-top);
+    height: calc(var(--vh, 1vh) * 100 - var(--sticky-top));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -161,6 +160,7 @@
   }
 
   .scrolly-step {
+    scroll-margin-top: var(--sticky-top);
     background: var(--color-bg-surface);
     border-radius: var(--radius-l);
     border: 1px solid var(--color-border-subtle);
