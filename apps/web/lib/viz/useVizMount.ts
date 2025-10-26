@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
-import { emitVizEvent } from "./events";
+import { emitVizEvent } from "../analytics/send";
+
 import type {
   MotionMode,
   VizAdapter,
