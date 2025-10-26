@@ -1,5 +1,5 @@
 // Минимальная заглушка для echarts
-export type ECharts = { dispose: () => void } & Record<string, unknown>;
+export type ECharts = { dispose: () => void; resize: () => void } & Record<string, unknown>;
 export type EChartsOption = Record<string, unknown>;
 
 const echarts = {

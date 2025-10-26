@@ -13,6 +13,7 @@ declare module "echarts" {
   export type EChartsOption = Record<string, unknown>;
   export type ECharts = {
     setOption(option: EChartsOption, opts?: Record<string, unknown>): void;
+    resize(): void;
     dispose(): void;
   };
   export function init(

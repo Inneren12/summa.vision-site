@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const embedMock = vi.fn(async () => ({ view: { finalize: vi.fn() } }));
 vi.mock("vega-embed", () => ({
@@ -7,8 +7,13 @@ vi.mock("vega-embed", () => ({
 }));
 
 const echartsSetOption = vi.fn();
+const echartsResize = vi.fn();
 const echartsDispose = vi.fn();
-const echartsInit = vi.fn(() => ({ setOption: echartsSetOption, dispose: echartsDispose }));
+const echartsInit = vi.fn(() => ({
+  setOption: echartsSetOption,
+  resize: echartsResize,
+  dispose: echartsDispose,
+}));
 vi.mock("echarts", () => ({
   init: echartsInit,
 }));
@@ -81,6 +86,13 @@ import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
 
 describe("viz adapters contract", () => {
+  beforeEach(() => {
+    echartsSetOption.mockClear();
+    echartsResize.mockClear();
+    echartsDispose.mockClear();
+    echartsInit.mockClear();
+  });
+
   it("vega-lite adapter mounts and re-renders", async () => {
     const element = document.createElement("div");
     const spec = { mark: "bar" } as Parameters<typeof embedMock>[0];
@@ -120,14 +132,68 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
-    expect(echartsSetOption).toHaveBeenCalledWith(spec, expect.any(Object));
+    expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(echartsSetOption).toHaveBeenCalledWith(nextSpec, expect.any(Object));
+    expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, {
+      notMerge: true,
+      lazyUpdate: true,
+      animation: false,
+    });
 
     echartsAdapter.destroy(instance);
     expect(echartsDispose).toHaveBeenCalled();
+  });
+
+  it("echarts adapter wires resize observer with throttling", async () => {
+    vi.useFakeTimers();
+    const observers: MockResizeObserver[] = [];
+
+    class MockResizeObserver {
+      public readonly observe = vi.fn();
+      public readonly disconnect = vi.fn();
+
+      constructor(private readonly callback: ResizeObserverCallback) {
+        observers.push(this);
+      }
+
+      trigger() {
+        this.callback([], this as unknown as ResizeObserver);
+      }
+    }
+
+    const originalResizeObserver = globalThis.ResizeObserver;
+    // @ts-expect-error override for testing
+    globalThis.ResizeObserver = MockResizeObserver;
+
+    const element = document.createElement("div");
+    const spec = { series: [] };
+
+    try {
+      const instance = await echartsAdapter.mount(element, spec, { discrete: false });
+
+      const [observer] = observers;
+      expect(observer).toBeDefined();
+      expect(observer?.observe).toHaveBeenCalledWith(element);
+
+      observer?.trigger();
+      expect(echartsResize).toHaveBeenCalledTimes(1);
+
+      echartsResize.mockClear();
+      observer?.trigger();
+      observer?.trigger();
+      expect(echartsResize).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(100);
+      expect(echartsResize).toHaveBeenCalledTimes(1);
+
+      echartsAdapter.destroy(instance);
+      expect(observer?.disconnect).toHaveBeenCalled();
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+      vi.useRealTimers();
+    }
   });
 
   it("echarts adapter treats previous spec as immutable", async () => {
