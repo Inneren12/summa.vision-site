@@ -2,12 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-export type StoryAnalyticsEventName = "story_view" | "step_view" | "step_exit" | "share_click";
+export type StoryAnalyticsEventName =
+  | "story_view"
+  | "step_view"
+  | "step_exit"
+  | "share_click"
+  | "progress_render"
+  | "progress_click";
 
 export type StoryAnalyticsController = {
   trackStoryView: () => void;
   handleStepChange: (stepId: string | null, stepIndex: number) => void;
   trackShareClick: () => void;
+  trackProgressClick: (stepId: string, stepIndex: number) => void;
+  trackProgressRender: () => void;
   flush: () => void;
 };
 
@@ -237,6 +245,17 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
     sendEvent("share_click");
   }, [sendEvent]);
 
+  const trackProgressClick = useCallback(
+    (stepId: string, stepIndex: number) => {
+      sendEvent("progress_click", { stepId, stepIndex });
+    },
+    [sendEvent],
+  );
+
+  const trackProgressRender = useCallback(() => {
+    sendEvent("progress_render");
+  }, [sendEvent]);
+
   useEffect(
     () => () => {
       flushExit();
@@ -249,8 +268,17 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
       trackStoryView,
       handleStepChange,
       trackShareClick,
+      trackProgressClick,
+      trackProgressRender,
       flush: flushExit,
     }),
-    [flushExit, handleStepChange, trackShareClick, trackStoryView],
+    [
+      flushExit,
+      handleStepChange,
+      trackProgressClick,
+      trackProgressRender,
+      trackShareClick,
+      trackStoryView,
+    ],
   );
 }

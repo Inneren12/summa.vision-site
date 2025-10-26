@@ -26,6 +26,7 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
   const articleRef = useRef<HTMLElement | null>(null);
   const handleKeyDown = useKeyboardNav(id);
   const domId = anchorId ?? id;
+  const stringTitle = typeof title === "string" ? title : undefined;
 
   useEffect(() => {
     const element = articleRef.current;
@@ -33,11 +34,11 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
       return;
     }
 
-    registerStep(id, element);
+    registerStep(id, element, { anchorId: domId, title: stringTitle });
     return () => {
       unregisterStep(id);
     };
-  }, [id, registerStep, unregisterStep]);
+  }, [domId, id, registerStep, stringTitle, unregisterStep]);
 
   useEffect(() => {
     const element = articleRef.current;

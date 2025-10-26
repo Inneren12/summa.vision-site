@@ -12,7 +12,6 @@ import Story from "../../../components/scrolly/Story";
 import StoryShareButton from "../../../components/scrolly/StoryShareButton";
 import { STEP_EXIT_DELAY_MS } from "../../../components/scrolly/useStoryAnalytics";
 
-
 type CapturedEvent = {
   event: string;
   storyId: string;
@@ -36,13 +35,27 @@ class MockIntersectionObserver implements IntersectionObserver {
 
   readonly thresholds: ReadonlyArray<number> = [];
 
-  constructor(_callback: IntersectionObserverCallback) {
-    void _callback;
+  private readonly callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
   }
 
   disconnect(): void {}
 
-  observe(): void {}
+  observe(target: Element): void {
+    const entry = {
+      target,
+      isIntersecting: true,
+      intersectionRatio: 1,
+      boundingClientRect: target.getBoundingClientRect(),
+      intersectionRect: target.getBoundingClientRect(),
+      rootBounds: null,
+      time: Date.now(),
+    } as IntersectionObserverEntry;
+
+    this.callback([entry], this);
+  }
 
   takeRecords(): IntersectionObserverEntry[] {
     return [];
@@ -66,6 +79,7 @@ function renderStory(consent: "necessary" | "all" = "all") {
       </StickyPanel>
       <Step id="step-1" title="Step 1">
         <p>First step body</p>
+        <StoryShareButton />
       </Step>
       <Step id="step-2" title="Step 2">
         <p>Second step body</p>
@@ -177,7 +191,11 @@ describe("story analytics", () => {
   it("emits only necessary events when consent is limited", async () => {
     renderStory("necessary");
 
-    const shareButton = screen.getByRole("button", { name: "Поделиться" });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const shareButton = await screen.findByRole("button", { name: "Поделиться" });
     await act(async () => {
       fireEvent.click(shareButton);
     });
@@ -205,7 +223,11 @@ describe("story analytics", () => {
   it("tracks share clicks when consent allows full analytics", async () => {
     renderStory("all");
 
-    const shareButton = screen.getByRole("button", { name: "Поделиться" });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const shareButton = await screen.findByRole("button", { name: "Поделиться" });
     await act(async () => {
       fireEvent.click(shareButton);
     });

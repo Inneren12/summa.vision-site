@@ -16,6 +16,7 @@ import {
 
 import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
 
+import Progress from "./Progress";
 import StickyPanel from "./StickyPanel";
 import { useStoryAnalytics } from "./useStoryAnalytics";
 
@@ -32,8 +33,9 @@ export type StoryVisualizationController = {
 
 type StoryContextValue = {
   activeStepId: string | null;
+  steps: StoryStepDescriptor[];
   setActiveStep: (stepId: string) => void;
-  registerStep: (id: string, element: HTMLElement) => void;
+  registerStep: (id: string, element: HTMLElement, metadata?: StoryStepMetadata) => void;
   unregisterStep: (id: string) => void;
 
   registerVisualization: (controller: StoryVisualizationController | null) => void;
@@ -44,9 +46,23 @@ type StoryContextValue = {
   focusFirstStep: () => boolean;
   focusLastStep: () => boolean;
   trackShareClick: () => void;
+  trackProgressClick: (stepId: string, stepIndex: number) => void;
+  trackProgressRender: () => void;
 };
 
 const StoryContext = createContext<StoryContextValue | null>(null);
+
+export type StoryStepDescriptor = {
+  id: string;
+  anchorId: string;
+  title?: string;
+  index: number;
+};
+
+type StoryStepMetadata = {
+  anchorId?: string;
+  title?: string;
+};
 
 export function useStoryContext(): StoryContextValue {
   const context = useContext(StoryContext);
@@ -116,6 +132,7 @@ export default function Story({
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const stepsRef = useRef(new Map<string, HTMLElement>());
+  const stepMetadataRef = useRef(new Map<string, StoryStepMetadata>());
   const prefersReducedMotion = usePrefersReducedMotion();
   const visualizationRef = useRef<StoryVisualizationController | null>(null);
   const orderedStepIdsRef = useRef<string[]>([]);
@@ -126,16 +143,39 @@ export default function Story({
   const stepChildren = childArray.filter((child) => !isStickyPanel(child));
   const resolvedStepCount = stepChildren.length;
   const [stepCount, setStepCount] = useState(resolvedStepCount);
+  const [steps, setSteps] = useState<StoryStepDescriptor[]>([]);
   const [shouldRenderSticky, setShouldRenderSticky] = useState(() => !stickyChild);
   const lazyMountTriggeredRef = useRef<boolean>(!stickyChild);
   const prefetchAbortRef = useRef<AbortController | null>(null);
-  const { trackStoryView, handleStepChange, flush, trackShareClick } = useStoryAnalytics({
+  const {
+    trackStoryView,
+    handleStepChange,
+    flush,
+    trackShareClick,
+    trackProgressClick,
+    trackProgressRender,
+  } = useStoryAnalytics({
     storyId,
     stepCount,
   });
 
   const setActiveStep = useCallback((stepId: string) => {
     setActiveStepId((current) => (current === stepId ? current : stepId));
+  }, []);
+
+  const commitSteps = useCallback(() => {
+    setSteps(
+      orderedStepIdsRef.current.map((stepId, index) => {
+        const metadata = stepMetadataRef.current.get(stepId);
+
+        return {
+          id: stepId,
+          anchorId: metadata?.anchorId ?? stepId,
+          title: metadata?.title,
+          index,
+        } satisfies StoryStepDescriptor;
+      }),
+    );
   }, []);
 
   const registerVisualization = useCallback(
@@ -224,20 +264,30 @@ export default function Story({
   }, [focusStep]);
 
   const registerStep = useCallback(
-    (id: string, element: HTMLElement) => {
+    (id: string, element: HTMLElement, metadata: StoryStepMetadata = {}) => {
       stepsRef.current.set(id, element);
+      stepMetadataRef.current.set(id, {
+        anchorId: metadata.anchorId ?? id,
+        title: metadata.title,
+      });
       if (!orderedStepIdsRef.current.includes(id)) {
         orderedStepIdsRef.current.push(id);
       }
       handleInitialHash();
+      commitSteps();
     },
-    [handleInitialHash],
+    [commitSteps, handleInitialHash],
   );
 
-  const unregisterStep = useCallback((id: string) => {
-    stepsRef.current.delete(id);
-    orderedStepIdsRef.current = orderedStepIdsRef.current.filter((stepId) => stepId !== id);
-  }, []);
+  const unregisterStep = useCallback(
+    (id: string) => {
+      stepsRef.current.delete(id);
+      stepMetadataRef.current.delete(id);
+      orderedStepIdsRef.current = orderedStepIdsRef.current.filter((stepId) => stepId !== id);
+      commitSteps();
+    },
+    [commitSteps],
+  );
 
   useEffect(() => {
     trackStoryView();
@@ -348,6 +398,7 @@ export default function Story({
   const contextValue = useMemo<StoryContextValue>(
     () => ({
       activeStepId,
+      steps,
       setActiveStep,
       registerStep,
       unregisterStep,
@@ -360,26 +411,24 @@ export default function Story({
       focusFirstStep,
       focusLastStep,
       trackShareClick,
+      trackProgressClick,
+      trackProgressRender,
     }),
     [
       activeStepId,
+      steps,
       trackShareClick,
+      trackProgressClick,
+      trackProgressRender,
       focusFirstStep,
       focusLastStep,
       focusStep,
       focusStepByOffset,
-      registerStep,
-      setActiveStep,
       registerStep,
       unregisterStep,
-
+      setActiveStep,
       registerVisualization,
       prefersReducedMotion,
-
-      focusStep,
-      focusStepByOffset,
-      focusFirstStep,
-      focusLastStep,
     ],
   );
 
@@ -505,17 +554,15 @@ export default function Story({
         {stickyChild ? (
           <>
             <div ref={sentinelRef} aria-hidden="true" className="scrolly-visualization-sentinel" />
-            {cloneElement<any>(
-              stickyChild as any,
-              {
-                children: shouldRenderSticky ? (stickyChild.props as any).children : null,
-                "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
-              } as any
-            )}
+            {cloneElement(stickyChild, {
+              children: shouldRenderSticky ? stickyChild.props.children : null,
+              "data-scrolly-sticky-state": shouldRenderSticky ? "mounted" : "pending",
+            })}
           </>
         ) : (
           <div className="scrolly-sticky" aria-hidden="true" />
         )}
+        <Progress />
         <div className="scrolly-steps">{stepChildren}</div>
       </StoryContext.Provider>
     </section>
