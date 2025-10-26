@@ -388,7 +388,7 @@ export default function Story({
       clearTimeout(urlSyncTimeoutRef.current);
     }
     emitUrlSyncThrottled(activeStepId, remaining);
-    urlSyncTimeoutRef.current = window.setTimeout(() => {
+    urlSyncTimeoutRef.current = setTimeout(() => {
       urlSyncTimeoutRef.current = null;
       applySync();
     }, remaining);
