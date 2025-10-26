@@ -168,6 +168,34 @@ test.describe("story scrollytelling", () => {
     await expect(steps.first()).toBeFocused();
   });
 
+  test("allows interactive visualizations to handle navigation keys", async ({ page }) => {
+    const steps = page.locator(".story-step-anchor");
+    await steps.first().focus();
+    await expect(steps.first()).toBeFocused();
+
+    const initialStepId = await page.evaluate(
+      () => window.__fakeChart?.state?.activeStepId ?? null,
+    );
+
+    const chart = page.getByTestId("fake-chart");
+    await chart.focus();
+    await expect(chart).toBeFocused();
+
+    await page.keyboard.press("ArrowDown");
+
+    await expect(chart).toBeFocused();
+    await expect
+      .poll(() => page.evaluate(() => window.__fakeChart?.state?.activeStepId ?? null))
+      .toBe(initialStepId);
+
+    if (initialStepId) {
+      await expect(page.locator(`button[data-step-id="${initialStepId}"]`)).toHaveAttribute(
+        "aria-current",
+        "step",
+      );
+    }
+  });
+
   test("disables transition animations when reduced motion is preferred", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
