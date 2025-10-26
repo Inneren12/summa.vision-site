@@ -9,6 +9,31 @@ declare module "vega-embed" {
   export default embed;
 }
 
+declare module "vega-lite" {
+  export interface TopLevelSpec extends Record<string, unknown> {
+    $schema?: string;
+    description?: string;
+    title?: string | Record<string, unknown>;
+    data?: Record<string, unknown>;
+    mark?: string | Record<string, unknown>;
+    encoding?: Record<string, unknown>;
+    transform?: ReadonlyArray<Record<string, unknown>>;
+    params?: ReadonlyArray<Record<string, unknown>>;
+    projection?: Record<string, unknown>;
+    layer?: ReadonlyArray<TopLevelSpec>;
+    hconcat?: ReadonlyArray<TopLevelSpec>;
+    vconcat?: ReadonlyArray<TopLevelSpec>;
+    repeat?: Record<string, unknown>;
+    resolve?: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    selection?: Record<string, unknown>;
+    width?: number | "container";
+    height?: number | "container";
+    autosize?: string | Record<string, unknown>;
+    background?: string;
+  }
+}
+
 declare module "echarts" {
   export type EChartsOption = Record<string, unknown>;
   export type ECharts = {
