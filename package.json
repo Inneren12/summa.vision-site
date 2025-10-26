@@ -18,6 +18,8 @@
     "web:start": "npm --workspace apps/web run start",
     "web:start:ci": "PORT=3000 node apps/web/.next/standalone/server.js",
     "web:test": "npm run copy:tokens && npm --workspace apps/web run test",
+    "web:viz:check": "npm --workspace apps/web run viz:check",
+    "web:viz:size": "npm --workspace apps/web run viz:size",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
     "lint:ff": "eslint --config .eslintrc.ff.cjs --ext .ts,.tsx app components lib/ff",

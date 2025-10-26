@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "viz:check": "eslint --ext .ts,.tsx lib/viz && tsc --project tsconfig.viz.json --noEmit",
+    "viz:size": "node ./scripts/viz-size.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^7.120.4",
