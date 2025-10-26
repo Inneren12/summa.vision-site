@@ -43,28 +43,50 @@ export default defineWorkspace([
       include: ["lib/viz/**/*.test.{ts,tsx}", "tests/viz.*.spec.{ts,tsx}"],
       environment: "jsdom",
       pool: "threads",
-      poolOptions: {
-        threads: {
-          maxThreads: 1,
-          minThreads: 1,
-        },
-      },
+      maxWorkers: 1,
       isolate: false,
       deps: {
         optimizer: {
           web: {
-            exclude: ["@deck.gl/core", "echarts", "maplibre-gl", "vega-embed"],
+            exclude: [
+              /^@deck\.gl\/.*/,
+              /^echarts(?:\/.*)?$/,
+              /^maplibre-gl(?:\/.*)?$/,
+              /^vega-embed(?:\/.*)?$/,
+              /^vega(?:-lite)?(?:\/.*)?$/,
+            ],
+          },
+          ssr: {
+            exclude: [
+              /^@deck\.gl\/.*/,
+              /^echarts(?:\/.*)?$/,
+              /^maplibre-gl(?:\/.*)?$/,
+              /^vega-embed(?:\/.*)?$/,
+              /^vega(?:-lite)?(?:\/.*)?$/,
+            ],
           },
         },
       },
     },
     resolve: {
-      alias: {
-        "@deck.gl/core": resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
-        echarts: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
-        "maplibre-gl": resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
-        "vega-embed": resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
-      },
+      alias: [
+        {
+          find: /^@deck\.gl\/.*$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
+        },
+        {
+          find: /^echarts(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
+        },
+        {
+          find: /^maplibre-gl(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
+        },
+        {
+          find: /^vega-embed(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
+        },
+      ],
       dedupe: ["@deck.gl/core", "echarts", "maplibre-gl", "vega-embed"],
     },
   },

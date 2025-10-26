@@ -5,24 +5,35 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const r = (p: string) => path.resolve(__dirname, p);
 
 export default defineConfig({
   esbuild: { sourcemap: false },
   plugins: [react()],
   resolve: {
-    alias: {
+    alias: [
       // "@/..." указывает в корень apps/web
-      "@": path.resolve(__dirname, "./"),
+      { find: "@", replacement: r("./") },
       // "@root/..." — корень монорепы
-      "@root": path.resolve(__dirname, "../../"),
-      // мок для deck.gl
-      "@deck.gl/core": path.resolve(__dirname, "tests/mocks/deck-gl-core.ts"),
-      // моки для карт и графиков
-      echarts: path.resolve(__dirname, "tests/mocks/echarts.ts"),
-      "maplibre-gl": path.resolve(__dirname, "tests/mocks/maplibre-gl.ts"),
-      // лёгкий мок для vega-embed в тестах
-      "vega-embed": path.resolve(__dirname, "tests/mocks/vega-embed.ts"),
-    },
+      { find: "@root", replacement: path.resolve(__dirname, "../../") },
+      // Жёстко подменяем тяжёлые визуальные зависимости на стабы
+      { find: /^@deck\.gl\/.*$/, replacement: r("lib/viz/stubs/deckgl-core.ts") },
+      { find: /^echarts(?:\/.*)?$/, replacement: r("lib/viz/stubs/echarts.ts") },
+      { find: /^maplibre-gl(?:\/.*)?$/, replacement: r("lib/viz/stubs/maplibre-gl.ts") },
+      { find: /^vega-embed(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-embed.ts") },
+    ],
+  },
+  optimizeDeps: {
+    exclude: [
+      "@deck.gl/core",
+      "@deck.gl/layers",
+      "@deck.gl/react",
+      "echarts",
+      "maplibre-gl",
+      "vega",
+      "vega-lite",
+      "vega-embed",
+    ],
   },
   test: {
     // По умолчанию Node; jsdom подключаем только там, где он нужен
@@ -51,6 +62,29 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     mockReset: true,
+
+    deps: {
+      optimizer: {
+        web: {
+          exclude: [
+            /^@deck\.gl\/.*/,
+            /^echarts(?:\/.*)?$/,
+            /^maplibre-gl(?:\/.*)?$/,
+            /^vega-embed(?:\/.*)?$/,
+            /^vega(?:-lite)?(?:\/.*)?$/,
+          ],
+        },
+        ssr: {
+          exclude: [
+            /^@deck\.gl\/.*/,
+            /^echarts(?:\/.*)?$/,
+            /^maplibre-gl(?:\/.*)?$/,
+            /^vega-embed(?:\/.*)?$/,
+            /^vega(?:-lite)?(?:\/.*)?$/,
+          ],
+        },
+      },
+    },
 
     coverage: {
       provider: "istanbul",
