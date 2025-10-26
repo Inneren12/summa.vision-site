@@ -25,13 +25,12 @@ export default defineConfig({
     },
   },
   test: {
-    // По умолчанию Node; jsdom подключаем только для React-рендеров
+    // По умолчанию Node; jsdom подключаем только там, где он нужен
     environment: "node",
     environmentMatchGlobs: [
       ["**/*.spec.tsx", "jsdom"],
       ["**/*.test.tsx", "jsdom"],
-      ["app/**", "jsdom"],
-      ["components/**", "jsdom"],
+      ["components/**/*.{spec,test}.tsx", "jsdom"],
       ["tests/telemetry/**", "jsdom"],
     ],
     sequence: { concurrent: false, shuffle: false },
@@ -61,11 +60,12 @@ export default defineConfig({
       all: false,
       include: ["components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
       exclude: [
-        "**/*.stories.*",
+        "**/*.stories.tsx",
         "lib/viz/stubs/**",
         "lib/viz/bootstrap.client.ts",
         "lib/stories/**",
         "scripts/**",
+        "app/(visual)/**",
         "next.config.mjs",
         "postcss.config.cjs",
         "tailwind.config.ts",
