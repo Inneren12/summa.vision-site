@@ -53,9 +53,6 @@ export default defineWorkspace([
       name: "ui",
       environment: "jsdom",
       include: ["components/**/*.{spec,test}.tsx", "app/**/*.{spec,test}.tsx"],
-      coverage: {
-        exclude: ["**/*.stories.tsx"],
-      },
     },
   },
 ]);

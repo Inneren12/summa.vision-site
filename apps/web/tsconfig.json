@@ -64,6 +64,8 @@
     "**/*.test.*",
     "**/*.spec.*",
     "vitest.config.*",
-    "playwright.config.*"
+    "playwright.config.*",
+    "vitest.workspace.ts",
+    "vitest.config.ts"
   ]
 }
