@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* third-party global styles */
+@import "maplibre-gl/dist/maplibre-gl.css";
+
 /* generated tokens and typography are copied via scripts */
 @import "./tokens.css";
 @import "./typography.css";
