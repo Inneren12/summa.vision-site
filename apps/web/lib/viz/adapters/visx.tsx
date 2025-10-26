@@ -2,16 +2,10 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import type { VisxSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
-export type VisxRenderer<TProps extends object = Record<string, unknown>> = (
-  props: TProps & { discrete: boolean },
-) => JSX.Element;
-
-export interface VisxSpec<TProps extends object = Record<string, unknown>> {
-  readonly component: VisxRenderer<TProps>;
-  readonly props?: TProps;
-}
+export type { VisxRenderer, VisxSpec } from "../spec-types";
 
 interface VisxInstance<TProps extends object = Record<string, unknown>> {
   container: HTMLElement;
@@ -24,6 +18,8 @@ function cloneSpec<TProps extends object>(spec: VisxSpec<TProps>): VisxSpec<TPro
   return {
     component: spec.component,
     props: props as TProps | undefined,
+    width: spec.width,
+    height: spec.height,
   };
 }
 

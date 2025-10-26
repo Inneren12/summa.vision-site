@@ -1,3 +1,4 @@
+import type { VegaLiteSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
 type VisualizationSpec = import("vega-embed").VisualizationSpec;
@@ -12,10 +13,10 @@ interface VegaLiteInstance {
   element: HTMLElement;
   embed: typeof import("vega-embed");
   result: VegaEmbedResult | null;
-  spec: VisualizationSpec;
+  spec: VegaLiteSpec;
 }
 
-function cloneSpec(spec: VisualizationSpec): VisualizationSpec {
+function cloneSpec(spec: VegaLiteSpec): VegaLiteSpec {
   if (typeof globalThis.structuredClone === "function") {
     try {
       return globalThis.structuredClone(spec);
@@ -23,7 +24,7 @@ function cloneSpec(spec: VisualizationSpec): VisualizationSpec {
       // fall through
     }
   }
-  return JSON.parse(JSON.stringify(spec)) as VisualizationSpec;
+  return JSON.parse(JSON.stringify(spec)) as VegaLiteSpec;
 }
 
 function animationConfig(discrete: boolean) {
@@ -38,11 +39,11 @@ function animationConfig(discrete: boolean) {
 
 async function render(
   instance: VegaLiteInstance,
-  spec: VisualizationSpec,
+  spec: VegaLiteSpec,
   discrete: boolean,
 ): Promise<VegaEmbedResult> {
   const embed = instance.embed.default ?? instance.embed;
-  const result = await embed(instance.element, spec, {
+  const result = await embed(instance.element, spec as VisualizationSpec, {
     actions: false,
     renderer: "canvas",
     config: {
@@ -55,7 +56,7 @@ async function render(
   return instance.result;
 }
 
-export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VisualizationSpec> = {
+export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VegaLiteSpec> = {
   async mount(el, spec, opts) {
     const embed = await import("vega-embed");
     const instance: VegaLiteInstance = {
