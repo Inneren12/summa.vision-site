@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
+import Progress from "@/components/scrolly/Progress";
 import StickyPanel from "@/components/scrolly/StickyPanel";
 import Story from "@/components/scrolly/Story";
 import StoryShareButton from "@/components/scrolly/StoryShareButton";
@@ -75,6 +76,7 @@ export default async function StoryPage({ params }: { params: StoryPageParams })
               ))}
             </ol>
           </nav>
+          <Progress />
           <StoryShareButton />
         </figure>
       </StickyPanel>

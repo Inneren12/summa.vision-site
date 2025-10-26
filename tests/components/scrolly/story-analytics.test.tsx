@@ -6,12 +6,12 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import Progress from "../../../components/scrolly/Progress";
 import Step from "../../../components/scrolly/Step";
 import StickyPanel from "../../../components/scrolly/StickyPanel";
 import Story from "../../../components/scrolly/Story";
 import StoryShareButton from "../../../components/scrolly/StoryShareButton";
 import { STEP_EXIT_DELAY_MS } from "../../../components/scrolly/useStoryAnalytics";
-
 
 type CapturedEvent = {
   event: string;
@@ -36,13 +36,31 @@ class MockIntersectionObserver implements IntersectionObserver {
 
   readonly thresholds: ReadonlyArray<number> = [];
 
-  constructor(_callback: IntersectionObserverCallback) {
-    void _callback;
+  private readonly callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
   }
 
   disconnect(): void {}
 
-  observe(): void {}
+  observe(target: Element): void {
+    const element = target as HTMLElement;
+    if (!element.dataset.scrollyVizSentinel) {
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    const entry = {
+      target,
+      isIntersecting: true,
+      intersectionRatio: 1,
+      boundingClientRect: rect,
+      intersectionRect: rect,
+      rootBounds: null,
+      time: Date.now(),
+    } as IntersectionObserverEntry;
+    this.callback([entry], this);
+  }
 
   takeRecords(): IntersectionObserverEntry[] {
     return [];
@@ -62,6 +80,7 @@ function renderStory(consent: "necessary" | "all" = "all") {
       <StickyPanel>
         <div>
           <StoryShareButton />
+          <Progress />
         </div>
       </StickyPanel>
       <Step id="step-1" title="Step 1">
@@ -212,6 +231,25 @@ describe("story analytics", () => {
 
     await waitFor(() => {
       expect(getEventsByType("share_click")).toHaveLength(1);
+    });
+  });
+
+  it("tracks progress render and clicks", async () => {
+    renderStory("all");
+
+    await waitFor(() => {
+      expect(getEventsByType("progress_render")).toHaveLength(1);
+    });
+
+    const stepLinks = screen.getAllByRole("link", { name: /Step \d/ });
+    await act(async () => {
+      fireEvent.click(stepLinks[1]);
+    });
+
+    await waitFor(() => {
+      expect(getEventsByType("progress_click")).toEqual([
+        expect.objectContaining({ stepId: "step-2" }),
+      ]);
     });
   });
 });

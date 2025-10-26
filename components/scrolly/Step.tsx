@@ -22,10 +22,12 @@ const INTERSECTION_ROOT_MARGIN = "-35% 0px -35% 0px";
 const INTERSECTION_THRESHOLD = 0.5;
 
 const Step = ({ id, title, children, className, descriptionId, anchorId }: StepProps) => {
-  const { activeStepId, registerStep, unregisterStep, setActiveStep } = useStoryContext();
+  const { activeStepId, registerStep, unregisterStep, setActiveStep, updateStepMetadata } =
+    useStoryContext();
   const articleRef = useRef<HTMLElement | null>(null);
   const handleKeyDown = useKeyboardNav(id);
   const domId = anchorId ?? id;
+  const stepLabel = typeof title === "string" ? title : undefined;
 
   useEffect(() => {
     const element = articleRef.current;
@@ -38,6 +40,10 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
       unregisterStep(id);
     };
   }, [id, registerStep, unregisterStep]);
+
+  useEffect(() => {
+    updateStepMetadata(id);
+  }, [id, stepLabel, updateStepMetadata]);
 
   useEffect(() => {
     const element = articleRef.current;
@@ -112,6 +118,7 @@ const Step = ({ id, title, children, className, descriptionId, anchorId }: StepP
       tabIndex={0}
       onFocus={() => setActiveStep(id)}
       onKeyDown={handleKeyDown}
+      data-scrolly-step-label={stepLabel}
     >
       {titleMarkup}
       <div
