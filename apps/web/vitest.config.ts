@@ -25,7 +25,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    // Меньше воркеров → меньше памяти в CI
+    // Один воркер для стабильной памяти в CI
+    pool: "threads",
     poolOptions: {
       threads: { maxThreads: 1, minThreads: 1 },
     },
@@ -33,6 +34,35 @@ export default defineConfig({
     globals: true, // describe/it/vi глобально
     isolate: true,
     restoreMocks: true,
-    coverage: { reporter: ["text", "lcov"] },
+    // Покрытие через istanbul + агрессивные exclude
+    coverage: {
+      provider: "istanbul",
+      reporter: ["text", "json-summary", "lcov"],
+      reportsDirectory: "./coverage",
+      all: false,
+      include: [
+        "lib/scrolly/**/*.{ts,tsx}",
+        "lib/viz/adapters/**/*.{ts,tsx}",
+        "lib/viz/events.ts",
+        "lib/viz/registry.ts",
+        "lib/viz/useVizMount.ts",
+        "lib/viz/useScrollyBindingViz.ts",
+      ],
+      exclude: [
+        "**/*.stories.*",
+        "lib/viz/stubs/**",
+        "lib/viz/bootstrap.client.ts",
+        "lib/stories/**",
+        "scripts/**",
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "app/**/not-found.tsx",
+        "app/**/(visual)/**",
+        "next.config.mjs",
+        "postcss.config.cjs",
+        "tailwind.config.ts",
+        "vitest.setup.ts",
+      ],
+    },
   },
 });
