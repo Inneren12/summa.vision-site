@@ -181,4 +181,34 @@ describe("useVizMount", () => {
       });
     }).not.toThrow();
   });
+
+  it("surfaces adapter mount failures", async () => {
+    const adapter: VizAdapter<unknown, { value: number }> = {
+      async mount() {
+        throw new Error("webgl disabled");
+      },
+      applyState: vi.fn(),
+      destroy: vi.fn(),
+    };
+
+    const element = document.createElement("div");
+
+    const { result } = renderHook(() =>
+      useVizMount({
+        adapter: async () => adapter,
+        lib: "maplibre",
+        initialSpec: { value: 1 },
+      }),
+    );
+
+    act(() => {
+      result.current.ref(element);
+    });
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toBe("webgl disabled");
+    });
+
+    expect(result.current.isReady).toBe(false);
+  });
 });
