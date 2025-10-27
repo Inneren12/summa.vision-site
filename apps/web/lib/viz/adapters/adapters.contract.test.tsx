@@ -319,6 +319,58 @@ describe("viz adapters contract", () => {
     expect(mapRemove).toHaveBeenCalled();
   });
 
+  it("maplibre adapter wires resize observer with throttling", async () => {
+    vi.useFakeTimers();
+    const observers: MockResizeObserver[] = [];
+
+    class MockResizeObserver {
+      public readonly observe = vi.fn();
+      public readonly disconnect = vi.fn();
+
+      constructor(private readonly callback: ResizeObserverCallback) {
+        observers.push(this);
+      }
+
+      trigger() {
+        this.callback([], this as unknown as ResizeObserver);
+      }
+    }
+
+    const originalResizeObserver = globalThis.ResizeObserver;
+    // @ts-expect-error override for testing
+    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+
+    const element = document.createElement("div");
+    const spec = { style: "style.json" };
+
+    try {
+      const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
+
+      const [observer] = observers;
+      expect(observer).toBeDefined();
+      expect(observer?.observe).toHaveBeenCalledWith(element);
+
+      mapResize.mockClear();
+
+      observer?.trigger();
+      expect(mapResize).toHaveBeenCalledTimes(1);
+
+      mapResize.mockClear();
+      observer?.trigger();
+      observer?.trigger();
+      expect(mapResize).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(200);
+      expect(mapResize).toHaveBeenCalledTimes(1);
+
+      mapLibreAdapter.destroy(instance);
+      expect(observer?.disconnect).toHaveBeenCalled();
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+      vi.useRealTimers();
+    }
+  });
+
   it("maplibre adapter treats previous spec as immutable", async () => {
     const element = document.createElement("div");
     const spec = { style: "style.json", camera: { center: [0, 0], zoom: 2 }, layers: [] as const };
