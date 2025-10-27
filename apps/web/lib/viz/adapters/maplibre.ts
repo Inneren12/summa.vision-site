@@ -2,6 +2,30 @@ import { emitVizEvent } from "../events";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
 import type { MotionMode, VizAdapter } from "../types";
 
+let stylesPromise: Promise<void> | null = null;
+
+async function ensureMapLibreStyles(): Promise<void> {
+  if (stylesPromise) {
+    await stylesPromise;
+    return;
+  }
+
+  if (typeof document === "undefined") {
+    stylesPromise = Promise.resolve();
+    await stylesPromise;
+    return;
+  }
+
+  if (process.env.NODE_ENV === "test") {
+    stylesPromise = Promise.resolve();
+    await stylesPromise;
+    return;
+  }
+
+  stylesPromise = import("maplibre-gl/dist/maplibre-gl.css").then(() => {});
+  await stylesPromise;
+}
+
 // Лёгкие локальные типы: не завязываемся на версию maplibre-gl
 type PaddingOptions = number | { top: number; right: number; bottom: number; left: number };
 interface MapOptions {
@@ -405,6 +429,7 @@ function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLi
 
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
+    await ensureMapLibreStyles();
     const mod = await import("maplibre-gl");
     const clone = cloneSpec(spec);
     const initialPadding = resolveCameraPadding(el, clone.camera?.padding);
