@@ -125,7 +125,7 @@ vi.mock("maplibre-gl", () => ({
 }));
 
 vi.mock("../events", () => ({
-  emitVizEvent: vi.fn(),
+  sendVizEvent: vi.fn(),
 }));
 
 const deckSetProps = vi.fn();
@@ -139,7 +139,7 @@ vi.mock("@deck.gl/core", () => ({
   Deck: DeckMock,
 }));
 
-import { emitVizEvent } from "../events";
+import { sendVizEvent } from "../events";
 
 import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts";
@@ -354,7 +354,7 @@ describe("viz adapters contract", () => {
 
     (instance.map as MapMock).emit("error", { error: new Error("tile failed") });
 
-    expect(emitVizEvent).toHaveBeenCalledWith(
+    expect(sendVizEvent).toHaveBeenCalledWith(
       "viz_error",
       expect.objectContaining({
         lib: "maplibre",

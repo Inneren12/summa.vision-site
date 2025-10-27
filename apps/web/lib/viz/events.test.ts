@@ -1,56 +1,52 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { emitVizEvent } from "./events";
+vi.mock("../analytics/send", () => ({
+  sendAnalyticsEvent: vi.fn(),
+}));
 
-describe("emitVizEvent", () => {
-  const originalDoNotTrack = Object.getOwnPropertyDescriptor(window, "doNotTrack");
+vi.mock("../analytics/events", () => ({
+  NECESSARY_VIZ_EVENTS: new Set(["viz_ready", "viz_error"]),
+}));
 
-  beforeEach(() => {
-    document.cookie = "sv_consent=all";
-  });
+import { sendAnalyticsEvent } from "../analytics/send";
 
+import { sendVizEvent } from "./events";
+
+describe("sendVizEvent", () => {
   afterEach(() => {
-    document.cookie = "sv_consent=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    if (originalDoNotTrack) {
-      Object.defineProperty(window, "doNotTrack", originalDoNotTrack);
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete (window as typeof window & { doNotTrack?: string }).doNotTrack;
-    }
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
-  it("dispatches viz events when consent allows", () => {
-    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+  it("delegates to sendAnalyticsEvent with derived necessity", () => {
+    const detail = { lib: "fake", motion: "animated" as const };
+    sendVizEvent("viz_ready", detail);
 
-    const emitted = emitVizEvent("viz_ready", { lib: "fake", motion: "animated" });
-
-    expect(emitted).toBe(true);
-    expect(dispatchSpy).toHaveBeenCalledTimes(1);
-
-    const [event] = dispatchSpy.mock.calls[0] ?? [];
-    expect(event).toBeInstanceOf(CustomEvent);
-    expect(event?.type).toBe("viz_ready");
-    expect((event as CustomEvent)?.detail).toMatchObject({ lib: "fake", motion: "animated" });
+    expect(sendAnalyticsEvent).toHaveBeenCalledWith({
+      name: "viz_ready",
+      detail,
+      isNecessary: true,
+    });
   });
 
-  it("does not dispatch events when do-not-track is enabled", () => {
-    Object.defineProperty(window, "doNotTrack", { value: "1", configurable: true });
-    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+  it("treats unknown events as non-necessary", () => {
+    const detail = { lib: "fake", motion: "discrete" as const };
+    sendVizEvent("viz_lazy_mount", detail);
 
-    const emitted = emitVizEvent("viz_ready", { lib: "fake", motion: "animated" });
-
-    expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(sendAnalyticsEvent).toHaveBeenCalledWith({
+      name: "viz_lazy_mount",
+      detail,
+      isNecessary: false,
+    });
   });
 
-  it("skips non-necessary events when consent is limited", () => {
-    document.cookie = "sv_consent=necessary";
-    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+  it("respects explicit necessary override", () => {
+    const detail = { lib: "fake", motion: "animated" as const };
+    sendVizEvent("viz_prefetch", detail, { necessary: true });
 
-    const emitted = emitVizEvent("viz_state", { lib: "fake", motion: "discrete" });
-
-    expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(sendAnalyticsEvent).toHaveBeenCalledWith({
+      name: "viz_prefetch",
+      detail,
+      isNecessary: true,
+    });
   });
 });

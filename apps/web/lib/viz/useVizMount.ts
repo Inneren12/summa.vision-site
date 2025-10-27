@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
-import { emitVizEvent } from "./events";
+import { sendVizEvent } from "./events";
 import type {
   MotionMode,
   VizAdapter,
@@ -180,7 +180,7 @@ export function useVizMount<TInstance, TSpec extends object>(
     let cancelled = false;
     const loadAdapter = async () => {
       try {
-        emitVizEvent("viz_lazy_mount", {
+        sendVizEvent("viz_lazy_mount", {
           lib,
           motion: toMotion(discreteRef.current),
           reason: "adapter-load",
@@ -199,7 +199,7 @@ export function useVizMount<TInstance, TSpec extends object>(
         }
         const nextError = asError(err);
         setError(nextError);
-        emitVizEvent("viz_error", {
+        sendVizEvent("viz_error", {
           lib,
           motion: toMotion(discreteRef.current),
           reason: "adapter-load",
@@ -230,7 +230,7 @@ export function useVizMount<TInstance, TSpec extends object>(
         } else {
           adapter.applyState(instance, payload.value, { discrete });
         }
-        emitVizEvent("viz_state", {
+        sendVizEvent("viz_state", {
           lib,
           motion,
           stepId: payload.meta?.stepId,
@@ -239,7 +239,7 @@ export function useVizMount<TInstance, TSpec extends object>(
       } catch (err) {
         const nextError = asError(err);
         setError(nextError);
-        emitVizEvent("viz_error", {
+        sendVizEvent("viz_error", {
           lib,
           motion: toMotion(discreteRef.current),
           stepId: payload.meta?.stepId,
@@ -317,7 +317,7 @@ export function useVizMount<TInstance, TSpec extends object>(
     let mountedInstance: TInstance | null = null;
 
     const discrete = discreteRef.current;
-    emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
+    sendVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
 
     const runMount = async () => {
       try {
@@ -329,12 +329,12 @@ export function useVizMount<TInstance, TSpec extends object>(
         mountedInstance = result;
         instanceRef.current = result;
         setIsReady(true);
-        emitVizEvent("viz_ready", { lib, motion: toMotion(discreteRef.current) });
+        sendVizEvent("viz_ready", { lib, motion: toMotion(discreteRef.current) });
         flushPendingStates(result);
       } catch (err) {
         const nextError = asError(err);
         setError(nextError);
-        emitVizEvent("viz_error", {
+        sendVizEvent("viz_error", {
           lib,
           motion: toMotion(discreteRef.current),
           reason: "mount",
@@ -353,7 +353,7 @@ export function useVizMount<TInstance, TSpec extends object>(
         try {
           adapter.destroy(instance);
         } catch (err) {
-          emitVizEvent("viz_error", {
+          sendVizEvent("viz_error", {
             lib,
             motion: toMotion(discreteRef.current),
             reason: "destroy",

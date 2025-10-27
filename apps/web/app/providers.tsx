@@ -1,15 +1,5 @@
 "use client";
 
-if (typeof window !== "undefined") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require("@/lib/viz/bootstrap.client");
-  } catch (err) {
-    // В тестах ок — просто пропускаем. В проде — бросаем дальше.
-    if (process.env.NODE_ENV !== "test") throw err;
-  }
-}
-
 import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
@@ -105,6 +95,19 @@ export function Providers({ children, correlation }: ProvidersProps) {
 
   useEffect(installVHVar, []);
   useEffect(() => installVisualViewportScale(), []);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await import("@/lib/viz/bootstrap.client");
+      } catch (err) {
+        if (process.env.NODE_ENV !== "test") {
+          throw err;
+        }
+      }
+    };
+    void load();
+  }, []);
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {

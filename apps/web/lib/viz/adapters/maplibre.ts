@@ -1,4 +1,4 @@
-import { emitVizEvent } from "../events";
+import { sendVizEvent } from "../events";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
 import type { MotionMode, VizAdapter } from "../types";
 
@@ -392,7 +392,7 @@ function extractErrorMessage(event: unknown): string | undefined {
 function setupErrorHandling(instance: MapLibreInstance): () => void {
   const handler = (event: unknown) => {
     const message = extractErrorMessage(event) ?? "Unknown MapLibre error";
-    emitVizEvent("viz_error", {
+    sendVizEvent("viz_error", {
       lib: "maplibre",
       motion: toMotion(instance.discrete),
       reason: "runtime",

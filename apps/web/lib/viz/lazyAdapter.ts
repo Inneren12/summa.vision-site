@@ -1,4 +1,4 @@
-import { emitVizEvent } from "./events";
+import { sendVizEvent } from "./events";
 import type {
   MotionMode,
   VizAdapter,
@@ -56,7 +56,7 @@ export function createLazyAdapter<TInstance, TSpec extends object>(
       return;
     }
     emittedLazyMount = true;
-    emitVizEvent("viz_lazy_mount", { lib, motion, reason: "mount" });
+    sendVizEvent("viz_lazy_mount", { lib, motion, reason: "mount" });
   };
 
   const emitPrefetch = (motion: MotionMode, reason?: string) => {
@@ -64,7 +64,7 @@ export function createLazyAdapter<TInstance, TSpec extends object>(
       return;
     }
     emittedPrefetch = true;
-    emitVizEvent("viz_prefetch", { lib, motion, reason: reason ?? "prefetch" });
+    sendVizEvent("viz_prefetch", { lib, motion, reason: reason ?? "prefetch" });
   };
 
   const adapter: VizAdapter<TInstance, TSpec> = {
