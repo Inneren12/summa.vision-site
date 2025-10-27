@@ -124,7 +124,7 @@ vi.mock("maplibre-gl", () => ({
   Map: MapMock,
 }));
 
-vi.mock("../events", () => ({
+vi.mock("../../analytics/send", () => ({
   emitVizEvent: vi.fn(),
 }));
 
@@ -139,7 +139,7 @@ vi.mock("@deck.gl/core", () => ({
   Deck: DeckMock,
 }));
 
-import { emitVizEvent } from "../events";
+import { emitVizEvent } from "../../analytics/send";
 
 import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts";

@@ -2,7 +2,10 @@
 import bundleAnalyzer from "@next/bundle-analyzer";
 import { disallowInitialModules, entryBudgets } from "./config/viz-bundle-rules.mjs";
 import { VizBundleBudgetPlugin } from "./lib/webpack/VizBundleBudgetPlugin.mjs";
+import { createRequire } from "node:module";
 import { securityHeaders } from "./security/headers.mjs";
+
+const require = createRequire(import.meta.url);
 
 const isDev = process.env.NODE_ENV !== "production";
 const reportOnly = process.env.CSP_REPORT_ONLY === "1";
@@ -41,6 +44,12 @@ const nextConfig = {
         }),
       );
     }
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "d3-array": require.resolve("d3-array"),
+      "d3-scale": require.resolve("d3-scale"),
+    };
+
     return config;
   },
 };

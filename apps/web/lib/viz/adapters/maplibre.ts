@@ -1,4 +1,4 @@
-import { emitVizEvent } from "../events";
+import { emitVizEvent } from "../../analytics/send";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
 import type { MotionMode, VizAdapter } from "../types";
 

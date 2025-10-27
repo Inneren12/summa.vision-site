@@ -29,6 +29,7 @@ export type VizEventName =
   | "viz_prefetch";
 
 export interface VizEventDetail {
+  readonly [key: string]: unknown;
   readonly lib: VizLibraryTag;
   readonly motion: MotionMode;
   readonly stepId?: string | null;

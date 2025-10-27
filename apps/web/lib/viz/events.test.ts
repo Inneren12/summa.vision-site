@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { emitVizEvent } from "./events";
+import { emitVizEvent } from "../analytics/send";
 
 describe("emitVizEvent", () => {
   const originalDoNotTrack = Object.getOwnPropertyDescriptor(window, "doNotTrack");
