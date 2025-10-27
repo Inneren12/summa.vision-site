@@ -1,9 +1,16 @@
 /** @type {import('next').NextConfig} */
+import bundleAnalyzer from "@next/bundle-analyzer";
+import { disallowInitialModules, entryBudgets } from "./config/viz-bundle-rules.mjs";
+import { VizBundleBudgetPlugin } from "./lib/webpack/VizBundleBudgetPlugin.mjs";
 import { securityHeaders } from "./security/headers.mjs";
 
 const isDev = process.env.NODE_ENV !== "production";
 const reportOnly = process.env.CSP_REPORT_ONLY === "1";
 const withSentry = Boolean(process.env.SENTRY_DSN);
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true" || process.env.NEXT_VIZ_ANALYZE === "1",
+});
 
 const nextConfig = {
   reactStrictMode: true,
@@ -24,6 +31,18 @@ const nextConfig = {
       { source: "/api/:path*", headers },
     ];
   },
+  webpack(config) {
+    config.plugins = config.plugins ?? [];
+    if (process.env.NEXT_DISABLE_VIZ_BUDGETS !== "1") {
+      config.plugins.push(
+        new VizBundleBudgetPlugin({
+          disallowInitial: disallowInitialModules,
+          entryBudgets,
+        }),
+      );
+    }
+    return config;
+  },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

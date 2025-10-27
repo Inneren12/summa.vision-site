@@ -180,6 +180,11 @@ export function useVizMount<TInstance, TSpec extends object>(
     let cancelled = false;
     const loadAdapter = async () => {
       try {
+        emitVizEvent("viz_lazy_mount", {
+          lib,
+          motion: toMotion(discreteRef.current),
+          reason: "adapter-load",
+        });
         const loadedModule = await adapterSource();
         if (cancelled) {
           return;
