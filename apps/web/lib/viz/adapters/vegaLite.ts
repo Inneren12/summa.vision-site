@@ -30,6 +30,18 @@ function isPlainObject(value: unknown): value is PlainObject {
 // Устойчивое извлечение категориальной палитры из токенов любой формы.
 const CATEGORY_RANGE: readonly string[] = resolveCategoryRange(brandTokens as unknown);
 
+// Дефолтная палитра (литерал можно пометить as const)
+const DEFAULT_CATEGORY_RANGE = [
+  "#2563eb",
+  "#dc2626",
+  "#059669",
+  "#d97706",
+  "#7c3aed",
+  "#0891b2",
+  "#4b5563",
+  "#16a34a",
+] as const;
+
 function resolveCategoryRange(tokens: unknown): readonly string[] {
   // Кандидатные пути до категориальных цветов (индексированные "1","2",…)
   const candidates: (readonly (string | number)[])[] = [
@@ -104,11 +116,10 @@ function resolveCategoryRange(tokens: unknown): readonly string[] {
     }
   };
   scan(tokens);
-  return (
-    hexes.length
-      ? hexes.slice(0, 8)
-      : ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#0891b2", "#4b5563", "#16a34a"]
-  ) as const;
+  if (hexes.length) {
+    return hexes.slice(0, 8);
+  }
+  return DEFAULT_CATEGORY_RANGE;
 }
 
 const BASE_THEME_CONFIG: VegaLiteSpec["config"] = {
