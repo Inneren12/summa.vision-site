@@ -10,10 +10,10 @@ interface VegaEmbedResult {
 }
 
 interface VegaLiteInstance {
-  element: HTMLElement;
-  embed: typeof import("vega-embed");
+  element: HTMLElement | null;
+  embed: typeof import("vega-embed") | null;
   result: VegaEmbedResult | null;
-  spec: VegaLiteSpec;
+  spec: VegaLiteSpec | null;
 }
 
 function cloneSpec(spec: VegaLiteSpec): VegaLiteSpec {
@@ -42,8 +42,13 @@ async function render(
   spec: VegaLiteSpec,
   discrete: boolean,
 ): Promise<VegaEmbedResult> {
-  const embed = instance.embed.default ?? instance.embed;
-  const result = await embed(instance.element, spec as VisualizationSpec, {
+  const element = instance.element;
+  const embedModule = instance.embed;
+  if (!element || !embedModule) {
+    return instance.result ?? ({} as VegaEmbedResult);
+  }
+  const embed = embedModule.default ?? embedModule;
+  const result = await embed(element, spec as VisualizationSpec, {
     actions: false,
     renderer: "canvas",
     config: {
@@ -69,12 +74,19 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VegaLiteSpec> = {
     return instance;
   },
   applyState(instance, next, opts) {
-    const previous = cloneSpec(instance.spec);
+    const currentSpec = instance.spec;
+    if (!currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previous) : next;
     void render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
     instance.result?.view?.finalize?.();
     instance.result = null;
+    instance.embed = null;
+    instance.element = null;
+    instance.spec = null;
   },
 };

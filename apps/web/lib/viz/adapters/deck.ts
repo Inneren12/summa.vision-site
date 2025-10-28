@@ -3,7 +3,7 @@ import type { VizAdapter } from "../types";
 type DeckProps = import("@deck.gl/core").DeckProps;
 
 type DeckLike = { setProps?: (p: Partial<DeckProps>) => void; finalize?: () => void };
-type Instance = { deck: DeckLike; spec: DeckProps };
+type Instance = { deck: DeckLike | null; spec: DeckProps | null };
 
 async function createDeck(el: HTMLDivElement, spec: DeckProps): Promise<Instance> {
   const { Deck } = await import("@deck.gl/core");
@@ -28,14 +28,22 @@ const baseAdapter: VizAdapter<Instance, DeckProps> = {
     return createDeck(el as HTMLDivElement, spec);
   },
   applyState(instance, next) {
-    const previous = cloneSpec(instance.spec);
+    const deck = instance.deck;
+    const currentSpec = instance.spec;
+    if (!deck || !currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const props = typeof next === "function" ? next(previous) : next;
     const clone = cloneSpec(props);
     instance.spec = clone;
-    instance.deck.setProps?.(clone);
+    deck.setProps?.(clone);
   },
   destroy(instance) {
-    instance.deck.finalize?.();
+    const deck = instance.deck;
+    instance.deck = null;
+    instance.spec = null;
+    deck?.finalize?.();
   },
 };
 

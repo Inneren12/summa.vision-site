@@ -52,6 +52,7 @@ describe("useVizMount", () => {
     window.addEventListener("viz_init", handler);
     window.addEventListener("viz_ready", handler);
     window.addEventListener("viz_state", handler);
+    window.addEventListener("viz_destroyed", handler);
 
     const { result, unmount } = renderHook(() =>
       useVizMount({
@@ -89,6 +90,7 @@ describe("useVizMount", () => {
     expect(events).toContain("viz_init");
     expect(events).toContain("viz_ready");
     expect(events).toContain("viz_state");
+    expect(events).toContain("viz_destroyed");
 
     unmount();
 
@@ -97,6 +99,7 @@ describe("useVizMount", () => {
     window.removeEventListener("viz_init", handler);
     window.removeEventListener("viz_ready", handler);
     window.removeEventListener("viz_state", handler);
+    window.removeEventListener("viz_destroyed", handler);
   });
 
   it("queues state updates until mount resolves", async () => {

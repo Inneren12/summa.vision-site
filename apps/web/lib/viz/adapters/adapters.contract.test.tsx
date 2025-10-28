@@ -178,6 +178,8 @@ describe("viz adapters contract", () => {
     const spec = { mark: "bar", data: { values: [] } } as Parameters<typeof embedMock>[0];
     const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
     const previous = instance.spec;
+    expect(previous).not.toBeNull();
+    const previousSpec = previous as NonNullable<typeof previous>;
 
     vegaLiteAdapter.applyState(
       instance,
@@ -190,7 +192,7 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
 
-    expect(previous.mark).toBe("bar");
+    expect(previousSpec.mark).toBe("bar");
   });
 
   it("echarts adapter mounts and updates options", async () => {
@@ -267,6 +269,8 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     const previous = instance.spec;
+    expect(previous).not.toBeNull();
+    const previousSpec = previous as NonNullable<typeof previous>;
 
     echartsAdapter.applyState(
       instance,
@@ -278,7 +282,7 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
 
-    expect(previous.series).toEqual([]);
+    expect(previousSpec.series).toEqual([]);
   });
 
   it("maplibre adapter mounts and applies view state", async () => {
@@ -376,6 +380,8 @@ describe("viz adapters contract", () => {
     const spec = { style: "style.json", camera: { center: [0, 0], zoom: 2 }, layers: [] as const };
     const instance = await mapLibreAdapter.mount(element, spec, { discrete: false });
     const previous = instance.spec;
+    expect(previous).not.toBeNull();
+    const previousSpec = previous as NonNullable<typeof previous>;
 
     mapLibreAdapter.applyState(
       instance,
@@ -395,8 +401,8 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
 
-    expect(previous.camera?.zoom).toBe(2);
-    expect(previous.layers).toHaveLength(0);
+    expect(previousSpec.camera?.zoom).toBe(2);
+    expect(previousSpec.layers).toHaveLength(0);
   });
 
   it("maplibre adapter emits viz_error on runtime errors", async () => {
@@ -455,6 +461,8 @@ describe("viz adapters contract", () => {
     );
 
     const previous = instance.spec;
+    expect(previous).not.toBeNull();
+    const previousSpec = previous as NonNullable<typeof previous>;
 
     visxAdapter.applyState(
       instance,
@@ -468,7 +476,7 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
 
-    expect(previous.props?.label).toBe("alpha");
+    expect(previousSpec.props?.label).toBe("alpha");
 
     visxAdapter.destroy(instance);
     expect(element.innerHTML).toBe("");
@@ -493,6 +501,8 @@ describe("viz adapters contract", () => {
     const spec = { layers: [] };
     const instance = await deckAdapter.mount(element, spec, { discrete: false });
     const previous = instance.spec;
+    expect(previous).not.toBeNull();
+    const previousSpec = previous as NonNullable<typeof previous>;
 
     deckAdapter.applyState(
       instance,
@@ -504,6 +514,6 @@ describe("viz adapters contract", () => {
       { discrete: true },
     );
 
-    expect(previous.layers).toEqual([]);
+    expect(previousSpec.layers).toEqual([]);
   });
 });

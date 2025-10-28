@@ -8,9 +8,9 @@ import type { VizAdapter } from "../types";
 export type { VisxRenderer, VisxSpec } from "../spec-types";
 
 interface VisxInstance<TProps extends Record<string, unknown> = Record<string, unknown>> {
-  container: HTMLElement;
-  root: Root;
-  spec: VisxSpec<TProps>;
+  container: HTMLElement | null;
+  root: Root | null;
+  spec: VisxSpec<TProps> | null;
 }
 
 function cloneSpec<TProps extends Record<string, unknown>>(
@@ -30,10 +30,14 @@ function render<TProps extends Record<string, unknown>>(
   spec: VisxSpec<TProps>,
   discrete: boolean,
 ) {
+  const root = instance.root;
+  if (!root) {
+    return;
+  }
   const { component, props } = spec;
   const element = createElement(component, { ...(props as TProps), discrete });
   flushSync(() => {
-    instance.root.render(element);
+    root.render(element);
   });
   instance.spec = spec;
 }
@@ -50,11 +54,18 @@ export const visxAdapter: VizAdapter<VisxInstance, VisxSpec> = {
     return instance;
   },
   applyState(instance, next, opts) {
-    const previous = cloneSpec(instance.spec);
+    const currentSpec = instance.spec;
+    if (!currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previous) : next;
     render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
-    instance.root.unmount();
+    instance.root?.unmount();
+    instance.root = null;
+    instance.container = null;
+    instance.spec = null;
   },
 };

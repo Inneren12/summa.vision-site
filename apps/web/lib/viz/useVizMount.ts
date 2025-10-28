@@ -315,11 +315,33 @@ export function useVizMount<TInstance, TSpec extends object>(
     const discrete = discreteRef.current;
     emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
 
+    const destroySafely = (instance: TInstance, reason: string) => {
+      const motion = toMotion(discreteRef.current);
+      try {
+        adapter.destroy(instance);
+      } catch (err) {
+        emitVizEvent("viz_error", {
+          lib,
+          motion,
+          reason: "destroy",
+          error: buildErrorMessage(err),
+        });
+      } finally {
+        emitVizEvent("viz_destroyed", { lib, motion, reason });
+        if (instanceRef.current === instance) {
+          instanceRef.current = null;
+        }
+        if (mountedInstance === instance) {
+          mountedInstance = null;
+        }
+      }
+    };
+
     const runMount = async () => {
       try {
         const result = await adapter.mount(target, specRef.current, { discrete });
         if (cancelled) {
-          adapter.destroy(result);
+          destroySafely(result, "cancelled");
           return;
         }
         mountedInstance = result;
@@ -346,20 +368,9 @@ export function useVizMount<TInstance, TSpec extends object>(
       setIsReady(false);
       const instance = mountedInstance ?? instanceRef.current;
       if (instance) {
-        try {
-          adapter.destroy(instance);
-        } catch (err) {
-          emitVizEvent("viz_error", {
-            lib,
-            motion: toMotion(discreteRef.current),
-            reason: "destroy",
-            error: buildErrorMessage(err),
-          });
-        }
-        if (instanceRef.current === instance) {
-          instanceRef.current = null;
-        }
+        destroySafely(instance, "unmount");
       }
+      mountedInstance = null;
     };
   }, [element, flushPendingStates, lib, adapterState]);
 
