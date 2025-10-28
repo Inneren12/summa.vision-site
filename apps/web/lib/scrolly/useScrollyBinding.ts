@@ -1,13 +1,8 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type MutableRefObject,
-  type RefObject,
-} from "react";
+import { useReducedMotion } from "@root/components/motion/useReducedMotion";
+import { useCallback, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 
 import { useScrollyContext } from "./ScrollyContext";
+
 
 const DEBOUNCE_DELAY_MS = 32;
 
@@ -32,54 +27,6 @@ interface ScheduleOptions {
   readonly force?: boolean;
 }
 
-function getPrefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [matches, setMatches] = useState(() => getPrefersReducedMotion());
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    const handleChange = () => {
-      setMatches(mediaQuery.matches);
-    };
-
-    handleChange();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => {
-        mediaQuery.removeEventListener("change", handleChange);
-      };
-    }
-
-    if (typeof mediaQuery.addListener === "function") {
-      mediaQuery.addListener(handleChange);
-      return () => {
-        mediaQuery.removeListener(handleChange);
-      };
-    }
-
-    return undefined;
-  }, []);
-
-  return matches;
-}
-
 export function triggerScrollyBinding(
   target: EventTarget,
   detail: ScrollyBindingEventDetail,
@@ -97,13 +44,13 @@ export function useScrollyBinding<T extends EventTarget>(
   statesMap: ScrollyBindingStatesMap,
 ): void {
   const { activeStepId } = useScrollyContext();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const discreteRef = useRef(prefersReducedMotion);
+  const { isReducedMotion } = useReducedMotion();
+  const discreteRef = useRef(isReducedMotion);
   const statesRef = useRef(statesMap);
   const previousStepRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  discreteRef.current = prefersReducedMotion;
+  discreteRef.current = isReducedMotion;
   statesRef.current = statesMap;
 
   const clearScheduled = useCallback(() => {
