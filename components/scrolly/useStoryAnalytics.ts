@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { recordStoryEvent } from "@/lib/analytics/tracker.client";
+
 export type StoryAnalyticsEventName =
   | "story_view"
   | "step_view"
@@ -185,6 +187,12 @@ export function useStoryAnalytics(options: UseStoryAnalyticsOptions): StoryAnaly
         return;
       }
       sendAnalyticsEvent(storyId, stepCountRef.current, event, detail, consent);
+      recordStoryEvent(event, {
+        storyId,
+        stepCount: stepCountRef.current,
+        stepId: detail.stepId,
+        stepIndex: detail.stepIndex,
+      });
     },
     [dntEnabled],
   );

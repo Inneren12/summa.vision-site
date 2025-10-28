@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+import { acceptKlaroConsent } from "./support/consent";
+
 test("home to healthz smoke", async ({ page }) => {
   await page.goto("/");
+  await acceptKlaroConsent(page);
 
   const healthzLink = page.getByRole("link", { name: "/healthz" });
   await expect(healthzLink).toBeVisible();

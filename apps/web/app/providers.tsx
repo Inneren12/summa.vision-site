@@ -97,6 +97,15 @@ export function Providers({ children, correlation }: ProvidersProps) {
     import("@/lib/viz/bootstrap.client").then((mod) => mod.init?.());
   }, []);
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === "test") {
+      return;
+    }
+    import("@/lib/analytics/consent.client")
+      .then(({ ensureConsentManager }) => ensureConsentManager())
+      .catch(() => undefined);
+  }, []);
+
   useEffect(installVHVar, []);
   useEffect(() => installVisualViewportScale(), []);
 

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { acceptKlaroConsent } from "./support/consent";
+
 const STORY_URL = "/story";
 
 async function waitForChartReady(page: Page) {
@@ -11,6 +13,7 @@ async function waitForChartReady(page: Page) {
 test.describe("story scrollytelling", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(STORY_URL);
+    await acceptKlaroConsent(page);
     await waitForChartReady(page);
   });
 
@@ -66,6 +69,7 @@ test.describe("story scrollytelling", () => {
     const hashId = `step-${targetStepId}`;
 
     await page.goto(`${STORY_URL}#${hashId}`);
+    await acceptKlaroConsent(page);
     await waitForChartReady(page);
 
     await expect
