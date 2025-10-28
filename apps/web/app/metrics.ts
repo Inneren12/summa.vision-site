@@ -2,8 +2,6 @@ import type { NextWebVitalsMetric } from "next/app";
 
 import { getClientEventBuffer } from "./telemetry/client-buffer";
 
-const TEST_ENV = process.env.NODE_ENV === "test";
-
 function snapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
   return document.body?.dataset.ffSnapshot || undefined;
@@ -37,14 +35,4 @@ export function reportWebVitals(metric: NextWebVitalsMetric) {
     navigationType: metricWithOptionals.navigationType,
     attribution: metricWithOptionals.attribution,
   });
-
-  if (!TEST_ENV && typeof window !== "undefined") {
-    void import("@/lib/analytics/tracker.client").then(({ recordVitalMetric }) => {
-      recordVitalMetric({
-        metric: metric.name,
-        value: metric.value,
-        rating: metricWithOptionals.rating,
-      });
-    });
-  }
 }

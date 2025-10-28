@@ -106,6 +106,23 @@ export function Providers({ children, correlation }: ProvidersProps) {
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === "test") {
+      return;
+    }
+    let cancelled = false;
+    void import("@/lib/metrics/perfume.client")
+      .then(({ startPerfume }) => {
+        if (!cancelled) {
+          startPerfume();
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(installVHVar, []);
   useEffect(() => installVisualViewportScale(), []);
 
