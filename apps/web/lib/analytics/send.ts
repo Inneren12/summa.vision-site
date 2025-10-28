@@ -118,6 +118,7 @@ const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
   "viz_prefetch",
   "viz_destroyed",
   "viz_fallback_engaged",
+  "viz_data_mapped",
 ]);
 
 type ExtendedVizEventDetail = VizEventDetail & {
