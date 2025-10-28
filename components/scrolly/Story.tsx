@@ -19,8 +19,10 @@ import { usePrefersReducedMotion } from "../motion/prefersReducedMotion";
 import StickyPanel from "./StickyPanel";
 import { useStoryAnalytics } from "./useStoryAnalytics";
 
+import { emitVizEvent } from "@/lib/analytics/send";
 import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
 import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
+import type { MotionMode, VizLibraryTag } from "@/lib/viz/types";
 
 export type StoryVisualizationApplyOptions = { discrete?: boolean };
 export type StoryVisualizationController = {
@@ -113,6 +115,7 @@ export type StoryProps = {
   className?: string;
   onVisualizationPrefetch?: (signal: AbortSignal) => Promise<void> | void;
   storyId?: string;
+  visualizationLib?: VizLibraryTag;
 };
 
 function classNames(...v: Array<string | undefined | false>): string {
@@ -125,6 +128,7 @@ export default function Story({
   className,
   onVisualizationPrefetch,
   storyId,
+  visualizationLib,
 }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -144,6 +148,8 @@ export default function Story({
   const [shouldRenderSticky, setShouldRenderSticky] = useState(false);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const hasPrefetchedRef = useRef(false);
+  const hasLazyMountEventRef = useRef(false);
+  const hasPrefetchEventRef = useRef(false);
 
   const viewportScale = useVisualViewportScale();
   const sentinelRootMargin = useMemo(
@@ -420,7 +426,29 @@ export default function Story({
     controller.applyState(activeStepId, { discrete: prefersReducedMotion });
   }, [activeStepId, prefersReducedMotion]);
 
+  const emitStoryVizEvent = useCallback(
+    (name: "viz_lazy_mount" | "viz_prefetch", reason: string) => {
+      if (!visualizationLib) {
+        return;
+      }
+
+      const motion: MotionMode = prefersReducedMotion ? "discrete" : "animated";
+      emitVizEvent(name, {
+        lib: visualizationLib,
+        motion,
+        storyId,
+        reason,
+      });
+    },
+    [prefersReducedMotion, storyId, visualizationLib],
+  );
+
   const runPrefetch = useCallback(() => {
+    if (!hasPrefetchEventRef.current) {
+      hasPrefetchEventRef.current = true;
+      emitStoryVizEvent("viz_prefetch", "sentinel");
+    }
+
     if (!onVisualizationPrefetch || hasPrefetchedRef.current) {
       return;
     }
@@ -432,7 +460,7 @@ export default function Story({
     Promise.resolve(onVisualizationPrefetch(controller.signal)).catch(() => {
       /* ignore */
     });
-  }, [onVisualizationPrefetch]);
+  }, [emitStoryVizEvent, onVisualizationPrefetch]);
 
   useEffect(() => {
     return () => {
@@ -455,12 +483,16 @@ export default function Story({
     const el = sentinelRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
 
-    let mounted = false;
+    let mounted = shouldRenderSticky;
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting && !mounted) {
             mounted = true;
+            if (!hasLazyMountEventRef.current) {
+              hasLazyMountEventRef.current = true;
+              emitStoryVizEvent("viz_lazy_mount", "sentinel");
+            }
             runPrefetch();
             setShouldRenderSticky(true);
             break;
@@ -473,7 +505,7 @@ export default function Story({
     return () => {
       io.disconnect();
     };
-  }, [runPrefetch, sentinelRootMargin]);
+  }, [emitStoryVizEvent, runPrefetch, sentinelRootMargin, shouldRenderSticky]);
 
   const stepCount = steps.length;
 
