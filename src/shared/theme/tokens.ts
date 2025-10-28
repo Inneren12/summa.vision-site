@@ -409,7 +409,10 @@ export const tokenPaths = [
   'z.toast'
 ] as const;
 
-export function getTokenValue(path) {
+export function getTokenValue(path: string): unknown {
   const segments = path.split('.');
-  return segments.reduce((result, segment) => (result ? result[segment] : undefined), tokens);
+  return segments.reduce(
+    (result: any, segment: string) => (result ? (result as any)[segment] : undefined),
+    tokens as any
+  );
 }
