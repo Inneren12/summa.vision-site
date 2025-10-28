@@ -42,10 +42,15 @@ export default async function StoryPage({ params }: { params: StoryPageParams })
     notFound();
   }
 
-  const { frontMatter, content } = story;
+  const { frontMatter, content, visualizationPrefetchPlan } = story;
 
   return (
-    <Story stickyTop="calc(var(--space-8) * 3)" storyId={frontMatter.slug}>
+    <Story
+      stickyTop="calc(var(--space-8) * 3)"
+      storyId={frontMatter.slug}
+      visualizationLib={frontMatter.viz?.lib}
+      visualizationPrefetchPlan={visualizationPrefetchPlan ?? undefined}
+    >
       <StickyPanel>
         <figure aria-labelledby="story-figure-title story-figure-caption">
           <div className="story-cover">

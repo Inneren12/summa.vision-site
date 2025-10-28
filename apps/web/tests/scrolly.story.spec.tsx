@@ -4,6 +4,13 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 }
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMemo } from "react";
+import { vi } from "vitest";
+
+vi.mock("@/lib/stories/prefetch.client", () => ({
+  prefetchVisualizationAssets: vi.fn(() => Promise.resolve()),
+  loadStorySpec: vi.fn(),
+  getCachedStorySpec: vi.fn(),
+}));
 
 import Step from "../../../components/scrolly/Step";
 import StickyPanel from "../../../components/scrolly/StickyPanel";
@@ -12,6 +19,8 @@ import Story, {
   STORY_VISUALIZATION_LAZY_ROOT_MARGIN,
   useStoryVisualization,
 } from "../../../components/scrolly/Story";
+
+import { prefetchVisualizationAssets } from "@/lib/stories/prefetch.client";
 
 type ObserverRecord = {
   callback: IntersectionObserverCallback;
@@ -65,11 +74,14 @@ describe("Scrollytelling Story", () => {
 
     globalThis.IntersectionObserver =
       MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
+    vi.mocked(prefetchVisualizationAssets).mockClear();
   });
 
   afterEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (globalThis as any).IntersectionObserver;
+    vi.clearAllMocks();
   });
 
   it("renders steps with focus management and aria semantics", () => {
@@ -185,6 +197,34 @@ describe("Scrollytelling Story", () => {
     window.removeEventListener("viz_prefetch", handlePrefetch);
   });
 
+  it("prefetches visualization assets from plan when sentinel triggers", async () => {
+    const plan = { needs: ["vega" as const], specPath: "story/spec.json" };
+    render(
+      <Story
+        visualizationLib="vega"
+        visualizationPrefetchPlan={plan}
+        stickyTop="calc(var(--space-8) * 2)"
+      >
+        <StickyPanel>
+          <div data-testid="viz" />
+        </StickyPanel>
+        <Step id="alpha" title="Alpha">
+          <p>Первый шаг</p>
+        </Step>
+      </Story>,
+    );
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(vi.mocked(prefetchVisualizationAssets)).toHaveBeenCalledTimes(1);
+    });
+
+    const [receivedPlan, options] = vi.mocked(prefetchVisualizationAssets).mock.calls[0] ?? [];
+    expect(receivedPlan).toEqual(plan);
+    expect(options).toMatchObject({ lib: "vega", motion: "animated" });
+  });
+
   it("notifies visualization controller with smooth transitions by default", async () => {
     vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
       matches: false,
@@ -204,7 +244,7 @@ describe("Scrollytelling Story", () => {
         () => ({
           applyState,
         }),
-        [applyState],
+        [],
       );
 
       useStoryVisualization(controller);
@@ -300,7 +340,7 @@ describe("Scrollytelling Story", () => {
         () => ({
           applyState,
         }),
-        [applyState],
+        [],
       );
 
       useStoryVisualization(controller);

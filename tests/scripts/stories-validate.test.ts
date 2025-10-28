@@ -21,5 +21,11 @@ describe("stories validator", () => {
     const messages = result.errors.map((error) => `${error.file}: ${error.message}`);
     expect(messages.some((message) => message.includes("frontMatter.cover.alt"))).toBe(true);
     expect(messages.some((message) => message.includes("frontMatter.steps.0.title"))).toBe(true);
+    expect(messages.some((message) => message.includes("frontMatter.viz.lib"))).toBe(true);
+    expect(
+      messages.some((message) =>
+        message.includes('viz.spec "./specs/chart.vl.json" does not exist'),
+      ),
+    ).toBe(true);
   });
 });

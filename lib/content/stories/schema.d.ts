@@ -20,6 +20,8 @@ export declare const storyStepSchema: z.ZodObject<
   }
 >;
 
+declare const vizLibrarySchema: z.ZodEnum<["vega", "echarts", "maplibre", "visx", "deck"]>;
+
 export declare const storyFrontMatterSchema: z.ZodObject<
   {
     title: z.ZodString;
@@ -42,6 +44,29 @@ export declare const storyFrontMatterSchema: z.ZodObject<
       }
     >;
     steps: z.ZodArray<typeof storyStepSchema, "many">;
+    viz: z.ZodOptional<
+      z.ZodObject<
+        {
+          lib: z.ZodEnum<["vega", "echarts", "maplibre", "visx", "deck"]>;
+          spec: z.ZodOptional<z.ZodString>;
+          needs: z.ZodOptional<
+            z.ZodArray<z.ZodEnum<["vega", "echarts", "maplibre", "visx", "deck"]>, "many">
+          >;
+        },
+        "strict",
+        z.ZodTypeAny,
+        {
+          lib: "vega" | "echarts" | "maplibre" | "visx" | "deck";
+          spec?: string | undefined;
+          needs?: ("vega" | "echarts" | "maplibre" | "visx" | "deck")[] | undefined;
+        },
+        {
+          lib: "vega" | "echarts" | "maplibre" | "visx" | "deck";
+          spec?: string | undefined;
+          needs?: ("vega" | "echarts" | "maplibre" | "visx" | "deck")[] | undefined;
+        }
+      >
+    >;
   },
   "strict",
   z.ZodTypeAny,
@@ -54,6 +79,13 @@ export declare const storyFrontMatterSchema: z.ZodObject<
       alt: string;
     };
     steps: Array<z.infer<typeof storyStepSchema>>;
+    viz?:
+      | {
+          lib: "vega" | "echarts" | "maplibre" | "visx" | "deck";
+          spec?: string | undefined;
+          needs?: ("vega" | "echarts" | "maplibre" | "visx" | "deck")[] | undefined;
+        }
+      | undefined;
   },
   {
     title: string;
@@ -64,12 +96,26 @@ export declare const storyFrontMatterSchema: z.ZodObject<
       alt: string;
     };
     steps: Array<z.infer<typeof storyStepSchema>>;
+    viz?:
+      | {
+          lib: "vega" | "echarts" | "maplibre" | "visx" | "deck";
+          spec?: string | undefined;
+          needs?: ("vega" | "echarts" | "maplibre" | "visx" | "deck")[] | undefined;
+        }
+      | undefined;
   }
 >;
 
 export type StoryStep = z.infer<typeof storyStepSchema> & { hash: string };
-export type StoryFrontMatter = Omit<z.infer<typeof storyFrontMatterSchema>, "steps"> & {
+export type StoryVisualizationNeed = z.infer<typeof vizLibrarySchema>;
+export type StoryVisualizationConfig = {
+  lib: StoryVisualizationNeed;
+  spec?: string;
+  needs: StoryVisualizationNeed[];
+};
+export type StoryFrontMatter = Omit<z.infer<typeof storyFrontMatterSchema>, "steps" | "viz"> & {
   steps: StoryStep[];
+  viz?: StoryVisualizationConfig;
 };
 
 export declare function normalizeStoryFrontMatter(
