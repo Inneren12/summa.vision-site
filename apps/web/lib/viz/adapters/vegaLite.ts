@@ -4,10 +4,11 @@ import brandTokens from "@root/tokens/brand.tokens.json";
 import type { VegaLiteSpec } from "../spec-types";
 import type { VizAdapter } from "../types";
 
-type VisualizationSpec = import("vega-embed").VisualizationSpec;
-type EmbedOptions = import("vega-embed").EmbedOptions;
-
-type VegaEmbedResult = import("vega-embed").Result;
+// Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
+type VegaEmbedFn = (typeof import("vega-embed"))["default"];
+type VisualizationSpec = Parameters<VegaEmbedFn>[1];
+type EmbedOptions = NonNullable<Parameters<VegaEmbedFn>[2]>;
+type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
 
 interface VegaLiteInstance {
   element: HTMLElement | null;
