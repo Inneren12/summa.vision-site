@@ -10,10 +10,10 @@ interface VegaEmbedResult {
 }
 
 interface VegaLiteInstance {
-  element: HTMLElement;
-  embed: typeof import("vega-embed");
+  element: HTMLElement | null;
+  embed: typeof import("vega-embed") | null;
   result: VegaEmbedResult | null;
-  spec: VegaLiteSpec;
+  spec: VegaLiteSpec | null;
 }
 
 function cloneSpec(spec: VegaLiteSpec): VegaLiteSpec {
@@ -42,8 +42,14 @@ async function render(
   spec: VegaLiteSpec,
   discrete: boolean,
 ): Promise<VegaEmbedResult> {
-  const embed = instance.embed.default ?? instance.embed;
-  const result = await embed(instance.element, spec as VisualizationSpec, {
+  const embedModule = instance.embed;
+  const element = instance.element;
+  if (!embedModule || !element) {
+    instance.spec = spec;
+    return Promise.resolve(instance.result ?? ({ view: undefined } as VegaEmbedResult));
+  }
+  const embed = embedModule.default ?? embedModule;
+  const result = await embed(element, spec as VisualizationSpec, {
     actions: false,
     renderer: "canvas",
     config: {
@@ -59,22 +65,30 @@ async function render(
 export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VegaLiteSpec> = {
   async mount(el, spec, opts) {
     const embed = await import("vega-embed");
+    const initial = cloneSpec(spec);
     const instance: VegaLiteInstance = {
       element: el,
       embed,
       result: null,
-      spec: cloneSpec(spec),
+      spec: initial,
     };
-    await render(instance, instance.spec, opts.discrete);
+    await render(instance, initial, opts.discrete);
     return instance;
   },
   applyState(instance, next, opts) {
-    const previous = cloneSpec(instance.spec);
+    const currentSpec = instance.spec;
+    if (!currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previous) : next;
     void render(instance, cloneSpec(spec), opts.discrete);
   },
   destroy(instance) {
     instance.result?.view?.finalize?.();
     instance.result = null;
+    instance.element = null;
+    instance.embed = null;
+    instance.spec = null;
   },
 };

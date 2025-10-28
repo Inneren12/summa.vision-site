@@ -116,6 +116,7 @@ const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
   "viz_error",
   "viz_lazy_mount",
   "viz_prefetch",
+  "viz_destroyed",
 ]);
 
 type ExtendedVizEventDetail = VizEventDetail & {

@@ -69,9 +69,9 @@ interface MapLibreMap {
 }
 
 interface MapLibreInstance {
-  map: MapLibreMap;
-  container: HTMLElement;
-  spec: MapLibreSpec;
+  map: MapLibreMap | null;
+  container: HTMLElement | null;
+  spec: MapLibreSpec | null;
   discrete: boolean;
   cleanup: Array<() => void>;
 }
@@ -196,7 +196,13 @@ function applyCamera(
     return;
   }
 
-  const padding = resolveCameraPadding(instance.container, camera.padding);
+  const container = instance.container;
+  const map = instance.map;
+  if (!container || !map) {
+    return;
+  }
+
+  const padding = resolveCameraPadding(container, camera.padding);
   const target: CameraState = {};
 
   if (camera.center) {
@@ -219,30 +225,30 @@ function applyCamera(
     return;
   }
 
-  if (!discrete && typeof instance.map.easeTo === "function") {
-    instance.map.easeTo({ ...target });
+  if (!discrete && typeof map.easeTo === "function") {
+    map.easeTo({ ...target });
     return;
   }
 
-  if (typeof instance.map.jumpTo === "function") {
-    instance.map.jumpTo(target);
+  if (typeof map.jumpTo === "function") {
+    map.jumpTo(target);
     return;
   }
 
   if (target.center) {
-    instance.map.setCenter(target.center);
+    map.setCenter(target.center);
   }
   if (typeof target.zoom === "number") {
-    instance.map.setZoom(target.zoom);
+    map.setZoom(target.zoom);
   }
   if (typeof target.pitch === "number") {
-    instance.map.setPitch(target.pitch, { duration: discrete ? 0 : undefined });
+    map.setPitch(target.pitch, { duration: discrete ? 0 : undefined });
   }
   if (typeof target.bearing === "number") {
-    instance.map.setBearing(target.bearing, { duration: discrete ? 0 : undefined });
+    map.setBearing(target.bearing, { duration: discrete ? 0 : undefined });
   }
   if (target.padding) {
-    instance.map.setPadding?.(target.padding as PaddingOptions);
+    map.setPadding?.(target.padding as PaddingOptions);
   }
 }
 
@@ -291,12 +297,17 @@ function applyMapState(
   discrete: boolean,
   previous?: MapLibreSpec,
 ) {
+  const map = instance.map;
+  if (!map) {
+    return;
+  }
+
   if (previous && !isStyleEqual(previous.style, spec.style)) {
-    instance.map.setStyle(spec.style, { diff: !discrete });
+    map.setStyle(spec.style, { diff: !discrete });
   }
 
   applyCamera(instance, spec.camera, discrete);
-  applyLayers(instance.map, spec.layers);
+  applyLayers(map, spec.layers);
 }
 
 function setupResizeObserver(map: MapLibreMap, element: HTMLElement): (() => void) | null {
@@ -390,6 +401,10 @@ function extractErrorMessage(event: unknown): string | undefined {
 }
 
 function setupErrorHandling(instance: MapLibreInstance): () => void {
+  const map = instance.map;
+  if (!map) {
+    return () => {};
+  }
   const handler = (event: unknown) => {
     const message = extractErrorMessage(event) ?? "Unknown MapLibre error";
     emitVizEvent("viz_error", {
@@ -399,9 +414,9 @@ function setupErrorHandling(instance: MapLibreInstance): () => void {
       error: message,
     });
   };
-  instance.map.on("error", handler);
+  map.on("error", handler);
   return () => {
-    instance.map.off("error", handler);
+    map.off("error", handler);
   };
 }
 
@@ -469,13 +484,18 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
     return instance;
   },
   applyState(instance, next, opts) {
-    const previousForCallback = cloneSpec(instance.spec);
+    const currentSpec = instance.spec;
+    const map = instance.map;
+    if (!map || !currentSpec) {
+      return;
+    }
+    const previousForCallback = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previousForCallback) : next;
     const clone = cloneSpec(spec);
-    const previousStored = instance.spec;
+    const previousStored = currentSpec;
     instance.spec = clone;
     instance.discrete = opts.discrete;
-    applyMapState(instance, clone, opts.discrete, previousStored);
+    applyMapState(instance, clone, opts.discrete, previousStored ?? undefined);
   },
   destroy(instance) {
     while (instance.cleanup.length > 0) {
@@ -486,6 +506,11 @@ export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
         // ignore cleanup errors
       }
     }
-    instance.map.remove();
+    instance.cleanup.length = 0;
+    instance.map?.remove();
+    instance.map = null;
+    instance.container = null;
+    instance.spec = null;
+    instance.discrete = false;
   },
 };
