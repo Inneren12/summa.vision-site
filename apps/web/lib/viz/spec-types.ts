@@ -23,6 +23,30 @@ export interface MapLibreSpec {
   readonly layers?: ReadonlyArray<MapLibreLayerInstruction>;
 }
 
+type DeckProps = import("@deck.gl/core").DeckProps;
+
+export interface DeckMapControl {
+  onAdd(map: DeckMapInstance): HTMLElement | void;
+  onRemove(): void;
+}
+
+export interface DeckMapInstance {
+  addControl(control: DeckMapControl, position?: string): void;
+  removeControl(control: DeckMapControl): void;
+}
+
+export interface DeckMapBridge {
+  readonly map: DeckMapInstance;
+  readonly position?: string;
+  readonly interleaved?: boolean;
+}
+
+export interface DeckSpec extends DeckProps {
+  readonly layers: NonNullable<DeckProps["layers"]>;
+  readonly viewState?: DeckProps["viewState"];
+  readonly map?: DeckMapBridge;
+}
+
 export type VisxRenderer<TProps extends Record<string, unknown> = Record<string, unknown>> = (
   props: TProps & { readonly discrete: boolean },
 ) => JSX.Element;

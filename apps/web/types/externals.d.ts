@@ -8,3 +8,17 @@ declare module "@deck.gl/core" {
     [key: string]: unknown;
   }
 }
+
+declare module "@deck.gl/mapbox" {
+  export interface MapboxOverlayProps {
+    [key: string]: unknown;
+  }
+
+  export class MapboxOverlay {
+    constructor(props: MapboxOverlayProps);
+    setProps(props: MapboxOverlayProps): void;
+    onAdd(map: unknown): HTMLElement;
+    onRemove(): void;
+    finalize(): void;
+  }
+}

@@ -70,6 +70,10 @@ export default defineWorkspace([
     resolve: {
       alias: [
         {
+          find: /^@deck\.gl\/mapbox(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-mapbox.ts"),
+        },
+        {
           find: /^@deck\.gl\/.*$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
         },
@@ -100,6 +104,7 @@ export default defineWorkspace([
       ],
       dedupe: [
         "@deck.gl/core",
+        "@deck.gl/mapbox",
         "echarts",
         "maplibre-gl",
         "vega-embed",
