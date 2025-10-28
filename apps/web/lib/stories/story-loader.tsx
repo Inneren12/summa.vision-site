@@ -9,12 +9,15 @@ import type { ComponentProps, ComponentType, ReactElement } from "react";
 
 import Step from "../../../../components/scrolly/Step";
 
+import type { StoryVisualizationPrefetchPlan } from "./types";
+
 const STORIES_DIR = path.join(process.cwd(), "content", "stories");
 
 export type StoryModule = {
   slug: string;
   frontMatter: StoryFrontMatter;
   content: ReactElement;
+  visualizationPrefetchPlan: StoryVisualizationPrefetchPlan | null;
 };
 
 type StepComponentProps = ComponentProps<typeof Step>;
@@ -44,6 +47,40 @@ async function compileStoryContent(source: string, frontMatter: StoryFrontMatter
   return content as ReactElement;
 }
 
+function createVisualizationPrefetchPlan(
+  frontMatter: StoryFrontMatter,
+  filePath: string,
+): StoryVisualizationPrefetchPlan | null {
+  if (!frontMatter.viz) {
+    return null;
+  }
+
+  const { needs, spec } = frontMatter.viz;
+  const planNeeds = needs ?? [];
+
+  let specPath: string | undefined;
+  if (spec) {
+    const resolved = path.resolve(path.dirname(filePath), spec);
+    const relative = path.relative(STORIES_DIR, resolved);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error(
+        `viz.spec resolves outside of stories directory for story "${frontMatter.slug}"`,
+      );
+    }
+    const normalized = relative.split(path.sep).filter(Boolean).join("/");
+    specPath = normalized;
+  }
+
+  if (!specPath && planNeeds.length === 0) {
+    return null;
+  }
+
+  return {
+    needs: planNeeds,
+    ...(specPath ? { specPath } : {}),
+  };
+}
+
 export async function getStoryBySlug(slug: string): Promise<StoryModule | null> {
   let entries: string[] = [];
   try {
@@ -64,12 +101,14 @@ export async function getStoryBySlug(slug: string): Promise<StoryModule | null> 
     const { data, content } = matter(fileContents);
     const frontMatter = normalizeStoryFrontMatter(data, path.relative(process.cwd(), filePath));
     if (frontMatter.slug === slug) {
+      const plan = createVisualizationPrefetchPlan(frontMatter as StoryFrontMatter, filePath);
       return {
         slug,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         frontMatter: frontMatter as any,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         content: await compileStoryContent(content, frontMatter as any),
+        visualizationPrefetchPlan: plan,
       } satisfies StoryModule;
     }
   }
@@ -86,10 +125,7 @@ export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
     const fileContents = await fs.readFile(filePath, "utf8");
     const { data } = matter(fileContents);
 
-    const fm0 = normalizeStoryFrontMatter(
-      data,
-      path.relative(process.cwd(), filePath)
-    );
+    const fm0 = normalizeStoryFrontMatter(data, path.relative(process.cwd(), filePath));
 
     const fm: StoryFrontMatter = {
       ...fm0,

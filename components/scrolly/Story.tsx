@@ -20,6 +20,8 @@ import StickyPanel from "./StickyPanel";
 import { useStoryAnalytics } from "./useStoryAnalytics";
 
 import { emitVizEvent } from "@/lib/analytics/send";
+import { prefetchVisualizationAssets } from "@/lib/stories/prefetch.client";
+import type { StoryVisualizationPrefetchPlan } from "@/lib/stories/types";
 import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
 import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
 import type { MotionMode, VizLibraryTag } from "@/lib/viz/types";
@@ -116,6 +118,7 @@ export type StoryProps = {
   onVisualizationPrefetch?: (signal: AbortSignal) => Promise<void> | void;
   storyId?: string;
   visualizationLib?: VizLibraryTag;
+  visualizationPrefetchPlan?: StoryVisualizationPrefetchPlan | null;
 };
 
 function classNames(...v: Array<string | undefined | false>): string {
@@ -129,6 +132,7 @@ export default function Story({
   onVisualizationPrefetch,
   storyId,
   visualizationLib,
+  visualizationPrefetchPlan,
 }: StoryProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -143,6 +147,19 @@ export default function Story({
 
   const prefersReducedMotion = usePrefersReducedMotion();
   const visualizationRef = useRef<StoryVisualizationController | null>(null);
+
+  const autoPrefetch = useMemo<((signal: AbortSignal) => Promise<void> | void) | null>(() => {
+    if (!visualizationPrefetchPlan) {
+      return null;
+    }
+    return (signal: AbortSignal) =>
+      prefetchVisualizationAssets(visualizationPrefetchPlan, {
+        signal,
+        lib: visualizationLib,
+        motion: prefersReducedMotion ? "discrete" : "animated",
+        storyId,
+      });
+  }, [visualizationPrefetchPlan, visualizationLib, prefersReducedMotion, storyId]);
 
   // ленивый маунт: изначально pending, после пересечения — mounted
   const [shouldRenderSticky, setShouldRenderSticky] = useState(false);
@@ -416,7 +433,7 @@ export default function Story({
         urlSyncTimeoutRef.current = null;
       }
     };
-  }, [activeStepId, emitUrlSyncThrottled]);
+  }, [activeStepId]);
 
   // apply visualization state
   useEffect(() => {
@@ -449,7 +466,9 @@ export default function Story({
       emitStoryVizEvent("viz_prefetch", "sentinel");
     }
 
-    if (!onVisualizationPrefetch || hasPrefetchedRef.current) {
+    const handler = onVisualizationPrefetch ?? autoPrefetch ?? undefined;
+
+    if (!handler || hasPrefetchedRef.current) {
       return;
     }
 
@@ -457,10 +476,10 @@ export default function Story({
     prefetchAbortRef.current = controller;
     hasPrefetchedRef.current = true;
 
-    Promise.resolve(onVisualizationPrefetch(controller.signal)).catch(() => {
+    Promise.resolve(handler(controller.signal)).catch(() => {
       /* ignore */
     });
-  }, [emitStoryVizEvent, onVisualizationPrefetch]);
+  }, [autoPrefetch, emitStoryVizEvent, onVisualizationPrefetch]);
 
   useEffect(() => {
     return () => {
