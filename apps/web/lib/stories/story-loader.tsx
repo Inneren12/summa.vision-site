@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import type { StoryFrontMatter } from "@root/lib/content/stories/schema";
+import type { StoryFrontMatter, StoryVisualizationConfig } from "@root/lib/content/stories/schema";
 import { normalizeStoryFrontMatter } from "@root/lib/content/stories/schema.mjs";
 import matter from "gray-matter";
 import { compileMDX } from "next-mdx-remote/rsc";
@@ -127,8 +127,14 @@ export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
 
     const fm0 = normalizeStoryFrontMatter(data, path.relative(process.cwd(), filePath));
 
+    const viz =
+      fm0.viz === undefined
+        ? undefined
+        : ({ ...fm0.viz, needs: fm0.viz.needs ?? [] } satisfies StoryVisualizationConfig);
+
     const fm: StoryFrontMatter = {
       ...fm0,
+      viz,
       // гарантируем строковый hash
       steps: fm0.steps.map((s) => ({ ...s, hash: s.hash ?? s.id })),
     };
