@@ -211,12 +211,19 @@ export function toECharts(data: CanonicalData, view: CanonicalView): EChartsSpec
   return spec;
 }
 
-const CartesianChart: VisxRenderer<VisxCartesianProps> = ({ data, view, meta }) => {
-  const width = DEFAULT_VISX_WIDTH;
-  const height = DEFAULT_VISX_HEIGHT;
+const CartesianChart: VisxRenderer<VisxCartesianProps> = ({
+  data,
+  view,
+  meta,
+  width,
+  height,
+  accessibility,
+}) => {
+  const chartWidth = width ?? DEFAULT_VISX_WIDTH;
+  const chartHeight = height ?? DEFAULT_VISX_HEIGHT;
   const margin = 48;
-  const innerWidth = Math.max(1, width - margin * 2);
-  const innerHeight = Math.max(1, height - margin * 2);
+  const innerWidth = Math.max(1, chartWidth - margin * 2);
+  const innerHeight = Math.max(1, chartHeight - margin * 2);
 
   const xMeta = meta[view.x];
   const yMeta = meta[view.y];
@@ -395,16 +402,27 @@ const CartesianChart: VisxRenderer<VisxCartesianProps> = ({ data, view, meta }) 
     yDomain,
   });
 
+  const fallbackTitle = buildVisxTitle(view);
+  const fallbackDescription = buildVisxDescription({
+    view,
+    dataPoints: points.length,
+  });
+  const title = accessibility.title ?? fallbackTitle;
+  const description = accessibility.description ?? fallbackDescription;
+  const labelledBy = `${accessibility.titleId} ${accessibility.descriptionId}`.trim();
+
   return createElement(
     "svg",
     {
       role: "img",
-      "aria-label": `${view.type} chart` as const,
-      width,
-      height,
-      viewBox: `0 0 ${width} ${height}`,
+      "aria-labelledby": labelledBy || undefined,
+      width: chartWidth,
+      height: chartHeight,
+      viewBox: `0 0 ${chartWidth} ${chartHeight}`,
       style: { background: CARTESIAN_BACKGROUND },
     },
+    createElement("title", { id: accessibility.titleId, key: "title" }, title),
+    createElement("desc", { id: accessibility.descriptionId, key: "desc" }, description),
     createElement("g", { key: "grid" }, ...axisElements.grid),
     createElement("g", { key: "axes" }, ...axisElements.axes),
     createElement("g", { key: "labels" }, ...axisElements.labels),
@@ -419,6 +437,8 @@ export function toVisx(data: CanonicalData, view: CanonicalView): VisxSpec<VisxC
     width: DEFAULT_VISX_WIDTH,
     height: DEFAULT_VISX_HEIGHT,
     component: CartesianChart,
+    title: buildVisxTitle(context.view),
+    description: buildVisxDescription({ view: context.view, dataPoints: context.data.length }),
     props: {
       data: context.data,
       normalized: context.normalizedData,
@@ -1028,4 +1048,30 @@ function computeBarWidth(pointCount: number, innerWidth: number, categoryCount?:
     return Math.max(8, innerWidth * 0.1);
   }
   return Math.max(8, (innerWidth / pointCount) * 0.6);
+}
+
+function formatViewTypeForTitle(type: CanonicalViewType): string {
+  if (!type) {
+    return "Chart";
+  }
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function buildVisxTitle(view: CanonicalView): string {
+  const formattedType = formatViewTypeForTitle(view.type);
+  return `${formattedType} chart of ${view.y} by ${view.x}`;
+}
+
+function buildVisxDescription(options: {
+  readonly view: CanonicalView;
+  readonly dataPoints: number;
+}): string {
+  const { view, dataPoints } = options;
+  const segments = [`Plots the ${view.y} field against ${view.x}.`];
+  if (view.color) {
+    segments.push(`Color encodes ${view.color}.`);
+  }
+  const count = Math.max(0, dataPoints);
+  segments.push(`Includes ${count} data point${count === 1 ? "" : "s"}.`);
+  return segments.join(" ");
 }
