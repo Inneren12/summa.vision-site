@@ -47,8 +47,20 @@ export interface DeckSpec extends DeckProps {
   readonly map?: DeckMapBridge;
 }
 
+export interface VisxAccessibilityMetadata {
+  readonly titleId: string;
+  readonly descriptionId: string;
+  readonly title?: string;
+  readonly description?: string;
+}
+
 export type VisxRenderer<TProps extends Record<string, unknown> = Record<string, unknown>> = (
-  props: TProps & { readonly discrete: boolean },
+  props: TProps & {
+    readonly discrete: boolean;
+    readonly width?: number;
+    readonly height?: number;
+    readonly accessibility: VisxAccessibilityMetadata;
+  },
 ) => JSX.Element;
 
 export interface VisxSpec<TProps extends Record<string, unknown> = Record<string, unknown>> {
@@ -56,4 +68,6 @@ export interface VisxSpec<TProps extends Record<string, unknown> = Record<string
   readonly height?: number;
   readonly component: VisxRenderer<TProps>;
   readonly props?: TProps;
+  readonly title?: string;
+  readonly description?: string;
 }

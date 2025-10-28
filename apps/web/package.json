@@ -22,6 +22,9 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^7.120.4",
+    "@visx/scale": "^3.12.0",
+    "@visx/shape": "^3.12.0",
+    "@visx/xychart": "^3.12.0",
     "d3-array": "^3.2.4",
     "d3-scale": "^4.0.2",
     "deck.gl": "^9.2.2",
