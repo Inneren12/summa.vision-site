@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import "klaro/dist/klaro.min.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
 import { Providers } from "./providers";
 
+import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { buildMetadata } from "@/lib/seo";
 
@@ -41,7 +43,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <span className="text-sm font-medium uppercase tracking-[0.2em] text-muted">
                   Summa Vision
                 </span>
-                <ThemeToggle />
+                <div className="flex items-center gap-3">
+                  <ThemeToggle />
+                  <ConsentPreferencesButton />
+                </div>
               </div>
             </header>
             <main id="main" role="main" className="px-4 py-8">
@@ -49,6 +54,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </main>
           </div>
         </Providers>
+        <div id="klaro" aria-live="polite" />
       </body>
     </html>
   );

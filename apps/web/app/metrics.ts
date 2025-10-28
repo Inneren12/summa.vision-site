@@ -2,6 +2,8 @@ import type { NextWebVitalsMetric } from "next/app";
 
 import { getClientEventBuffer } from "./telemetry/client-buffer";
 
+const TEST_ENV = process.env.NODE_ENV === "test";
+
 function snapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
   return document.body?.dataset.ffSnapshot || undefined;
@@ -15,7 +17,6 @@ function buffer(): ReturnType<typeof getClientEventBuffer> | undefined {
 
 export function reportWebVitals(metric: NextWebVitalsMetric) {
   const metricsBuffer = buffer();
-  if (!metricsBuffer) return;
 
   // NextWebVitalsMetric не объявляет delta / navigationType / rating, но web-vitals их
   // прокидывает. Забираем их опционально и не ломаем типы.
@@ -25,7 +26,7 @@ export function reportWebVitals(metric: NextWebVitalsMetric) {
     navigationType?: string;
     attribution?: Record<string, unknown>;
   };
-  metricsBuffer.enqueue({
+  metricsBuffer?.enqueue({
     name: metric.name,
     value: metric.value,
     id: metric.id,
@@ -36,4 +37,14 @@ export function reportWebVitals(metric: NextWebVitalsMetric) {
     navigationType: metricWithOptionals.navigationType,
     attribution: metricWithOptionals.attribution,
   });
+
+  if (!TEST_ENV && typeof window !== "undefined") {
+    void import("@/lib/analytics/tracker.client").then(({ recordVitalMetric }) => {
+      recordVitalMetric({
+        metric: metric.name,
+        value: metric.value,
+        rating: metricWithOptionals.rating,
+      });
+    });
+  }
 }

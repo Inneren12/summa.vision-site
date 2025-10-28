@@ -33,6 +33,14 @@ const clientSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().min(1, "NEXT_PUBLIC_APP_NAME must not be empty"),
   NEXT_PUBLIC_API_BASE_URL: z.string().url("NEXT_PUBLIC_API_BASE_URL must be a valid URL"),
   NEXT_PUBLIC_SITE_URL: z.string().url("NEXT_PUBLIC_SITE_URL must be a valid URL"),
+  NEXT_PUBLIC_ANALYTICS_DOMAIN: z
+    .string()
+    .min(1, "NEXT_PUBLIC_ANALYTICS_DOMAIN must not be empty")
+    .optional(),
+  NEXT_PUBLIC_ANALYTICS_API_HOST: z
+    .string()
+    .url("NEXT_PUBLIC_ANALYTICS_API_HOST must be a valid URL")
+    .optional(),
 });
 
 const load = <TSchema extends ZodObjectShape>(schema: TSchema) => {
