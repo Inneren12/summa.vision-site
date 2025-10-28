@@ -17,6 +17,7 @@ export default defineConfig({
       // "@root/..." — корень монорепы
       { find: "@root", replacement: path.resolve(__dirname, "../../") },
       // Жёстко подменяем тяжёлые визуальные зависимости на стабы
+      { find: /^@deck\.gl\/mapbox(?:\/.*)?$/, replacement: r("lib/viz/stubs/deckgl-mapbox.ts") },
       { find: /^@deck\.gl\/.*$/, replacement: r("lib/viz/stubs/deckgl-core.ts") },
       { find: /^echarts(?:\/.*)?$/, replacement: r("lib/viz/stubs/echarts.ts") },
       { find: /^maplibre-gl(?:\/.*)?$/, replacement: r("lib/viz/stubs/maplibre-gl.ts") },
@@ -29,6 +30,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: [
       "@deck.gl/core",
+      "@deck.gl/mapbox",
       "@deck.gl/layers",
       "@deck.gl/react",
       "echarts",

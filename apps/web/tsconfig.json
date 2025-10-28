@@ -17,6 +17,9 @@
       "@deck.gl/core": [
         "lib/viz/stubs/deckgl-core"
       ],
+      "@deck.gl/mapbox": [
+        "lib/viz/stubs/deckgl-mapbox"
+      ],
       "@root/*": [
         "../../*"
       ],

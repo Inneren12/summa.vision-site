@@ -83,3 +83,20 @@ declare module "@deck.gl/core" {
     finalize(): void;
   }
 }
+
+declare module "@deck.gl/mapbox" {
+  import type { DeckProps } from "@deck.gl/core";
+
+  export interface MapboxOverlayProps extends DeckProps {
+    id?: string;
+    interleaved?: boolean;
+  }
+
+  export class MapboxOverlay {
+    constructor(props: MapboxOverlayProps);
+    setProps(props: MapboxOverlayProps): void;
+    onAdd(map: unknown): HTMLElement;
+    onRemove(): void;
+    finalize(): void;
+  }
+}

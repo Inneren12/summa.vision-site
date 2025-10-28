@@ -36,6 +36,8 @@ const mapRemove = vi.fn();
 const mapEaseTo = vi.fn();
 const mapJumpTo = vi.fn();
 const mapResize = vi.fn();
+const mapAddControl = vi.fn();
+const mapRemoveControl = vi.fn();
 
 class MapMock {
   constructor(options: Record<string, unknown>) {
@@ -55,6 +57,8 @@ class MapMock {
   listeners: Map<string, Set<(...args: unknown[]) => void>>;
   container: HTMLElement;
   canvas: HTMLCanvasElement;
+  controls: Set<unknown> = new Set();
+  controlPositions: Map<unknown, string | undefined> = new Map();
   on(event: string, handler: (...args: unknown[]) => void) {
     const collection = this.listeners.get(event) ?? new Set();
     collection.add(handler);
@@ -117,6 +121,20 @@ class MapMock {
     this.layers.delete(id);
     mapRemoveLayer(id);
   };
+  addControl(control: { onAdd?: (map: this) => HTMLElement | void }, position?: string) {
+    this.controls.add(control);
+    this.controlPositions.set(control, position);
+    mapAddControl(control, position);
+    control.onAdd?.(this);
+  }
+  removeControl(control: { onRemove?: () => void }) {
+    if (this.controls.has(control)) {
+      this.controls.delete(control);
+      this.controlPositions.delete(control);
+    }
+    mapRemoveControl(control);
+    control.onRemove?.();
+  }
   remove = mapRemove;
   isStyleLoaded() {
     return false;
@@ -131,15 +149,45 @@ vi.mock("../../analytics/send", () => ({
   emitVizEvent: vi.fn(),
 }));
 
+const deckConstructor = vi.fn();
 const deckSetProps = vi.fn();
 const deckFinalize = vi.fn();
 class DeckMock {
-  constructor(public readonly props: Record<string, unknown>) {}
+  props: Record<string, unknown>;
+  constructor(props: Record<string, unknown>) {
+    this.props = props;
+    deckConstructor(props);
+  }
   setProps = deckSetProps;
   finalize = deckFinalize;
 }
 vi.mock("@deck.gl/core", () => ({
   Deck: DeckMock,
+}));
+
+const overlayConstructor = vi.fn();
+const overlaySetProps = vi.fn();
+const overlayFinalize = vi.fn();
+const overlayOnAdd = vi.fn();
+const overlayOnRemove = vi.fn();
+class MapboxOverlayMock {
+  props: Record<string, unknown>;
+  constructor(props: Record<string, unknown>) {
+    this.props = props;
+    overlayConstructor(props);
+  }
+  setProps = overlaySetProps;
+  onAdd = (map: unknown) => {
+    overlayOnAdd(map);
+    return document.createElement("canvas");
+  };
+  onRemove = () => {
+    overlayOnRemove();
+  };
+  finalize = overlayFinalize;
+}
+vi.mock("@deck.gl/mapbox", () => ({
+  MapboxOverlay: MapboxOverlayMock,
 }));
 
 const { supportsWebGL, supportsWebGL2, renderWebglFallback } = vi.hoisted(() => {
@@ -157,7 +205,7 @@ vi.mock("../webgl", () => ({
 
 import { emitVizEvent } from "../../analytics/send";
 
-import { deckAdapter } from "./deckgl.adapter";
+import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts.adapter";
 import { mapLibreAdapter } from "./maplibre.adapter";
 import { vegaLiteAdapter } from "./vegaLite";
@@ -179,6 +227,16 @@ describe("viz adapters contract", () => {
     supportsWebGL2.mockReturnValue(true);
     renderWebglFallback.mockReset();
     renderWebglFallback.mockReturnValue(() => {});
+    deckConstructor.mockClear();
+    deckSetProps.mockClear();
+    deckFinalize.mockClear();
+    overlayConstructor.mockClear();
+    overlaySetProps.mockClear();
+    overlayFinalize.mockClear();
+    overlayOnAdd.mockClear();
+    overlayOnRemove.mockClear();
+    mapAddControl.mockClear();
+    mapRemoveControl.mockClear();
   });
 
   it("vega-lite adapter mounts and re-renders", async () => {
@@ -572,15 +630,46 @@ describe("viz adapters contract", () => {
     expect(element.innerHTML).toBe("");
   });
 
-  it("deck adapter mounts and updates props", async () => {
+  it("deck adapter mounts Deck instance and updates props", async () => {
     const element = document.createElement("div");
-    const spec = { layers: [] };
+    const spec = {
+      layers: [],
+      viewState: { longitude: 10, latitude: 20, zoom: 4 },
+    };
     const instance = await deckAdapter.mount(element, spec, { discrete: false });
+
+    expect(deckConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parent: element,
+        layers: [],
+        glOptions: expect.objectContaining({
+          powerPreference: "high-performance",
+          failIfMajorPerformanceCaveat: true,
+          antialias: true,
+        }),
+      }),
+    );
     expect(instance.deck).toBeInstanceOf(DeckMock);
 
-    const next = { layers: [{ id: "layer" }] };
+    const next = {
+      layers: [{ id: "layer" }],
+      viewState: { longitude: 12, latitude: 22, zoom: 5, transitionDuration: 300 },
+      transitions: { getPosition: 120 },
+    };
     deckAdapter.applyState(instance, next, { discrete: true });
-    expect(deckSetProps).toHaveBeenCalledWith(next);
+
+    expect(deckSetProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layers: next.layers,
+        viewState: expect.objectContaining({
+          longitude: 12,
+          transitionDuration: 0,
+        }),
+      }),
+    );
+
+    const applied = deckSetProps.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(applied?.transitions).toEqual({});
 
     deckAdapter.destroy(instance);
     expect(deckFinalize).toHaveBeenCalled();
@@ -596,6 +685,7 @@ describe("viz adapters contract", () => {
     const instance = await deckAdapter.mount(element, spec, { discrete: false });
 
     expect(instance.deck).toBeNull();
+    expect(instance.overlay).toBeNull();
     expect(renderWebglFallback).toHaveBeenCalledWith(
       element,
       expect.objectContaining({ lib: "deck" }),
@@ -607,6 +697,55 @@ describe("viz adapters contract", () => {
 
     deckAdapter.destroy(instance);
     expect(cleanup).toHaveBeenCalled();
+  });
+
+  it("deck adapter attaches Mapbox overlay when MapLibre map is provided", async () => {
+    const element = document.createElement("div");
+    const map = new MapMock({ container: element, style: "style.json" });
+    const spec = {
+      layers: [{ id: "initial" }],
+      map: { map },
+    };
+
+    const instance = await deckAdapter.mount(element, spec, { discrete: false });
+
+    expect(instance.deck).toBeNull();
+    expect(instance.overlay).toBeInstanceOf(MapboxOverlayMock);
+    expect(deckConstructor).not.toHaveBeenCalled();
+    expect(overlayConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layers: spec.layers,
+        interleaved: true,
+      }),
+    );
+    expect(mapAddControl).toHaveBeenCalledWith(expect.any(MapboxOverlayMock), undefined);
+    expect(overlayOnAdd).toHaveBeenCalledWith(map);
+
+    deckAdapter.applyState(
+      instance,
+      {
+        layers: [{ id: "next" }],
+        viewState: { zoom: 6, transitionDuration: 400 },
+        transitions: { getRadius: 200 },
+      },
+      { discrete: true },
+    );
+
+    expect(overlaySetProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layers: [{ id: "next" }],
+        viewState: undefined,
+      }),
+    );
+
+    const overlayAppliedCall = overlaySetProps.mock.calls[overlaySetProps.mock.calls.length - 1];
+    const overlayApplied = overlayAppliedCall?.[0] as Record<string, unknown> | undefined;
+    expect(overlayApplied?.transitions).toEqual({});
+
+    deckAdapter.destroy(instance);
+    expect(mapRemoveControl).toHaveBeenCalledWith(expect.any(MapboxOverlayMock));
+    expect(overlayOnRemove).toHaveBeenCalled();
+    expect(overlayFinalize).toHaveBeenCalled();
   });
 
   it("deck adapter treats previous spec as immutable", async () => {
