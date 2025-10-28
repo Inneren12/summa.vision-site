@@ -58,24 +58,19 @@ function cloneViewState(viewState: DeckSpec["viewState"]): DeckSpec["viewState"]
 
 function cloneSpec(spec: DeckSpec): DeckSpec {
   const { map, glOptions, layers, viewState, ...rest } = spec;
-  const clone: DeckSpec = {
+  return {
     ...(rest as DeckSpec),
     layers: Array.isArray(layers) ? layers.slice() : [],
+    ...(glOptions && typeof glOptions === "object"
+      ? {
+          glOptions: {
+            ...(glOptions as Record<string, unknown>),
+          } as DeckSpec["glOptions"],
+        }
+      : {}),
+    ...(viewState ? { viewState: cloneViewState(viewState) } : {}),
+    ...(map ? { map: { ...map } } : {}),
   };
-
-  if (glOptions && typeof glOptions === "object") {
-    clone.glOptions = { ...(glOptions as Record<string, unknown>) } as DeckSpec["glOptions"];
-  }
-
-  if (viewState) {
-    clone.viewState = cloneViewState(viewState);
-  }
-
-  if (map) {
-    clone.map = { ...map };
-  }
-
-  return clone;
 }
 
 function disableTransitions(value: DeckProps["viewState"]): DeckProps["viewState"] {
