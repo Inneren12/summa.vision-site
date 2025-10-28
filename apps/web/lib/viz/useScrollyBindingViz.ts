@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { VizAdapter, VizAdapterLoader, VizLibraryTag } from "./types";
 import type { UseVizMountResult } from "./useVizMount";
 import { useVizMount } from "./useVizMount";
 
+import { useScrollyContext } from "@/lib/scrolly/ScrollyContext";
 import { type ScrollyBindingStatesMap, useScrollyBinding } from "@/lib/scrolly/useScrollyBinding";
 
 export interface VizStateContext<TSpec> {
@@ -30,7 +31,13 @@ export interface UseScrollyBindingVizOptions<TInstance, TSpec extends object> {
 export interface UseScrollyBindingVizResult<TInstance, TSpec extends object>
   extends Omit<UseVizMountResult<TInstance, TSpec>, "applyState"> {
   readonly activeStepId: string | null;
-  readonly applyStepState: (stepId: string) => void;
+  readonly applyStepState: (stepId: string, options?: VizStepApplyOptions) => void;
+}
+
+export interface VizStepApplyOptions {
+  readonly reason?: string;
+  readonly force?: boolean;
+  readonly discrete?: boolean;
 }
 
 function resolveState<TSpec>(
@@ -59,6 +66,8 @@ export function useScrollyBindingViz<TInstance, TSpec extends object>(
 
   const [initialKey, initialProducer] = initialEntry;
 
+  const { activeStepId: contextActiveStepId } = useScrollyContext();
+
   const viz = useVizMount<TInstance, TSpec>({
     adapter,
     lib,
@@ -70,46 +79,69 @@ export function useScrollyBindingViz<TInstance, TSpec extends object>(
       }),
   });
 
-  const { applyState } = viz;
+  const { applyState: applyVizState, discrete } = viz;
   const specRef = useRef(viz.currentSpec);
   specRef.current = viz.currentSpec;
 
-  const [activeStepId, setActiveStepId] = useState<string | null>(initialKey ?? null);
+  const [activeStepId, setActiveStepState] = useState<string | null>(initialKey ?? null);
+  const appliedStepRef = useRef<string | null>(initialKey ?? null);
+
+  const updateActiveStep = useCallback((next: string | null) => {
+    appliedStepRef.current = next;
+    setActiveStepState((prev) => {
+      if (prev === next) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const applyStepState = useCallback(
-    (stepId: string) => {
+    (stepId: string, options: VizStepApplyOptions = {}) => {
       const producer = states[stepId];
       if (!producer) {
         return;
       }
+      if (!options.force && appliedStepRef.current === stepId) {
+        return;
+      }
+      const discreteValue = options.discrete ?? discrete;
       const nextState = resolveState(producer, {
         stepId,
-        discrete: viz.discrete,
+        discrete: discreteValue,
         previous: specRef.current,
       });
-      applyState(() => nextState, { stepId });
-      setActiveStepId(stepId);
+      applyVizState(() => nextState, { stepId, reason: options.reason ?? "step" });
+      updateActiveStep(stepId);
     },
-    [applyState, states, viz.discrete],
+    [applyVizState, discrete, states, updateActiveStep],
   );
 
   const bindingMap = useMemo<ScrollyBindingStatesMap>(() => {
     const map: ScrollyBindingStatesMap = {};
-    for (const [stepId, producer] of Object.entries(states)) {
-      map[stepId] = ({ discrete }) => {
-        const nextState = resolveState(producer, {
-          stepId,
-          discrete,
-          previous: specRef.current,
-        });
-        applyState(() => nextState, { stepId });
-        setActiveStepId(stepId);
+    for (const stepId of Object.keys(states)) {
+      map[stepId] = ({ discrete: handlerDiscrete }) => {
+        applyStepState(stepId, { discrete: handlerDiscrete });
       };
     }
     return map;
-  }, [applyState, setActiveStepId, states]);
+  }, [applyStepState, states]);
 
   useScrollyBinding(viz.elementRef, bindingMap);
+
+  useEffect(() => {
+    if (contextActiveStepId === undefined) {
+      return;
+    }
+    if (contextActiveStepId === null) {
+      updateActiveStep(null);
+      return;
+    }
+    if (appliedStepRef.current === contextActiveStepId) {
+      return;
+    }
+    applyStepState(contextActiveStepId);
+  }, [applyStepState, contextActiveStepId, updateActiveStep]);
 
   return useMemo(
     () => ({
