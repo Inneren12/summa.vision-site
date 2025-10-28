@@ -5,6 +5,7 @@ import type * as MapLibre from "maplibre-gl";
 import { emitVizEvent } from "../../analytics/send";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
 import type { MotionMode, VizAdapter } from "../types";
+import { renderWebglFallback, supportsWebGL } from "../webgl";
 
 let _maplibreP: Promise<typeof MapLibre> | null = null;
 
@@ -444,6 +445,30 @@ function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLi
 
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
+    if (!supportsWebGL()) {
+      const clone = cloneSpec(spec);
+      const cleanup = renderWebglFallback(el, {
+        lib: "maplibre",
+        title: "Режим совместимости",
+        message: "Интерактивная карта недоступна в этом браузере.",
+        note: "Карта требует WebGL. Показан статичный режим без интерактивности.",
+      });
+      emitVizEvent("viz_fallback_engaged", {
+        lib: "maplibre",
+        motion: toMotion(opts.discrete),
+        reason: "webgl",
+        fallback: "static",
+      });
+      const instance: MapLibreInstance = {
+        map: null,
+        container: el,
+        spec: clone,
+        discrete: opts.discrete,
+        cleanup: cleanup ? [cleanup] : [],
+      };
+      return instance;
+    }
+
     const mod = await loadMapLibre();
     const clone = cloneSpec(spec);
     const initialPadding = resolveCameraPadding(el, clone.camera?.padding);

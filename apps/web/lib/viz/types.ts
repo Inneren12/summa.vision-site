@@ -27,7 +27,8 @@ export type VizEventName =
   | "viz_error"
   | "viz_lazy_mount"
   | "viz_prefetch"
-  | "viz_destroyed";
+  | "viz_destroyed"
+  | "viz_fallback_engaged";
 
 export interface VizEventDetail {
   readonly [key: string]: unknown;
