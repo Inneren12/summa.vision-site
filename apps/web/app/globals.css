@@ -32,3 +32,16 @@ body {
 .story-step-anchor {
   scroll-margin-top: clamp(5rem, 12vh, 7rem);
 }
+
+/* A11y: improve contrast in Klaro cookie banner (WCAG AA ≥ 4.5:1) */
+#klaro-cookie-notice .cm-link {
+  color: #15803d !important;
+} /* vs #fafafa → ~4.80 */
+#klaro-cookie-notice .cm-btn-success {
+  background-color: #15803d !important; /* white on #15803d → ~5.02 */
+  color: #ffffff !important;
+}
+#klaro-cookie-notice .cm-btn-danger {
+  background-color: #6b7280 !important; /* white on #6b7280 → ~4.83 */
+  color: #ffffff !important;
+}
