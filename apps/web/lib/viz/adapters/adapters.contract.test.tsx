@@ -141,9 +141,9 @@ vi.mock("@deck.gl/core", () => ({
 
 import { emitVizEvent } from "../../analytics/send";
 
-import { deckAdapter } from "./deck";
-import { echartsAdapter } from "./echarts";
-import { mapLibreAdapter } from "./maplibre";
+import { deckAdapter } from "./deckgl.adapter";
+import { echartsAdapter } from "./echarts.adapter";
+import { mapLibreAdapter } from "./maplibre.adapter";
 import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
 

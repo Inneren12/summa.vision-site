@@ -40,6 +40,11 @@ function formatOffenders(offenders) {
 
 export class RareVizBudgetPlugin {
   apply(compiler) {
+    if (process.env.NEXT_DISABLE_VIZ_BUDGETS === "1") {
+      console.warn("[viz-bundle] Rare viz budget disabled via NEXT_DISABLE_VIZ_BUDGETS=1");
+      return;
+    }
+
     const isClientCompiler = !compiler.options.name || compiler.options.name === "client";
     if (!isClientCompiler) {
       return;

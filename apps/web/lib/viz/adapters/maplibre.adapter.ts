@@ -1,6 +1,30 @@
+"use client";
+
+import type * as MapLibre from "maplibre-gl";
+
 import { emitVizEvent } from "../../analytics/send";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
 import type { MotionMode, VizAdapter } from "../types";
+
+let _maplibreP: Promise<typeof MapLibre> | null = null;
+
+/** Ленивый загрузчик maplibre-gl с кэшем промиса */
+export function loadMapLibre(): Promise<typeof MapLibre> {
+  if (!_maplibreP) {
+    // Важно: динамический import — это отдельный чанк, не initial.
+    _maplibreP = import("maplibre-gl");
+  }
+  return _maplibreP;
+}
+
+/** (опционально) Фабрика карты, если удобно использовать в историях */
+export async function createMap(container: HTMLElement, opts: MapLibre.MapOptions) {
+  const maplibre = await loadMapLibre();
+  // CSS лучше импортировать в клиентском компоненте страницы/виджета,
+  // чтобы не тянуть его глобально. Если у вас отдельный Map-компонент —
+  // импортируйте "maplibre-gl/dist/maplibre-gl.css" именно там.
+  return new maplibre.Map({ container, ...opts });
+}
 
 // Лёгкие локальные типы: не завязываемся на версию maplibre-gl
 type PaddingOptions = number | { top: number; right: number; bottom: number; left: number };
@@ -405,7 +429,7 @@ function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLi
 
 export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
-    const mod = await import("maplibre-gl");
+    const mod = await loadMapLibre();
     const clone = cloneSpec(spec);
     const initialPadding = resolveCameraPadding(el, clone.camera?.padding);
     const mapOptions: MapOptions = {
