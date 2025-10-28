@@ -139,6 +139,19 @@ vi.mock("@deck.gl/core", () => ({
   Deck: DeckMock,
 }));
 
+const { supportsWebGL, supportsWebGL2, renderWebglFallback } = vi.hoisted(() => {
+  const supportsWebGL = vi.fn(() => true);
+  const supportsWebGL2 = vi.fn(() => true);
+  const renderWebglFallback = vi.fn(() => () => {});
+  return { supportsWebGL, supportsWebGL2, renderWebglFallback };
+});
+
+vi.mock("../webgl", () => ({
+  supportsWebGL,
+  supportsWebGL2,
+  renderWebglFallback,
+}));
+
 import { emitVizEvent } from "../../analytics/send";
 
 import { deckAdapter } from "./deckgl.adapter";
@@ -157,6 +170,10 @@ describe("viz adapters contract", () => {
     echartsResize.mockClear();
     echartsDispose.mockClear();
     echartsInit.mockClear();
+    supportsWebGL.mockReturnValue(true);
+    supportsWebGL2.mockReturnValue(true);
+    renderWebglFallback.mockReset();
+    renderWebglFallback.mockReturnValue(() => {});
   });
 
   it("vega-lite adapter mounts and re-renders", async () => {
@@ -317,6 +334,34 @@ describe("viz adapters contract", () => {
     expect(mapRemoveLayer).toHaveBeenCalledTimes(2);
     mapLibreAdapter.destroy(instance);
     expect(mapRemove).toHaveBeenCalled();
+  });
+
+  it("maplibre adapter renders fallback when WebGL is unavailable", async () => {
+    supportsWebGL.mockReturnValueOnce(false);
+    const cleanup = vi.fn();
+    renderWebglFallback.mockReturnValueOnce(cleanup);
+
+    const element = document.createElement("div");
+    const spec = { style: "style.json" };
+    const instance = await mapLibreAdapter.mount(element, spec, { discrete: true });
+
+    expect(instance.map).toBeNull();
+    expect(renderWebglFallback).toHaveBeenCalledWith(
+      element,
+      expect.objectContaining({ lib: "maplibre" }),
+    );
+    expect(emitVizEvent).toHaveBeenCalledWith(
+      "viz_fallback_engaged",
+      expect.objectContaining({
+        lib: "maplibre",
+        motion: "discrete",
+        reason: "webgl",
+        fallback: "static",
+      }),
+    );
+
+    mapLibreAdapter.destroy(instance);
+    expect(cleanup).toHaveBeenCalled();
   });
 
   it("maplibre adapter wires resize observer with throttling", async () => {
@@ -486,6 +531,29 @@ describe("viz adapters contract", () => {
 
     deckAdapter.destroy(instance);
     expect(deckFinalize).toHaveBeenCalled();
+  });
+
+  it("deck adapter renders fallback when WebGL is unavailable", async () => {
+    supportsWebGL.mockReturnValueOnce(false);
+    const cleanup = vi.fn();
+    renderWebglFallback.mockReturnValueOnce(cleanup);
+
+    const element = document.createElement("div");
+    const spec = { layers: [] };
+    const instance = await deckAdapter.mount(element, spec, { discrete: false });
+
+    expect(instance.deck).toBeNull();
+    expect(renderWebglFallback).toHaveBeenCalledWith(
+      element,
+      expect.objectContaining({ lib: "deck" }),
+    );
+    expect(emitVizEvent).toHaveBeenCalledWith(
+      "viz_fallback_engaged",
+      expect.objectContaining({ lib: "deck", reason: "webgl", fallback: "static" }),
+    );
+
+    deckAdapter.destroy(instance);
+    expect(cleanup).toHaveBeenCalled();
   });
 
   it("deck adapter treats previous spec as immutable", async () => {
