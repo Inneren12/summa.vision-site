@@ -27,20 +27,89 @@ function isPlainObject(value: unknown): value is PlainObject {
   return proto === Object.prototype || proto === null;
 }
 
-const CATEGORY_RANGE: readonly string[] = [
-  brandTokens.dataviz?.series?.["1"]?.value ?? "#2563eb",
-  brandTokens.dataviz?.series?.["2"]?.value ?? "#dc2626",
-  brandTokens.dataviz?.series?.["3"]?.value ?? "#059669",
-  brandTokens.dataviz?.series?.["4"]?.value ?? "#d97706",
-  brandTokens.dataviz?.series?.["5"]?.value ?? "#7c3aed",
-  brandTokens.dataviz?.series?.["6"]?.value ?? "#0ea5e9",
-  brandTokens.dataviz?.series?.["7"]?.value ?? "#f59e0b",
-  brandTokens.dataviz?.series?.["8"]?.value ?? "#16a34a",
-  brandTokens.dataviz?.series?.["9"]?.value ?? "#ea580c",
-  brandTokens.dataviz?.series?.["10"]?.value ?? "#db2777",
-  brandTokens.dataviz?.series?.["11"]?.value ?? "#1d4ed8",
-  brandTokens.dataviz?.series?.["12"]?.value ?? "#14b8a6",
-] as const;
+// Устойчивое извлечение категориальной палитры из токенов любой формы.
+const CATEGORY_RANGE: readonly string[] = resolveCategoryRange(brandTokens as unknown);
+
+function resolveCategoryRange(tokens: unknown): readonly string[] {
+  // Кандидатные пути до категориальных цветов (индексированные "1","2",…)
+  const candidates: (readonly (string | number)[])[] = [
+    ["dataviz", "series"],
+    ["dataviz", "palette", "category"],
+    ["colors", "series"],
+    ["color", "series"],
+    ["dataviz", "colors", "category"],
+    ["palette", "category"],
+  ];
+  const get = (value: unknown, path: readonly (string | number)[]) =>
+    path.reduce<unknown>((current, key) => {
+      if (!isPlainObject(current)) {
+        return undefined;
+      }
+      return current[key as keyof PlainObject];
+    }, value);
+  const takeIndexed = (value: unknown, max = 12): string[] => {
+    if (!isPlainObject(value)) {
+      return [];
+    }
+    const source = value;
+    const out: string[] = [];
+    for (let i = 1; i <= max; i++) {
+      const entry = source[String(i)];
+      if (typeof entry === "string") {
+        out.push(entry);
+        continue;
+      }
+      if (isPlainObject(entry)) {
+        const direct = entry.value;
+        if (typeof direct === "string") {
+          out.push(direct);
+          continue;
+        }
+        const mid = entry["500"];
+        if (typeof mid === "string") {
+          out.push(mid);
+        }
+      }
+    }
+    return out;
+  };
+  for (const path of candidates) {
+    const obj = get(tokens, path);
+    const colors = takeIndexed(obj, 12).filter(Boolean);
+    if (colors.length >= 4) return colors as readonly string[];
+  }
+  // Fallback: первый найденный набор hex-значений (до 8 штук)
+  const hexes: string[] = [];
+  const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  const scan = (value: unknown) => {
+    if (!isPlainObject(value) || hexes.length >= 8) {
+      return;
+    }
+    for (const nested of Object.values(value)) {
+      if (hexes.length >= 8) {
+        break;
+      }
+      if (typeof nested === "string" && HEX.test(nested)) {
+        hexes.push(nested);
+        continue;
+      }
+      if (isPlainObject(nested)) {
+        const direct = nested.value;
+        if (typeof direct === "string" && HEX.test(direct)) {
+          hexes.push(direct);
+          continue;
+        }
+        scan(nested);
+      }
+    }
+  };
+  scan(tokens);
+  return (
+    hexes.length
+      ? hexes.slice(0, 8)
+      : ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#0891b2", "#4b5563", "#16a34a"]
+  ) as const;
+}
 
 const BASE_THEME_CONFIG: VegaLiteSpec["config"] = {
   background: tokens.color.bg.canvas,
