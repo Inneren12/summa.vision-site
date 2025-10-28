@@ -20,11 +20,17 @@ export type VizAdapterLoader<TInstance, TSpec extends object> = () =>
 
 export type VizLibraryTag = "vega" | "echarts" | "maplibre" | "visx" | "deck" | "fake";
 
-export type VizEventName = "viz_init" | "viz_ready" | "viz_state" | "viz_error";
+export type VizEventName =
+  | "viz_init"
+  | "viz_ready"
+  | "viz_state"
+  | "viz_error"
+  | "viz_lazy_mount"
+  | "viz_prefetch";
 
 export interface VizEventDetail {
   readonly [key: string]: unknown;
-  readonly lib: VizLibraryTag;
+  readonly lib?: VizLibraryTag;
   readonly motion: MotionMode;
   readonly stepId?: string | null;
   readonly reason?: string;

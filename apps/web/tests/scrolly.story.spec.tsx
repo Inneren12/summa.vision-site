@@ -107,8 +107,14 @@ describe("Scrollytelling Story", () => {
   });
 
   it("lazily mounts the visualization when the sentinel intersects", async () => {
+    const lazyEvents: CustomEvent[] = [];
+    const handleLazy = (event: Event) => {
+      lazyEvents.push(event as CustomEvent);
+    };
+    window.addEventListener("viz_lazy_mount", handleLazy);
+
     const { container } = render(
-      <Story>
+      <Story visualizationLib="fake">
         <StickyPanel>
           <div data-testid="viz" />
         </StickyPanel>
@@ -126,15 +132,27 @@ describe("Scrollytelling Story", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("viz")).toBeInTheDocument();
+      expect(lazyEvents).toHaveLength(1);
     });
 
     expect(stickyPanel).toHaveAttribute("data-scrolly-sticky-state", "mounted");
+    const detail = lazyEvents[0]?.detail as { lib?: string; reason?: string } | undefined;
+    expect(detail?.lib).toBe("fake");
+    expect(detail?.reason).toBe("sentinel");
+
+    window.removeEventListener("viz_lazy_mount", handleLazy);
   });
 
   it("prefetches visualization data with abort handling", async () => {
     const prefetch = vi.fn<[AbortSignal], Promise<void>>(() => new Promise(() => {}));
+    const prefetchEvents: CustomEvent[] = [];
+    const handlePrefetch = (event: Event) => {
+      prefetchEvents.push(event as CustomEvent);
+    };
+    window.addEventListener("viz_prefetch", handlePrefetch);
+
     const { unmount } = render(
-      <Story onVisualizationPrefetch={prefetch}>
+      <Story onVisualizationPrefetch={prefetch} visualizationLib="fake">
         <StickyPanel>
           <div data-testid="viz" />
         </StickyPanel>
@@ -148,6 +166,7 @@ describe("Scrollytelling Story", () => {
 
     await waitFor(() => {
       expect(prefetch).toHaveBeenCalledTimes(1);
+      expect(prefetchEvents).toHaveLength(1);
     });
 
     const signal = prefetch.mock.calls[0]?.[0];
@@ -157,6 +176,13 @@ describe("Scrollytelling Story", () => {
     unmount();
 
     expect(signal?.aborted).toBe(true);
+    const prefetchDetail = prefetchEvents[0]?.detail as
+      | { lib?: string; reason?: string }
+      | undefined;
+    expect(prefetchDetail?.lib).toBe("fake");
+    expect(prefetchDetail?.reason).toBe("sentinel");
+
+    window.removeEventListener("viz_prefetch", handlePrefetch);
   });
 
   it("notifies visualization controller with smooth transitions by default", async () => {
@@ -186,7 +212,7 @@ describe("Scrollytelling Story", () => {
     }
 
     render(
-      <Story>
+      <Story visualizationLib="fake">
         <StickyPanel>
           <Visualization />
         </StickyPanel>
@@ -217,6 +243,42 @@ describe("Scrollytelling Story", () => {
     await waitFor(() => {
       expect(applyState).toHaveBeenLastCalledWith("beta", { discrete: false });
     });
+  });
+
+  it("handles sentinel prefetch with 100 steps without duplicate events", async () => {
+    const lazyEvents: CustomEvent[] = [];
+    const prefetchEvents: CustomEvent[] = [];
+    const handleLazy = (event: Event) => lazyEvents.push(event as CustomEvent);
+    const handlePrefetch = (event: Event) => prefetchEvents.push(event as CustomEvent);
+
+    window.addEventListener("viz_lazy_mount", handleLazy);
+    window.addEventListener("viz_prefetch", handlePrefetch);
+
+    const steps = Array.from({ length: 100 }, (_, index) => (
+      <Step id={`step-${index}`} key={index} title={`Step ${index}`}>
+        <p>Шаг {index + 1}</p>
+      </Step>
+    ));
+
+    render(
+      <Story visualizationLib="fake">
+        <StickyPanel>
+          <div data-testid="viz" />
+        </StickyPanel>
+        {steps}
+      </Story>,
+    );
+
+    triggerVisualizationIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("viz")).toBeInTheDocument();
+      expect(lazyEvents).toHaveLength(1);
+      expect(prefetchEvents).toHaveLength(1);
+    });
+
+    window.removeEventListener("viz_lazy_mount", handleLazy);
+    window.removeEventListener("viz_prefetch", handlePrefetch);
   });
 
   it("switches visualization to discrete updates when reduced motion is preferred", async () => {
