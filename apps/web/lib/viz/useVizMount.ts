@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
 import { emitVizEvent } from "../analytics/send";
@@ -13,7 +14,6 @@ import type {
   VizStateMeta,
 } from "./types";
 
-import { usePrefersReducedMotion } from "@/components/motion/prefersReducedMotion";
 
 type InitialSpecResolver<TSpec extends object> =
   | TSpec
@@ -125,9 +125,9 @@ export function useVizMount<TInstance, TSpec extends object>(
   options: UseVizMountOptions<TInstance, TSpec>,
 ): UseVizMountResult<TInstance, TSpec> {
   const { adapter: adapterSource, lib, initialSpec } = options;
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const discreteRef = useRef(prefersReducedMotion);
-  discreteRef.current = prefersReducedMotion;
+  const { isReducedMotion } = useReducedMotion();
+  const discreteRef = useRef(isReducedMotion);
+  discreteRef.current = isReducedMotion;
 
   const adapterRef = useRef<VizAdapter<TInstance, TSpec> | null>(
     isAdapterLoader(adapterSource) ? null : adapterSource,
@@ -382,6 +382,14 @@ export function useVizMount<TInstance, TSpec extends object>(
   }, [element, flushPendingStates, lib, adapterState]);
 
   useEffect(() => {
+    emitVizEvent("viz_motion_mode", {
+      lib,
+      motion: toMotion(isReducedMotion),
+      reason: "preference",
+    });
+  }, [lib, isReducedMotion]);
+
+  useEffect(() => {
     const instance = instanceRef.current;
     if (!instance) {
       return;
@@ -391,7 +399,7 @@ export function useVizMount<TInstance, TSpec extends object>(
       wasFunction: false,
       meta: { reason: "discrete-change" },
     });
-  }, [applyToInstance, prefersReducedMotion]);
+  }, [applyToInstance, isReducedMotion]);
 
   return useMemo(
     () => ({
@@ -400,10 +408,10 @@ export function useVizMount<TInstance, TSpec extends object>(
       instance: instanceRef.current,
       currentSpec,
       isReady,
-      discrete: prefersReducedMotion,
+      discrete: isReducedMotion,
       error,
       applyState,
     }),
-    [applyState, currentSpec, error, isReady, mountRef, prefersReducedMotion],
+    [applyState, currentSpec, error, isReady, mountRef, isReducedMotion],
   );
 }

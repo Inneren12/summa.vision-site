@@ -29,7 +29,8 @@ export type VizEventName =
   | "viz_prefetch"
   | "viz_destroyed"
   | "viz_fallback_engaged"
-  | "viz_data_mapped";
+  | "viz_data_mapped"
+  | "viz_motion_mode";
 
 export interface VizEventDetail {
   readonly [key: string]: unknown;
