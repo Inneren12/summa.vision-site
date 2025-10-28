@@ -1,8 +1,11 @@
 "use client";
 
+import "focus-visible";
+import "intersection-observer";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
+import ResizeObserverPolyfill from "resize-observer-polyfill";
 
 import type { RequestCorrelation } from "../../../lib/metrics/correlation";
 
@@ -11,6 +14,14 @@ import { getClientEventBuffer } from "./telemetry/client-buffer";
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
 import installVHVar from "@/lib/viewport/installVHVar";
 import installVisualViewportScale from "@/lib/viewport/visualViewportScale";
+
+if (typeof window !== "undefined" && typeof window.ResizeObserver === "undefined") {
+  Object.defineProperty(window, "ResizeObserver", {
+    configurable: true,
+    writable: true,
+    value: ResizeObserverPolyfill,
+  });
+}
 
 function readSnapshotId(): string | undefined {
   if (typeof document === "undefined") return undefined;
