@@ -7,7 +7,7 @@ export type FakeChartSpec = {
 };
 
 export interface FakeChartInstance {
-  spec: FakeChartSpec;
+  spec: FakeChartSpec | null;
 }
 
 function cloneHistory(history: Array<string | null>): Array<string | null> {
@@ -27,11 +27,15 @@ export const fakeChartAdapter: VizAdapter<FakeChartInstance, FakeChartSpec> = {
     return { spec: cloneSpec(spec) };
   },
   applyState(instance, next) {
-    const previous = cloneSpec(instance.spec);
+    const currentSpec = instance.spec;
+    if (!currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previous) : next;
     instance.spec = cloneSpec(spec);
   },
-  destroy() {
-    // no-op
+  destroy(instance) {
+    instance.spec = null;
   },
 };

@@ -312,6 +312,36 @@ export function useVizMount<TInstance, TSpec extends object>(
     let cancelled = false;
     let mountedInstance: TInstance | null = null;
 
+    const destroySafely = (
+      instance: TInstance,
+      reason: "cancelled" | "destroy",
+      options: { clearPending?: boolean } = {},
+    ) => {
+      const motion = toMotion(discreteRef.current);
+      const { clearPending = true } = options;
+      try {
+        adapter.destroy(instance);
+      } catch (err) {
+        emitVizEvent("viz_error", {
+          lib,
+          motion,
+          reason: "destroy",
+          error: buildErrorMessage(err),
+        });
+      } finally {
+        emitVizEvent("viz_destroyed", { lib, motion, reason });
+        if (instanceRef.current === instance) {
+          instanceRef.current = null;
+        }
+        if (mountedInstance === instance) {
+          mountedInstance = null;
+        }
+        if (clearPending) {
+          pendingStatesRef.current = [];
+        }
+      }
+    };
+
     const discrete = discreteRef.current;
     emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
 
@@ -319,7 +349,7 @@ export function useVizMount<TInstance, TSpec extends object>(
       try {
         const result = await adapter.mount(target, specRef.current, { discrete });
         if (cancelled) {
-          adapter.destroy(result);
+          destroySafely(result, "cancelled", { clearPending: false });
           return;
         }
         mountedInstance = result;
@@ -346,19 +376,7 @@ export function useVizMount<TInstance, TSpec extends object>(
       setIsReady(false);
       const instance = mountedInstance ?? instanceRef.current;
       if (instance) {
-        try {
-          adapter.destroy(instance);
-        } catch (err) {
-          emitVizEvent("viz_error", {
-            lib,
-            motion: toMotion(discreteRef.current),
-            reason: "destroy",
-            error: buildErrorMessage(err),
-          });
-        }
-        if (instanceRef.current === instance) {
-          instanceRef.current = null;
-        }
+        destroySafely(instance, "destroy");
       }
     };
   }, [element, flushPendingStates, lib, adapterState]);

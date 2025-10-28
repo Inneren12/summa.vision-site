@@ -4,9 +4,9 @@ import type { VizAdapter } from "../types";
 type ECharts = import("echarts").ECharts;
 
 interface EChartsInstance {
-  element: HTMLElement;
-  chart: ECharts;
-  spec: EChartsSpec;
+  element: HTMLElement | null;
+  chart: ECharts | null;
+  spec: EChartsSpec | null;
   cleanupResizeObserver: (() => void) | null;
 }
 
@@ -121,14 +121,23 @@ export const echartsAdapter: VizAdapter<EChartsInstance, EChartsSpec> = {
     return { element: el, chart, spec: clone, cleanupResizeObserver };
   },
   applyState(instance, next, opts) {
-    const previous = cloneSpec(instance.spec);
+    const chart = instance.chart;
+    const currentSpec = instance.spec;
+    if (!chart || !currentSpec) {
+      return;
+    }
+    const previous = cloneSpec(currentSpec);
     const option = typeof next === "function" ? next(previous) : next;
     const clone = cloneSpec(option);
     instance.spec = clone;
-    setNextOption(instance.chart, clone, opts.discrete);
+    setNextOption(chart, clone, opts.discrete);
   },
   destroy(instance) {
     instance.cleanupResizeObserver?.();
-    instance.chart.dispose();
+    instance.cleanupResizeObserver = null;
+    instance.chart?.dispose();
+    instance.chart = null;
+    instance.element = null;
+    instance.spec = null;
   },
 };
