@@ -13,32 +13,46 @@ const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
 const HOST = process.env.E2E_HOST ?? "127.0.0.1";
 const WEB_URL = `http://${HOST}:${PORT}`;
 
-// Ищем server.js в standalone (новая/старая раскладки)
-const MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
-const MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
-const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : null;
-
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
-// По умолчанию запускаем next start; standalone включаем флагом
-const USE_STANDALONE = process.env.PW_USE_STANDALONE === "1" && !!SERVER_JS;
+
+const standalonePaths = [".next/standalone/apps/web/server.js", ".next/standalone/server.js"];
+const existingStandalone = standalonePaths.find((relative) =>
+  fs.existsSync(path.join(WEB_DIR, relative)),
+);
+
+const standaloneCommand = `PORT=${PORT} HOSTNAME=${HOST} node $standalone`;
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command: USE_STANDALONE
-    ? `node ${JSON.stringify(SERVER_JS)}`
-    : `npx -y next@14.2.8 start -p ${PORT}`,
+  command:
+    "bash -lc '" +
+    standalonePaths
+      .map(
+        (relative) =>
+          `[ -f ${relative} ] && standalone=${relative} && ${standaloneCommand} && exit 0`,
+      )
+      .join(" || ") +
+    ` || npx -y next@14.2.8 start -p ${PORT}'`,
   port: PORT,
-  reuseExistingServer: !process.env.CI,
-  timeout: 120_000,
-  cwd: USE_STANDALONE ? path.dirname(SERVER_JS!) : WEB_DIR,
-  env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
+  reuseExistingServer: false,
+  timeout: 180_000,
+  cwd: WEB_DIR,
+  env: {
+    ...process.env,
+    PORT: String(PORT),
+    HOSTNAME: HOST,
+    NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
+    NEXT_PUBLIC_MAP_STYLE_URL: "https://demotiles.maplibre.org/style.json",
+  },
 } as const;
 
 // Отладочный вывод — видно, какой конфиг реально используется
 console.log(
   "[PW CONFIG] file:",
   __filename,
+  "standalone:",
+  existingStandalone ?? "not found",
   "webServer:",
   SKIP_WEBSERVER ? "SKIPPED" : webServerConfig,
 );

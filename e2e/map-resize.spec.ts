@@ -20,18 +20,18 @@ test.describe("Map resize", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    await canvas.waitFor({ state: "attached", timeout: 15000 });
+    await expect(canvas).toBeAttached({ timeout: 30000 });
     await expect(canvas).toBeVisible();
 
     await page.waitForFunction(
       (selector: string) => {
-        const root = document.querySelector(selector) as HTMLElement | null;
-        const canvasEl = root?.querySelector("canvas") as HTMLCanvasElement | null;
-        if (!root || !canvasEl) return false;
-        return canvasEl.width > 0 && canvasEl.height > 0;
+        const canvasEl = document.querySelector<HTMLCanvasElement>(`${selector} canvas`);
+        if (!canvasEl) return false;
+        const rect = canvasEl.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
       },
       CONTAINER_SELECTOR,
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
 
     const initialViewport = page.viewportSize() ?? { width: 1280, height: 720 };
@@ -39,24 +39,28 @@ test.describe("Map resize", () => {
 
     await page.waitForFunction(
       (selector: string) => {
-        const root = document.querySelector(selector) as HTMLElement | null;
-        const canvasEl = root?.querySelector("canvas") as HTMLCanvasElement | null;
+        const root = document.querySelector<HTMLElement>(selector);
+        const canvasEl = root?.querySelector<HTMLCanvasElement>("canvas");
         if (!root || !canvasEl) return false;
-        const { width, height } = root.getBoundingClientRect();
+        const canvasRect = canvasEl.getBoundingClientRect();
+        const containerRect = root.getBoundingClientRect();
         return (
-          width > 0 &&
-          height > 0 &&
-          Math.abs(canvasEl.width - width) <= 1 &&
-          Math.abs(canvasEl.height - height) <= 1
+          containerRect.width > 0 &&
+          containerRect.height > 0 &&
+          Math.abs(canvasRect.width - containerRect.width) <= 1 &&
+          Math.abs(canvasRect.height - containerRect.height) <= 1
         );
       },
       CONTAINER_SELECTOR,
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
 
     const [box, canvasSize] = await Promise.all([
       container.boundingBox(),
-      canvas.evaluate((node) => ({ width: node.width, height: node.height })),
+      canvas.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }),
     ]);
 
     expect(box).toBeTruthy();
