@@ -8,24 +8,38 @@ const WEB_DIR = process.env.E2E_WEB_DIR
   ? path.resolve(process.cwd(), process.env.E2E_WEB_DIR)
   : path.resolve(__dirname, "apps/web");
 
-// Кандидаты server.js (новая и старая раскладка standalone)
-const SERVER_JS_MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
-const SERVER_JS_MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
-const HAS_MODERN = fs.existsSync(SERVER_JS_MODERN);
-const HAS_MONO = fs.existsSync(SERVER_JS_MONO);
-const SERVER_JS = HAS_MODERN ? SERVER_JS_MODERN : HAS_MONO ? SERVER_JS_MONO : null;
+// Порт/URL — всегда задаём оба
+const portCandidate = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
+const PORT = Number.isFinite(portCandidate) && portCandidate > 0 ? portCandidate : 3000;
+const HOST = process.env.E2E_HOST ?? "127.0.0.1";
+const WEB_URL = `http://${HOST}:${PORT}`;
 
-const DEFAULT_PORT = 3000;
-const parsedPort = process.env.E2E_PORT ? Number.parseInt(process.env.E2E_PORT, 10) : DEFAULT_PORT;
-const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : DEFAULT_PORT;
-const WEB_URL = `http://localhost:${PORT}`;
+// Ищем server.js в standalone (новая и старая раскладка)
+const MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
+const MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
+const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : null;
+
 const BASE_ENV = {
-  HOSTNAME: "127.0.0.1",
+  HOSTNAME: HOST,
   NODE_ENV: "production",
   NEXT_PUBLIC_APP_NAME: "Summa Vision",
   NEXT_PUBLIC_API_BASE_URL: "https://example.com/api",
   NEXT_PUBLIC_SITE_URL: "https://example.com",
 };
+
+const webServerConfig = {
+  command: SERVER_JS ? `node ${JSON.stringify(SERVER_JS)}` : `npx -y next@14.2.8 start -p ${PORT}`,
+  port: PORT,
+  url: WEB_URL,
+  reuseExistingServer: !process.env.CI,
+  timeout: 120_000,
+  cwd: SERVER_JS ? path.dirname(SERVER_JS) : WEB_DIR,
+  env: {
+    ...process.env,
+    ...BASE_ENV,
+    PORT: String(PORT),
+  },
+} as const;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -44,20 +58,8 @@ export default defineConfig({
       },
     },
   ],
-  // Запуск тестового сервера: standalone server.js (если есть) или fallback на `next start`
-  webServer: {
-    command: SERVER_JS
-      ? `node ${JSON.stringify(SERVER_JS)}`
-      : `npx -y next@14.2.8 start -p ${PORT}`,
-    port: PORT,
-    url: WEB_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    // Для standalone сервер читает порт из env:
-    env: SERVER_JS ? { ...BASE_ENV, PORT: String(PORT) } : BASE_ENV,
-    // Рабочая директория: рядом с server.js, либо корень приложения
-    cwd: SERVER_JS ? path.dirname(SERVER_JS) : WEB_DIR,
-  },
+  // Всегда один источник правды для webServer — с явно заданными port и url
+  webServer: webServerConfig,
 
   use: {
     baseURL: WEB_URL,

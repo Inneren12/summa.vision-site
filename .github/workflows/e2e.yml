@@ -74,6 +74,9 @@ jobs:
         run: node ./scripts/copy-standalone-assets.cjs
 
       - name: Run E2E smoke
+        env:
+          E2E_PORT: "3000"
+          E2E_HOST: "127.0.0.1"
         run: npx -y @playwright/test@1.48.0 test
       
       - name: Upload Playwright report
