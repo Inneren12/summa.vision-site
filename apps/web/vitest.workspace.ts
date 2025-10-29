@@ -78,16 +78,8 @@ export default defineWorkspace([
           replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
         },
         {
-          find: /^echarts(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
-        },
-        {
           find: /^maplibre-gl(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
-        },
-        {
-          find: /^vega-embed(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
         },
         {
           find: /^vega(?:\/.*)?$/,
@@ -100,6 +92,14 @@ export default defineWorkspace([
         {
           find: /^zrender(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/zrender.ts"),
+        },
+        {
+          find: /^@viz\/stubs\/echarts(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
+        },
+        {
+          find: /^@viz\/stubs\/vega-embed(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
         },
       ],
       dedupe: [

@@ -23,13 +23,14 @@
       "@root/*": [
         "../../*"
       ],
-      "echarts": [
-        "lib/viz/stubs/echarts"
-      ],
       "maplibre-gl": [
         "lib/viz/stubs/maplibre-gl"
       ],
-      "vega-embed": [
+      /* Stubs live under explicit aliases — tests/санити могут их использовать при желании */
+      "@viz/stubs/echarts": [
+        "lib/viz/stubs/echarts"
+      ],
+      "@viz/stubs/vega-embed": [
         "lib/viz/stubs/vega-embed"
       ]
     },
