@@ -7,7 +7,7 @@ export default {
     command: "node .next/standalone/server.js", // без inline PORT для Windows
     cwd: "apps/web", // запускаем из каталога сборки
     env: { PORT: "3010" }, // порт задаём через env (Windows-friendly)
-    url: "http://localhost:3010", // должен совпадать с PORT
+    port: 3010, // Playwright 1.48.0 не принимает одновременный port+url
     reuseExistingServer: false,
     timeout: 120000,
   },

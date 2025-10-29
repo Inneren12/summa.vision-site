@@ -8,7 +8,7 @@ const WEB_DIR = process.env.E2E_WEB_DIR
   ? path.resolve(process.cwd(), process.env.E2E_WEB_DIR)
   : path.resolve(__dirname, "apps/web");
 
-// Порт/URL — ВСЕГДА задаём оба
+// Параметры сервера e2e. Playwright 1.48.0 требует, чтобы в webServer был либо port, либо url.
 const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
 const HOST = process.env.E2E_HOST ?? "127.0.0.1";
 const WEB_URL = `http://${HOST}:${PORT}`;
@@ -25,7 +25,6 @@ const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 const webServerConfig = {
   command: SERVER_JS ? `node ${JSON.stringify(SERVER_JS)}` : `npx -y next@14.2.8 start -p ${PORT}`,
   port: PORT,
-  url: WEB_URL,
   reuseExistingServer: !process.env.CI,
   timeout: 120_000,
   cwd: SERVER_JS ? path.dirname(SERVER_JS) : WEB_DIR,
