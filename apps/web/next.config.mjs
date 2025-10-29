@@ -5,7 +5,6 @@ import createNextPWA from "next-pwa";
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { ExpirationPlugin } from "workbox-expiration";
 import { RangeRequestsPlugin } from "workbox-range-requests";
-import { WarmStrategyCache } from "workbox-recipes";
 import { NetworkFirst, StaleWhileRevalidate } from "workbox-strategies";
 
 import { securityHeaders } from "./security/headers.mjs";
@@ -23,6 +22,21 @@ const withBundleAnalyzer = bundleAnalyzer({
 const OFFLINE_PAGE = "/offline";
 const HERO_IMAGE_WARM_URL = "/brand/summa-vision-mark.png";
 const STORY_DATA_WARM_URLS = ["/api/stories"];
+
+const GOOGLE_FONTS_CACHE = {
+  urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
+  handler: "CacheFirst",
+  options: {
+    cacheName: "google-fonts",
+    expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 365 },
+    cacheableResponse: { statuses: [0, 200] },
+  },
+};
+
+const ADDITIONAL_MANIFEST_ENTRIES = [
+  { url: HERO_IMAGE_WARM_URL, revision: null },
+  ...STORY_DATA_WARM_URLS.map((url) => ({ url, revision: null })),
+];
 
 const pageCachePlugins = [
   new CacheableResponsePlugin({ statuses: [200] }),
@@ -43,17 +57,6 @@ const storyApiPlugins = [
   new CacheableResponsePlugin({ statuses: [200] }),
   new ExpirationPlugin({ maxEntries: 24, maxAgeSeconds: 60 * 60 * 12 }),
 ];
-
-const storyApiWarmStrategy = new NetworkFirst({
-  cacheName: "story-api",
-  networkTimeoutSeconds: 10,
-  plugins: storyApiPlugins,
-});
-
-const imageWarmStrategy = new StaleWhileRevalidate({
-  cacheName: "image-assets",
-  plugins: imageAssetPlugins,
-});
 
 const runtimeCaching = [
   {
@@ -76,18 +79,13 @@ const runtimeCaching = [
       plugins: staticAssetPlugins,
     },
   },
+  GOOGLE_FONTS_CACHE,
   {
     urlPattern: ({ request }) => request.destination === "image",
     handler: "StaleWhileRevalidate",
     options: {
       cacheName: "image-assets",
-      plugins: [
-        ...imageAssetPlugins,
-        new WarmStrategyCache({
-          urls: [HERO_IMAGE_WARM_URL],
-          strategy: imageWarmStrategy,
-        }),
-      ],
+      plugins: imageAssetPlugins,
     },
   },
   {
@@ -97,13 +95,7 @@ const runtimeCaching = [
     options: {
       cacheName: "story-api",
       networkTimeoutSeconds: 10,
-      plugins: [
-        ...storyApiPlugins,
-        new WarmStrategyCache({
-          urls: STORY_DATA_WARM_URLS,
-          strategy: storyApiWarmStrategy,
-        }),
-      ],
+      plugins: storyApiPlugins,
     },
   },
   {
@@ -148,6 +140,7 @@ const withPWA = createNextPWA({
   skipWaiting: true,
   workboxOptions: {
     clientsClaim: true,
+    additionalManifestEntries: ADDITIONAL_MANIFEST_ENTRIES,
     ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
     navigationPreload: true,
     navigateFallback: OFFLINE_PAGE,
