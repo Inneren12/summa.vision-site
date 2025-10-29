@@ -13,6 +13,101 @@ const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true" || process.env.NEXT_VIZ_ANALYZE === "1",
 });
 
+const HERO_IMAGE_WARM_URL = "/brand/summa-vision-mark.png";
+const STORY_DATA_WARM_URLS = ["/api/stories", "/api/story?slug=story-demo"];
+
+const ADDITIONAL_PRECACHE = [
+  { url: HERO_IMAGE_WARM_URL, revision: null },
+  ...STORY_DATA_WARM_URLS.map((url) => ({ url, revision: null })),
+];
+
+const withPWA = require("next-pwa")({
+  dest: "public",
+  disable: isDev,
+  register: true,
+  skipWaiting: true,
+  fallbacks: { document: "/offline" },
+  additionalManifestEntries: [
+    { url: "/", revision: null },
+    { url: "/atoms", revision: null },
+    { url: "/healthz", revision: null },
+    { url: "/story", revision: null },
+    ...ADDITIONAL_PRECACHE,
+  ],
+  runtimeCaching: [
+    {
+      urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
+      handler: "StaleWhileRevalidate",
+      options: {
+        cacheName: "google-fonts-stylesheets",
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 7 * 24 * 60 * 60,
+        },
+      },
+    },
+    {
+      urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
+      handler: "CacheFirst",
+      options: {
+        cacheName: "google-fonts-webfonts",
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 365 * 24 * 60 * 60,
+        },
+        cacheableResponse: {
+          statuses: [0, 200],
+        },
+      },
+    },
+    {
+      urlPattern: ({ request }) => request.destination === "image",
+      handler: "CacheFirst",
+      options: {
+        cacheName: "image-assets",
+        expiration: {
+          maxEntries: 64,
+          maxAgeSeconds: 30 * 24 * 60 * 60,
+        },
+        cacheableResponse: {
+          statuses: [0, 200],
+        },
+      },
+    },
+    {
+      urlPattern: ({ request }) =>
+        request.destination === "style" ||
+        request.destination === "script" ||
+        request.destination === "worker",
+      handler: "StaleWhileRevalidate",
+      options: {
+        cacheName: "static-resources",
+        expiration: {
+          maxEntries: 48,
+          maxAgeSeconds: 7 * 24 * 60 * 60,
+        },
+      },
+    },
+    {
+      urlPattern: ({ url }) =>
+        url.pathname.startsWith("/api/stories") || url.pathname.startsWith("/api/story"),
+      handler: "NetworkFirst",
+      method: "GET",
+      options: {
+        cacheName: "story-api",
+        networkTimeoutSeconds: 10,
+        cacheableResponse: {
+          statuses: [0, 200],
+        },
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 12 * 60 * 60,
+        },
+      },
+    },
+  ],
+});
+
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
@@ -51,4 +146,4 @@ const nextConfig = {
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+export default withBundleAnalyzer(withPWA(nextConfig));
