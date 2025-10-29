@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode, ErrorInfo } from "react";
 import { useCallback, useEffect, useMemo } from "react";
 import ResizeObserverPolyfill from "resize-observer-polyfill";
+import { onCLS, onINP, onLCP, type Metric } from "web-vitals";
 
 import type { RequestCorrelation } from "../../../lib/metrics/correlation";
 
@@ -106,6 +107,60 @@ export function Providers({ children, correlation }: ProvidersProps) {
 
   useEffect(() => {
     import("@/lib/viz/bootstrap.client").then((mod) => mod.init?.());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storageKey = "sv-vitals-sample";
+    let shouldCollect = false;
+
+    try {
+      const stored = window.sessionStorage.getItem(storageKey);
+      if (stored === null) {
+        const sampled = Math.random() < 0.2 ? "1" : "0";
+        window.sessionStorage.setItem(storageKey, sampled);
+        shouldCollect = sampled === "1";
+      } else {
+        shouldCollect = stored === "1";
+      }
+    } catch {
+      shouldCollect = Math.random() < 0.2;
+    }
+
+    if (!shouldCollect) {
+      return;
+    }
+
+    const send = (metric: Metric, type: "LCP" | "INP" | "CLS") => {
+      const payload = JSON.stringify({
+        type,
+        value: metric.value,
+        rating: metric.rating,
+        navigationType: metric.navigationType,
+        url: window.location.pathname,
+      });
+
+      if (typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon("/api/vitals", payload);
+        return;
+      }
+
+      void fetch("/api/vitals", {
+        method: "POST",
+        body: payload,
+        headers: {
+          "content-type": "application/json",
+        },
+        keepalive: true,
+      });
+    };
+
+    onLCP((metric) => send(metric, "LCP"));
+    onINP((metric) => send(metric, "INP"));
+    onCLS((metric) => send(metric, "CLS"));
   }, []);
 
   useEffect(() => {

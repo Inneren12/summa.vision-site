@@ -51,7 +51,6 @@
     "vega": "^6.2.0",
     "vega-embed": "^7.1.0",
     "vega-lite": "^6.4.1",
-    "web-vitals": "^5.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -74,6 +73,7 @@
     "tailwindcss": "^3.4.10",
     "typescript": "~5.5.4",
     "vitest": "^2.1.1",
+    "web-vitals": "^5.1.0",
     "workbox-webpack-plugin": "6.6.0",
     "workbox-window": "6.6.0"
   },
