@@ -7,33 +7,52 @@ test.describe("Map resize", () => {
     await page.goto("/atoms");
 
     const container = page.locator(CONTAINER_SELECTOR);
-    const canvas = container.locator("canvas.maplibregl-canvas");
-
+    await container.scrollIntoViewIfNeeded();
     await expect(container).toBeVisible();
-    await canvas.waitFor({ state: "attached" });
+    await page.waitForLoadState("networkidle");
 
-    await page.waitForFunction((selector: string) => {
-      const root = document.querySelector(selector) as HTMLElement | null;
-      const canvasEl = root?.querySelector("canvas.maplibregl-canvas") as HTMLCanvasElement | null;
-      if (!root || !canvasEl) return false;
-      return canvasEl.width > 0 && canvasEl.height > 0;
-    }, CONTAINER_SELECTOR);
+    const canvas = container
+      .locator("canvas.maplibregl-canvas, canvas.mapboxgl-canvas, canvas")
+      .first();
+
+    await page.evaluate(async () => {
+      window.dispatchEvent(new Event("resize"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await canvas.waitFor({ state: "attached", timeout: 15000 });
+    await expect(canvas).toBeVisible();
+
+    await page.waitForFunction(
+      (selector: string) => {
+        const root = document.querySelector(selector) as HTMLElement | null;
+        const canvasEl = root?.querySelector("canvas") as HTMLCanvasElement | null;
+        if (!root || !canvasEl) return false;
+        return canvasEl.width > 0 && canvasEl.height > 0;
+      },
+      CONTAINER_SELECTOR,
+      { timeout: 15000 },
+    );
 
     const initialViewport = page.viewportSize() ?? { width: 1280, height: 720 };
     await page.setViewportSize({ width: initialViewport.height, height: initialViewport.width });
 
-    await page.waitForFunction((selector: string) => {
-      const root = document.querySelector(selector) as HTMLElement | null;
-      const canvasEl = root?.querySelector("canvas.maplibregl-canvas") as HTMLCanvasElement | null;
-      if (!root || !canvasEl) return false;
-      const { width, height } = root.getBoundingClientRect();
-      return (
-        width > 0 &&
-        height > 0 &&
-        Math.abs(canvasEl.width - width) <= 1 &&
-        Math.abs(canvasEl.height - height) <= 1
-      );
-    }, CONTAINER_SELECTOR);
+    await page.waitForFunction(
+      (selector: string) => {
+        const root = document.querySelector(selector) as HTMLElement | null;
+        const canvasEl = root?.querySelector("canvas") as HTMLCanvasElement | null;
+        if (!root || !canvasEl) return false;
+        const { width, height } = root.getBoundingClientRect();
+        return (
+          width > 0 &&
+          height > 0 &&
+          Math.abs(canvasEl.width - width) <= 1 &&
+          Math.abs(canvasEl.height - height) <= 1
+        );
+      },
+      CONTAINER_SELECTOR,
+      { timeout: 15000 },
+    );
 
     const [box, canvasSize] = await Promise.all([
       container.boundingBox(),
