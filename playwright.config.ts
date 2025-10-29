@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+const CI = !!process.env.CI;
+
 // В CI уводим браузер на системный Chrome и включаем тихий репортинг в файлы.
 const PW_CHANNEL = process.env.PW_CHANNEL as "chrome" | "chromium" | "msedge" | undefined;
 const PW_EXECUTABLE_PATH = process.env.PW_EXECUTABLE_PATH; // например: /usr/bin/google-chrome-stable
@@ -20,41 +22,34 @@ const WEB_URL = `http://${HOST}:${PORT}`;
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 
 const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
-const REQUIRED_HEADLESS_IGNORE_ARGS = ["--headless", "--headless=old", "--headless=new"] as const;
-const REQUIRED_HEADLESS_ARGS = ["--no-sandbox", "--headless=new"] as const;
 
-const withRequiredHeadlessOptions = <
+const REQUIRED_CI_ARGS = ["--headless=new", "--no-sandbox"] as const;
+
+const withHeadlessDefaults = <
   T extends {
     headless?: boolean;
-    launchOptions?: { ignoreDefaultArgs?: string[]; args?: string[] };
+    launchOptions?: { args?: string[] };
   },
 >(
   config: T,
 ) => {
-  const existingIgnoreArgs = config.launchOptions?.ignoreDefaultArgs ?? [];
-  const mergedIgnoreArgs = existingIgnoreArgs.slice();
-  for (const arg of REQUIRED_HEADLESS_IGNORE_ARGS) {
-    if (!mergedIgnoreArgs.includes(arg)) {
-      mergedIgnoreArgs.push(arg);
-    }
-  }
+  const launchOptions = { ...(config.launchOptions ?? {}) };
 
-  const existingArgs = config.launchOptions?.args ?? [];
-  const mergedArgs = [...REQUIRED_HEADLESS_ARGS];
-  for (const arg of existingArgs) {
-    if (!mergedArgs.includes(arg)) {
-      mergedArgs.push(arg);
+  if (CI) {
+    const existingArgs = launchOptions.args ?? [];
+    const mergedArgs = existingArgs.slice();
+    for (const arg of REQUIRED_CI_ARGS) {
+      if (!mergedArgs.includes(arg)) {
+        mergedArgs.push(arg);
+      }
     }
+    launchOptions.args = mergedArgs;
   }
 
   return {
     ...config,
     headless: true as const,
-    launchOptions: {
-      ...config.launchOptions,
-      ignoreDefaultArgs: mergedIgnoreArgs,
-      args: mergedArgs,
-    },
+    ...(Object.keys(launchOptions).length ? { launchOptions } : {}),
   };
 };
 
@@ -83,12 +78,15 @@ const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
 const browserSelection: {
   channel?: "chrome" | "chromium" | "msedge";
   executablePath?: string;
-} = {};
+  browserName?: "chromium";
+} = { browserName: "chromium" };
 
 if (PW_EXECUTABLE_PATH) {
   browserSelection.executablePath = PW_EXECUTABLE_PATH;
+  delete browserSelection.browserName;
 } else if (PW_CHANNEL) {
   browserSelection.channel = PW_CHANNEL;
+  delete browserSelection.browserName;
 }
 
 // ЕДИНЫЙ источник правды для webServer
@@ -137,7 +135,7 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chrome",
-      use: withRequiredHeadlessOptions({
+      use: withHeadlessDefaults({
         ...desktopChromeDevice,
         ...browserSelection,
         baseURL: WEB_URL,
@@ -145,7 +143,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      use: withRequiredHeadlessOptions({
+      use: withHeadlessDefaults({
         ...pixel7Device,
         ...browserSelection,
         baseURL: WEB_URL,
@@ -156,7 +154,7 @@ export default defineConfig({
   // Только верхний уровень управляет webServer
   webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
 
-  use: withRequiredHeadlessOptions({
+  use: withHeadlessDefaults({
     baseURL: WEB_URL,
     trace: "retain-on-failure",
     ...browserSelection,
