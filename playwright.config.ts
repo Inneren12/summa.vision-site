@@ -63,7 +63,9 @@ console.log(
 );
 
 export default defineConfig({
+  // Single authoritative testDir (root). The previous duplicate entry caused confusion.
   testDir: "./",
+  // Default suites picked from the repo root:
   testMatch: ["e2e/**/*.spec.ts", "apps/web/e2e/**/*.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

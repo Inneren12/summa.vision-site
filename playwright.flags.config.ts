@@ -66,9 +66,11 @@ const webServer: PlaywrightTestConfig["webServer"] = baseWebServerConfig
     : primaryServer
   : primaryServer;
 
+// Flags suite: testMatch is relative to testDir, so keep it simple.
 export default defineConfig({
   ...base,
   testDir: "./tests/e2e/flags",
+  testMatch: ["**/*.spec.ts"],
   webServer,
   use: {
     ...base.use,
