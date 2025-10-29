@@ -30,10 +30,12 @@ const GOOGLE_FONTS_CACHE = {
   },
 };
 
-const ADDITIONAL_MANIFEST_ENTRIES = [
+const ADDITIONAL_PRECACHE = [
   { url: HERO_IMAGE_WARM_URL, revision: null },
   ...STORY_DATA_WARM_URLS.map((url) => ({ url, revision: null })),
 ];
+
+const ADDITIONAL_MANIFEST_ENTRIES = [...ADDITIONAL_PRECACHE];
 
 const runtimeCaching = [
   {
@@ -69,7 +71,8 @@ const runtimeCaching = [
     },
   },
   {
-    urlPattern: ({ url }) => url.pathname.startsWith("/api/story"),
+    urlPattern: ({ url }) =>
+      url.pathname.startsWith("/api/stories") || url.pathname.startsWith("/api/story"),
     handler: "NetworkFirst",
     method: "GET",
     options: {
