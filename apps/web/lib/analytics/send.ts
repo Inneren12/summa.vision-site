@@ -63,6 +63,7 @@ const MAX_BATCHES_PER_MINUTE =
 
 const ANALYTICS_ENDPOINT = process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT?.trim() || "/api/analytics";
 
+// Cross-environment timer handle that works in both DOM(number) and NodeJS contexts.
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let isFlushing = false;
 let lastFlushTimestamp = 0;
@@ -252,7 +253,8 @@ function scheduleFlush(delayOverride?: number): void {
   if (delayOverride !== undefined) {
     delay = Math.max(delay, minDelay);
   }
-  flushTimer = window.setTimeout(() => {
+  // Use the global setTimeout so the inferred handle type works across environments.
+  flushTimer = setTimeout(() => {
     flushTimer = null;
     void flushQueue();
   }, delay);
