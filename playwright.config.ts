@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // В CI уводим браузер на системный Chrome и включаем тихий репортинг в файлы.
 const PW_CHANNEL = process.env.PW_CHANNEL as "chrome" | "chromium" | "msedge" | undefined;
+const PW_EXECUTABLE_PATH = process.env.PW_EXECUTABLE_PATH; // например: /usr/bin/google-chrome-stable
 
 // Где лежит Next-приложение
 const WEB_DIR = process.env.E2E_WEB_DIR
@@ -40,6 +41,18 @@ const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(
 
 const desktopChromeDevice = withWebGLLaunchArgs(devices["Desktop Chrome"]);
 const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
+
+// Если передали явный путь к Chrome — используем его, иначе канал.
+const browserSelection: {
+  channel?: "chrome" | "chromium" | "msedge";
+  executablePath?: string;
+} = {};
+
+if (PW_EXECUTABLE_PATH) {
+  browserSelection.executablePath = PW_EXECUTABLE_PATH;
+} else if (PW_CHANNEL) {
+  browserSelection.channel = PW_CHANNEL;
+}
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
@@ -89,7 +102,7 @@ export default defineConfig({
       name: "desktop-chrome",
       use: {
         ...desktopChromeDevice,
-        ...(PW_CHANNEL ? { channel: PW_CHANNEL } : {}),
+        ...browserSelection,
         baseURL: WEB_URL,
       },
     },
@@ -97,7 +110,7 @@ export default defineConfig({
       name: "mobile-chrome",
       use: {
         ...pixel7Device,
-        ...(PW_CHANNEL ? { channel: PW_CHANNEL } : {}),
+        ...browserSelection,
         baseURL: WEB_URL,
       },
     },
@@ -109,6 +122,6 @@ export default defineConfig({
   use: {
     baseURL: WEB_URL,
     trace: "retain-on-failure",
-    ...(PW_CHANNEL ? { channel: PW_CHANNEL } : {}),
+    ...browserSelection,
   },
 });
