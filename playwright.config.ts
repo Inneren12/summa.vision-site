@@ -18,6 +18,9 @@ const MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
 const MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
 const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : null;
 
+// Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
+const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
+
 const webServerConfig = {
   command: SERVER_JS ? `node ${JSON.stringify(SERVER_JS)}` : `npx -y next@14.2.8 start -p ${PORT}`,
   port: PORT,
@@ -27,6 +30,13 @@ const webServerConfig = {
   cwd: SERVER_JS ? path.dirname(SERVER_JS) : WEB_DIR,
   env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
 } as const;
+
+console.log(
+  "[PW CONFIG] file:",
+  __filename,
+  "webServer:",
+  SKIP_WEBSERVER ? "SKIPPED" : webServerConfig,
+);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -45,8 +55,8 @@ export default defineConfig({
       },
     },
   ],
-  // ЕДИНСТВЕННЫЙ источник правды
-  webServer: webServerConfig,
+  // ЕДИНСТВЕННЫЙ источник правды. Можно отключить через PW_SKIP_WEBSERVER=1
+  webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
   use: {
     baseURL: WEB_URL,
     headless: true,

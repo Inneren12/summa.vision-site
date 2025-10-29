@@ -21,6 +21,7 @@ jobs:
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
       NEXT_PUBLIC_SITE_URL: "http://localhost:3010"
+      PW_SKIP_WEBSERVER: "0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,11 +74,31 @@ jobs:
           STANDALONE_OUT_DIR: "./dist/app"
         run: node ./scripts/copy-standalone-assets.cjs
 
+      - name: Start Next server (failsafe)
+        if: env.PW_SKIP_WEBSERVER == '1'
+        env:
+          PORT: "3000"
+          HOST: "127.0.0.1"
+        run: |
+          nohup npx --yes --prefix apps/web next@14.2.8 start -p "$PORT" --hostname "$HOST" \
+            > next-server.log 2>&1 &
+          echo $! > next-server.pid
+          sleep 5
+
       - name: Run E2E smoke
         env:
           E2E_PORT: "3000"
           E2E_HOST: "127.0.0.1"
-        run: npx -y @playwright/test@1.48.0 test
+          PW_SKIP_WEBSERVER: ${{ env.PW_SKIP_WEBSERVER }}
+        run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts
+
+      - name: Stop Next server (failsafe)
+        if: env.PW_SKIP_WEBSERVER == '1'
+        run: |
+          if [ -f next-server.pid ]; then
+            kill "$(cat next-server.pid)" || true
+            rm -f next-server.pid
+          fi
       
       - name: Upload Playwright report
         if: always()
