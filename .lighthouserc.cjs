@@ -1,17 +1,18 @@
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: "npm --workspace apps/web run start -- -p 3000",
+      startServerCommand: "npm --workspace apps/web run start -- --hostname 0.0.0.0 --port 3000",
+      startServerReadyPattern: "ready - Started server on",
       url: [
         "http://localhost:3000/",
         "http://localhost:3000/story?slug=demo",
         "http://localhost:3000/dashboards/demo",
       ],
       numberOfRuns: 2,
-      chromeFlags: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage"],
       settings: {
         preset: "desktop",
         throttlingMethod: "simulate",
+        chromeFlags: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage"],
       },
     },
     assert: {

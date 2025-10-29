@@ -15,7 +15,7 @@ jobs:
       - name: Install deps
         run: npm ci
       - name: Build web
-        run: npm --workspace apps/web run build
+        run: npm run web:build
       - uses: browser-actions/setup-chrome@v1
         id: chrome
       - name: Run LHCI
