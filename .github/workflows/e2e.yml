@@ -1,4 +1,6 @@
 name: E2E
+permissions:
+  contents: write  # нужно, чтобы коммитнуть снапшоты в ветку PR
 on:
   push:
     branches: ["*"]
@@ -21,6 +23,7 @@ jobs:
       NEXT_PUBLIC_APP_NAME: "Summa Vision"
       NEXT_PUBLIC_API_BASE_URL: "https://example.invalid"
       NEXT_PUBLIC_SITE_URL: "http://localhost:3010"
+      PW_SKIP_WEBSERVER: "0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,6 +54,21 @@ jobs:
         run: npx -y playwright@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
+
+      # --- ONE-TIME SEED OF VISUAL BASELINES (run once, потом удалим этот шаг) ---
+      - name: Seed visual baselines (one-time)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          E2E_PORT: 3000
+          E2E_HOST: 127.0.0.1
+        run: |
+          # создадим/обновим эталоны только для визуальных тестов
+          npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts e2e/visual --update-snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add e2e/visual/*-snapshots/*.png || true
+          git commit -m "test(visual): seed/update visual baselines (CI)" || true
+          git push || true
       
       # ОТЛАДКА: проверяем что создалось после сборки
       - name: Debug - Check build output
@@ -67,25 +85,37 @@ jobs:
           echo "=== Full .next/standalone tree ==="
           tree -L 3 apps/web/.next/standalone/ || ls -R apps/web/.next/standalone/
       
-      - name: Prepare standalone server
+      - name: Copy Next.js artifacts (standalone/serverless/static)
+        env:
+          REQUIRE_SERVER: "0"
+          STANDALONE_OUT_DIR: "./dist/app"
+        run: node ./scripts/copy-standalone-assets.cjs
+
+      - name: Start Next server (failsafe)
+        if: env.PW_SKIP_WEBSERVER == '1'
+        env:
+          PORT: "3000"
+          HOST: "127.0.0.1"
         run: |
-          # Копируем public и static файлы в правильное место
-          mkdir -p apps/web/.next/standalone/apps/web/public
-          cp -r apps/web/public/* apps/web/.next/standalone/apps/web/public/ 2>/dev/null || true
-    
-          mkdir -p apps/web/.next/standalone/apps/web/.next/static
-          cp -r apps/web/.next/static/* apps/web/.next/standalone/apps/web/.next/static/ 2>/dev/null || true
-    
-          # Проверяем что server.js существует
-          if [ ! -f apps/web/.next/standalone/apps/web/server.js ]; then
-            echo "Error: server.js not found!"
-            exit 1
-          fi
-    
-          echo "Standalone server is ready at: apps/web/.next/standalone/apps/web/server.js"
+          nohup npx --yes --prefix apps/web next@14.2.8 start -p "$PORT" --hostname "$HOST" \
+            > next-server.log 2>&1 &
+          echo $! > next-server.pid
+          sleep 5
 
       - name: Run E2E smoke
-        run: npx -y @playwright/test@1.48.0 test
+        env:
+          E2E_PORT: "3000"
+          E2E_HOST: "127.0.0.1"
+          PW_SKIP_WEBSERVER: ${{ env.PW_SKIP_WEBSERVER }}
+        run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts
+
+      - name: Stop Next server (failsafe)
+        if: env.PW_SKIP_WEBSERVER == '1'
+        run: |
+          if [ -f next-server.pid ]; then
+            kill "$(cat next-server.pid)" || true
+            rm -f next-server.pid
+          fi
       
       - name: Upload Playwright report
         if: always()

@@ -1,39 +1,71 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
+
+// Где лежит Next-приложение
+const WEB_DIR = process.env.E2E_WEB_DIR
+  ? path.resolve(process.cwd(), process.env.E2E_WEB_DIR)
+  : path.resolve(__dirname, "apps/web");
+
+// Параметры сервера e2e. Playwright 1.48.0 требует, чтобы в webServer был либо port, либо url.
+const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
+const HOST = process.env.E2E_HOST ?? "127.0.0.1";
+const WEB_URL = `http://${HOST}:${PORT}`;
+
+// Ищем server.js в standalone (новая/старая раскладки)
+const MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
+const MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
+const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : null;
+
+// Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
+const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
+// По умолчанию запускаем next start; standalone включаем флагом
+const USE_STANDALONE = process.env.PW_USE_STANDALONE === "1" && !!SERVER_JS;
+
+// ЕДИНЫЙ источник правды для webServer
+const webServerConfig = {
+  command: USE_STANDALONE
+    ? `node ${JSON.stringify(SERVER_JS)}`
+    : `npx -y next@14.2.8 start -p ${PORT}`,
+  port: PORT,
+  reuseExistingServer: !process.env.CI,
+  timeout: 120_000,
+  cwd: USE_STANDALONE ? path.dirname(SERVER_JS!) : WEB_DIR,
+  env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
+} as const;
+
+// Отладочный вывод — видно, какой конфиг реально используется
+console.log(
+  "[PW CONFIG] file:",
+  __filename,
+  "webServer:",
+  SKIP_WEBSERVER ? "SKIPPED" : webServerConfig,
+);
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["visual/**"],
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
+
+  // ВАЖНО: projects НЕ переопределяют webServer
   projects: [
     {
       name: "desktop-chrome",
-      use: {
-        ...devices["Desktop Chrome"],
-      },
+      use: { ...devices["Desktop Chrome"], baseURL: WEB_URL },
     },
     {
       name: "mobile-chrome",
-      use: {
-        ...devices["Pixel 5"],
-      },
+      use: { ...devices["Pixel 7"], baseURL: WEB_URL },
     },
   ],
-  webServer: {
-    command: "PORT=3010 node apps/web/.next/standalone/apps/web/server.js",
-    url: "http://localhost:3010",
-    reuseExistingServer: false,
-    timeout: 120_000,
-    env: {
-      HOSTNAME: "127.0.0.1",
-      NODE_ENV: "production",
-      NEXT_PUBLIC_APP_NAME: "Summa Vision",
-      NEXT_PUBLIC_API_BASE_URL: "https://example.com/api",
-      NEXT_PUBLIC_SITE_URL: "https://example.com",
-    },
-  },
+
+  // Только верхний уровень управляет webServer
+  webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
+
   use: {
-    baseURL: "http://localhost:3010",
-    headless: true,
-    trace: "retain-on-failure",
+    baseURL: WEB_URL,
   },
-  retries: process.env.CI ? 1 : 0,
 });
