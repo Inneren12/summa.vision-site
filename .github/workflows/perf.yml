@@ -24,9 +24,6 @@ jobs:
       - name: Install (ignore scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
-      - name: Install Chromium (Playwright)
-        run: npx playwright install chromium
-
       - name: Postinstall (manual Next patch)
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi
@@ -45,20 +42,18 @@ jobs:
       - name: Build web
         run: npm run web:build
 
-      - name: Resolve Chromium path
+      - name: Locate system Chrome
         id: chrome
         shell: bash
         run: |
           set -euo pipefail
-          # 1) Попробуем системный Chrome/Chromium
           P="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          # 2) Если нет — поставим браузер Playwright и спросим его путь (best-effort)
-          if [ -z "$P" ]; then
-            npx -y playwright@1.48.0 install --with-deps chromium
-            P="$(node -e 'try{console.log(require("playwright-core").chromium.executablePath())}catch(e){process.exit(0)}' || true)"
+          if [ -n "$P" ]; then
+            echo "Found Chrome at: $P"
+            echo "path=$P" >> "$GITHUB_OUTPUT"
+          else
+            echo "No system Chrome found; LHCI will auto-detect."
           fi
-          # 3) Вернём output (или пусто, тогда LHCI будет авто-детектить)
-          echo "path=$P" >> "$GITHUB_OUTPUT"
 
       - name: Start & LHCI (warn)
         continue-on-error: true
