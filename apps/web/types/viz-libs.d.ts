@@ -57,6 +57,7 @@ declare module "maplibre-gl" {
     pitch?: number;
     bearing?: number;
     container?: HTMLElement;
+    attributionControl?: boolean;
   }
   export class Map {
     constructor(options: MapOptions);
@@ -66,7 +67,16 @@ declare module "maplibre-gl" {
     setPitch(pitch: number, opts?: { duration?: number }): void;
     setBearing(bearing: number, opts?: { duration?: number }): void;
     getStyle(): { sprite?: string } | undefined;
+    addControl(control: unknown, position?: string): void;
+    once(type: string, listener: () => void): void;
+    resize(): void;
     remove(): void;
+  }
+  export class NavigationControl {
+    constructor(options?: { showCompass?: boolean; visualizePitch?: boolean });
+  }
+  export class AttributionControl {
+    constructor(options?: { compact?: boolean; customAttribution?: string | string[] });
   }
 }
 
