@@ -20,6 +20,43 @@ const WEB_URL = `http://${HOST}:${PORT}`;
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 
 const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
+const REQUIRED_HEADLESS_IGNORE_ARGS = ["--headless", "--headless=old", "--headless=new"] as const;
+const REQUIRED_HEADLESS_ARGS = ["--no-sandbox", "--headless=new"] as const;
+
+const withRequiredHeadlessOptions = <
+  T extends {
+    headless?: boolean;
+    launchOptions?: { ignoreDefaultArgs?: string[]; args?: string[] };
+  },
+>(
+  config: T,
+) => {
+  const existingIgnoreArgs = config.launchOptions?.ignoreDefaultArgs ?? [];
+  const mergedIgnoreArgs = existingIgnoreArgs.slice();
+  for (const arg of REQUIRED_HEADLESS_IGNORE_ARGS) {
+    if (!mergedIgnoreArgs.includes(arg)) {
+      mergedIgnoreArgs.push(arg);
+    }
+  }
+
+  const existingArgs = config.launchOptions?.args ?? [];
+  const mergedArgs = [...REQUIRED_HEADLESS_ARGS];
+  for (const arg of existingArgs) {
+    if (!mergedArgs.includes(arg)) {
+      mergedArgs.push(arg);
+    }
+  }
+
+  return {
+    ...config,
+    headless: true as const,
+    launchOptions: {
+      ...config.launchOptions,
+      ignoreDefaultArgs: mergedIgnoreArgs,
+      args: mergedArgs,
+    },
+  };
+};
 
 const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(device: T): T => {
   const existingArgs = device.launchOptions?.args ?? [];
@@ -100,28 +137,28 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chrome",
-      use: {
+      use: withRequiredHeadlessOptions({
         ...desktopChromeDevice,
         ...browserSelection,
         baseURL: WEB_URL,
-      },
+      }),
     },
     {
       name: "mobile-chrome",
-      use: {
+      use: withRequiredHeadlessOptions({
         ...pixel7Device,
         ...browserSelection,
         baseURL: WEB_URL,
-      },
+      }),
     },
   ],
 
   // Только верхний уровень управляет webServer
   webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
 
-  use: {
+  use: withRequiredHeadlessOptions({
     baseURL: WEB_URL,
     trace: "retain-on-failure",
     ...browserSelection,
-  },
+  }),
 });

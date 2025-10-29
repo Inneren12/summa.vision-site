@@ -35,6 +35,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install Playwright browsers
+        run: npx -y @playwright/test@1.48.0 install --with-deps chromium
+
       - name: Sync lockfile (no scripts)
         run: npm install --package-lock-only --no-audit --no-fund --ignore-scripts
 
