@@ -62,14 +62,11 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
       .orderby(desc("count"), "vizLib")
       .objects() as Record<string, unknown>[]
   )
-    // Узкий тайпгард: оставляем только строки с нужными полями и типами
-    .filter((row): row is { vizLib: string; count: number } => {
-      if (row == null || typeof row !== "object") {
-        return false;
-      }
-      const candidate = row as Record<string, unknown>;
-      return typeof candidate.vizLib === "string" && typeof candidate.count === "number";
-    })
+    // Берём только корректные строки: vizLib:string, count:number
+    .filter(
+      (row): row is { vizLib: string; count: number } =>
+        typeof row.vizLib === "string" && typeof row.count === "number",
+    )
     .map(({ vizLib, count }) => ({
       lib: vizLib as VizLibraryBucket,
       count,
@@ -87,18 +84,25 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
   const vizNeedUsage =
     needTable.numRows() === 0
       ? []
-      : needTable
-          .groupby("need")
-          .rollup({
-            occurrences: () => op.count(),
-            storySlugs: (d) => op.array_agg(d.slug),
-          })
-          .orderby(desc("occurrences"), "need")
-          .objects()
-          .map((row) => ({
-            need: row.need as StoryVisualizationNeed,
-            occurrences: row.occurrences as number,
-            stories: new Set((row.storySlugs as string[]) ?? []).size,
+      : (
+          needTable
+            .groupby("need")
+            .rollup({
+              occurrences: () => op.count(),
+              storySlugs: (d) => op.array_agg(d.slug),
+            })
+            .orderby(desc("occurrences"), "need")
+            .objects() as Record<string, unknown>[]
+        )
+          // Берём только строки с нужными типами: need:string, occurrences:number
+          .filter(
+            (row): row is { need: string; occurrences: number; storySlugs?: unknown } =>
+              typeof row.need === "string" && typeof row.occurrences === "number",
+          )
+          .map(({ need, occurrences, storySlugs }) => ({
+            need: need as StoryVisualizationNeed,
+            occurrences,
+            stories: Array.isArray(storySlugs) ? new Set((storySlugs as string[]) ?? []).size : 0,
           }));
 
   return {
