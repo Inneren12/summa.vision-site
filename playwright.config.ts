@@ -15,7 +15,9 @@ const HAS_MODERN = fs.existsSync(SERVER_JS_MODERN);
 const HAS_MONO = fs.existsSync(SERVER_JS_MONO);
 const SERVER_JS = HAS_MODERN ? SERVER_JS_MODERN : HAS_MONO ? SERVER_JS_MONO : null;
 
-const PORT = Number(process.env.E2E_PORT || 3000);
+const DEFAULT_PORT = 3000;
+const parsedPort = process.env.E2E_PORT ? Number.parseInt(process.env.E2E_PORT, 10) : DEFAULT_PORT;
+const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : DEFAULT_PORT;
 const WEB_URL = `http://localhost:${PORT}`;
 const BASE_ENV = {
   HOSTNAME: "127.0.0.1",
