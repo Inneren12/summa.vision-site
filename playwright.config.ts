@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
@@ -16,24 +15,9 @@ const WEB_URL = `http://${HOST}:${PORT}`;
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 
-const standalonePaths = [".next/standalone/apps/web/server.js", ".next/standalone/server.js"];
-const existingStandalone = standalonePaths.find((relative) =>
-  fs.existsSync(path.join(WEB_DIR, relative)),
-);
-
-const standaloneCommand = `PORT=${PORT} HOSTNAME=${HOST} node $standalone`;
-
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command:
-    "bash -lc '" +
-    standalonePaths
-      .map(
-        (relative) =>
-          `[ -f ${relative} ] && standalone=${relative} && ${standaloneCommand} && exit 0`,
-      )
-      .join(" || ") +
-    ` || npx -y next@14.2.8 start -p ${PORT}'`,
+  command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
   port: PORT,
   reuseExistingServer: false,
   timeout: 180_000,
@@ -51,8 +35,6 @@ const webServerConfig = {
 console.log(
   "[PW CONFIG] file:",
   __filename,
-  "standalone:",
-  existingStandalone ?? "not found",
   "webServer:",
   SKIP_WEBSERVER ? "SKIPPED" : webServerConfig,
 );
