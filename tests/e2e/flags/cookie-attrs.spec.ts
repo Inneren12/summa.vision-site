@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "../../../e2e/fixtures";
 
 test.describe("Cookie attributes", () => {
   test("sv_id from middleware has expected attributes", async ({ page, context }) => {

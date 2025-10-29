@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page } from "../fixtures";
 
 const CONSENT_COOKIE_NAME = "sv_klaro";
 const CONSENT_STATE = { analytics: true, vitals: true, share: true } as const;

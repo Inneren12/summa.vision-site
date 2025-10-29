@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test";
-
+import { expect, test } from "./fixtures";
 import { acceptKlaroConsent } from "./support/consent";
 
 test("home to healthz smoke", async ({ page }) => {

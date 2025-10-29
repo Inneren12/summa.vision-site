@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../e2e/fixtures";
 
 test.describe("middleware sv_id creation", () => {
   test.beforeEach(async ({ context }) => {

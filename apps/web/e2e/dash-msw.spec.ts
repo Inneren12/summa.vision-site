@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "../../../e2e/fixtures";
 
 test("dash: filters → data (MSW)", async ({ page }) => {
   // (опционально) подключить initScript если используете SW-вариант
