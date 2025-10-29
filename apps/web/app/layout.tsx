@@ -7,6 +7,7 @@ import "klaro/dist/klaro.min.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
+import { FocusVisiblePolyfill } from "./focus-visible-polyfill";
 import { Providers } from "./providers";
 
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
+        <FocusVisiblePolyfill />
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content

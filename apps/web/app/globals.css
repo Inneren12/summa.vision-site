@@ -9,6 +9,15 @@
 @import "./tokens.css";
 @import "./typography.css";
 
+/* focus-visible polyfill-friendly rings */
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+[data-whatinput="mouse"] :focus {
+  outline: none;
+}
+
 :root {
   --bg: 255 255 255;
   --fg: 17 24 39;
