@@ -7,6 +7,7 @@ import "klaro/dist/klaro.min.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
+import E2EClientInit from "./_components/E2EClientInit";
 import { Providers } from "./providers";
 
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
@@ -29,10 +30,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     snapshotId = "";
   }
   const correlation = correlationFromNextContext();
+  const e2eEnabled = process.env.SV_E2E === "1" || process.env["NEXT_PUBLIC_E2E"] === "1";
+  const mswEnabled = process.env.NEXT_PUBLIC_MSW === "1";
+  const shouldHydrateE2E = e2eEnabled || mswEnabled;
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
+      <body
+        className="bg-bg text-fg"
+        data-ff-snapshot={snapshotId}
+        data-sv-e2e={e2eEnabled ? "1" : undefined}
+      >
+        {shouldHydrateE2E ? <E2EClientInit enableMsw={mswEnabled} /> : null}
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content

@@ -16,7 +16,9 @@ const WEB_DIR = process.env.E2E_WEB_DIR
 // Параметры сервера e2e. Playwright 1.48.0 требует, чтобы в webServer был либо port, либо url.
 const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
 const HOST = process.env.E2E_HOST ?? "127.0.0.1";
-const WEB_URL = `http://${HOST}:${PORT}`;
+const WEB_URL = process.env.PW_BASE_URL?.length
+  ? process.env.PW_BASE_URL
+  : `http://${HOST}:${PORT}`;
 
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
@@ -102,6 +104,14 @@ const webServerConfig = {
     HOSTNAME: HOST,
     NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
     NEXT_PUBLIC_MAP_STYLE_URL: "https://demotiles.maplibre.org/style.json",
+    // E2E toggles — overrideable via explicit env if needed
+    SV_E2E: process.env.SV_E2E ?? "1",
+    SV_ALLOW_DEV_API: process.env.SV_ALLOW_DEV_API ?? "1",
+    NEXT_PUBLIC_E2E: process.env.NEXT_PUBLIC_E2E ?? "1",
+    NEXT_PUBLIC_MSW: process.env.NEXT_PUBLIC_MSW ?? "1",
+    NEXT_PUBLIC_DEV_TOOLS: process.env.NEXT_PUBLIC_DEV_TOOLS ?? "true",
+    NEXT_PUBLIC_FLAGS_ENV: process.env.NEXT_PUBLIC_FLAGS_ENV ?? "dev",
+    FF_TELEMETRY_SINK: process.env.FF_TELEMETRY_SINK ?? "memory",
   },
 } as const;
 

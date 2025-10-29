@@ -3,6 +3,9 @@ import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ulid } from "ulid";
 
+const E2E_MODE = process.env.SV_E2E === "1" || process.env.NEXT_PUBLIC_E2E === "1";
+const ALLOW_DEV_API = process.env.SV_ALLOW_DEV_API === "1";
+
 import { ADMIN_CSRF_COOKIE } from "@/lib/admin/csrf";
 import {
   ADMIN_AID_COOKIE,
@@ -93,6 +96,15 @@ const YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
 export async function middleware(req: NextRequest) {
   const forwardedHeaders = new Headers(req.headers);
   const requestCookies = req.cookies;
+
+  const { pathname } = req.nextUrl;
+  if (
+    (E2E_MODE || ALLOW_DEV_API) &&
+    (pathname.startsWith("/api/dev/") || pathname.startsWith("/dev") || pathname === "/dash")
+  ) {
+    // E2E-режим: оставляем dev API/страницы доступными даже в production-сборке.
+    return NextResponse.next();
+  }
 
   let svId = requestCookies.get("sv_id")?.value;
   let svCreated = false;
