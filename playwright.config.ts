@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+const IS_CI = !!process.env.CI;
+
 // В CI уводим браузер на системный Chrome и включаем тихий репортинг в файлы.
 const PW_CHANNEL = process.env.PW_CHANNEL as "chrome" | "chromium" | "msedge" | undefined;
 const PW_EXECUTABLE_PATH = process.env.PW_EXECUTABLE_PATH; // например: /usr/bin/google-chrome-stable
@@ -20,27 +22,41 @@ const WEB_URL = `http://${HOST}:${PORT}`;
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 
 const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
+const HEADLESS_LAUNCH_ARGS: readonly string[] = IS_CI ? ["--headless=new"] : [];
 
-const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(device: T): T => {
-  const existingArgs = device.launchOptions?.args ?? [];
+const withLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(
+  config: T,
+  additionalArgs: readonly string[],
+): T => {
+  if (!additionalArgs.length) {
+    return config;
+  }
+
+  const existingArgs = config.launchOptions?.args ?? [];
   const mergedArgs = existingArgs.slice();
-  for (const arg of GPU_LAUNCH_ARGS) {
+  for (const arg of additionalArgs) {
     if (!mergedArgs.includes(arg)) {
       mergedArgs.push(arg);
     }
   }
 
   return {
-    ...device,
+    ...config,
     launchOptions: {
-      ...device.launchOptions,
+      ...config.launchOptions,
       args: mergedArgs,
     },
   };
 };
 
-const desktopChromeDevice = withWebGLLaunchArgs(devices["Desktop Chrome"]);
-const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
+const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(device: T): T =>
+  withLaunchArgs(device, GPU_LAUNCH_ARGS);
+
+const withHeadlessLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(config: T): T =>
+  withLaunchArgs(config, HEADLESS_LAUNCH_ARGS);
+
+const desktopChromeDevice = withHeadlessLaunchArgs(withWebGLLaunchArgs(devices["Desktop Chrome"]));
+const pixel7Device = withHeadlessLaunchArgs(withWebGLLaunchArgs(devices["Pixel 7"]));
 
 // Если передали явный путь к Chrome — используем его, иначе канал.
 const browserSelection: {
@@ -78,6 +94,13 @@ console.log(
   SKIP_WEBSERVER ? "SKIPPED" : webServerConfig,
 );
 
+const globalUse = withHeadlessLaunchArgs({
+  baseURL: WEB_URL,
+  trace: "retain-on-failure" as const,
+  ...browserSelection,
+  ...(IS_CI ? { headless: true as const } : {}),
+});
+
 export default defineConfig({
   testDir: "./",
   testMatch: ["e2e/**/*.spec.ts", "apps/web/e2e/**/*.spec.ts"],
@@ -104,6 +127,7 @@ export default defineConfig({
         ...desktopChromeDevice,
         ...browserSelection,
         baseURL: WEB_URL,
+        ...(IS_CI ? { headless: true as const } : {}),
       },
     },
     {
@@ -112,6 +136,7 @@ export default defineConfig({
         ...pixel7Device,
         ...browserSelection,
         baseURL: WEB_URL,
+        ...(IS_CI ? { headless: true as const } : {}),
       },
     },
   ],
@@ -119,9 +144,5 @@ export default defineConfig({
   // Только верхний уровень управляет webServer
   webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
 
-  use: {
-    baseURL: WEB_URL,
-    trace: "retain-on-failure",
-    ...browserSelection,
-  },
+  use: globalUse,
 });
