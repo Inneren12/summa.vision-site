@@ -117,7 +117,15 @@ export async function getStoryBySlug(slug: string): Promise<StoryModule | null> 
 }
 
 export async function getStoryIndex(): Promise<StoryFrontMatter[]> {
-  const entries = await fs.readdir(STORIES_DIR);
+  let entries: string[] = [];
+  try {
+    entries = await fs.readdir(STORIES_DIR);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
   const stories: StoryFrontMatter[] = [];
   for (const entry of entries) {
     if (!entry.endsWith(".mdx")) continue;
