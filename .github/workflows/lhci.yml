@@ -14,7 +14,7 @@ jobs:
         with: { node-version: 20, cache: npm }
       - name: Install deps
         run: npm ci
-      - name: Build web
+      - name: Build web (root script copies tokens then builds)
         run: npm run web:build
       - uses: browser-actions/setup-chrome@v1
         id: chrome

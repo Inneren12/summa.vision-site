@@ -1,8 +1,11 @@
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: "npm --workspace apps/web run start -- --hostname 0.0.0.0 --port 3000",
-      startServerReadyPattern: "ready - Started server on",
+      // Next.js output: 'standalone' — запускаем собранный сервер напрямую.
+      startServerCommand: "HOSTNAME=0.0.0.0 PORT=3000 node apps/web/.next/standalone/server.js",
+      // Совместимый паттерн с баннером Next 14 (✓ Ready in …) или строкой Local: http://localhost:3000
+      startServerReadyPattern: "/(Local:\s+http:\/\/localhost:3000|Ready in)/i",
+      startServerReadyTimeout: 120000,
       url: [
         "http://localhost:3000/",
         "http://localhost:3000/story?slug=demo",
@@ -12,7 +15,8 @@ module.exports = {
       settings: {
         preset: "desktop",
         throttlingMethod: "simulate",
-        chromeFlags: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage"],
+        // ВАЖНО: Chrome ожидает флаги строкой с пробелами, без запятых.
+        chromeFlags: "--headless=new --no-sandbox --disable-dev-shm-usage",
       },
     },
     assert: {
