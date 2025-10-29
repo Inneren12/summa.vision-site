@@ -1,9 +1,9 @@
 module.exports = {
   ci: {
     collect: {
-      // Next.js output: 'standalone' — запускаем собранный сервер напрямую.
-      startServerCommand: "HOSTNAME=0.0.0.0 PORT=3000 node apps/web/.next/standalone/server.js",
-      // Совместимый паттерн с баннером Next 14 (✓ Ready in …) или строкой Local: http://localhost:3000
+      // Для LHCI достаточно стабильного `next start` — standalone нам не нужен.
+      startServerCommand: "npm --workspace apps/web run start -- --hostname 0.0.0.0 --port 3000",
+      // Совместимый паттерн с баннером Next (✓ Ready in …) или строкой Local: http://localhost:3000
       startServerReadyPattern: "/(Local:\s+http:\/\/localhost:3000|Ready in)/i",
       startServerReadyTimeout: 120000,
       url: [
