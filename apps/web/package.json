@@ -51,8 +51,7 @@
     "vega": "^6.2.0",
     "vega-embed": "^7.1.0",
     "vega-lite": "^6.4.1",
-    "web-vitals": "^5.1.0",
-    "zod": "^3.23.8"
+    "web-vitals": "^5.1.0"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^14.2.33",
@@ -75,7 +74,8 @@
     "typescript": "~5.5.4",
     "vitest": "^2.1.1",
     "workbox-webpack-plugin": "6.6.0",
-    "workbox-window": "6.6.0"
+    "workbox-window": "6.6.0",
+    "zod": "^3.25.76"
   },
   "version": "0.1.1",
   "overrides": {},
