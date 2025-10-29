@@ -9,6 +9,15 @@
 @import "./tokens.css";
 @import "./typography.css";
 
+/* e2e: убираем анимации/транзишны для детерминированных снимков */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 :root {
   --bg: 255 255 255;
   --fg: 17 24 39;

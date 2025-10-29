@@ -11,6 +11,7 @@ const WEB_DIR = process.env.E2E_WEB_DIR
 const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
 const HOST = process.env.E2E_HOST ?? "127.0.0.1";
 const WEB_URL = `http://${HOST}:${PORT}`;
+const DEFAULT_BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? WEB_URL;
 
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
@@ -57,11 +58,12 @@ const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
 const webServerConfig = {
   command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
   port: PORT,
-  reuseExistingServer: false,
+  reuseExistingServer: !process.env.CI,
   timeout: 180_000,
   cwd: WEB_DIR,
   env: {
     ...process.env,
+    E2E: "1",
     PORT: String(PORT),
     HOSTNAME: HOST,
     NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
@@ -88,11 +90,11 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chrome",
-      use: { ...desktopChromeDevice, baseURL: WEB_URL },
+      use: { ...desktopChromeDevice, baseURL: DEFAULT_BASE_URL },
     },
     {
       name: "mobile-chrome",
-      use: { ...pixel7Device, baseURL: WEB_URL },
+      use: { ...pixel7Device, baseURL: DEFAULT_BASE_URL },
     },
   ],
 
@@ -100,7 +102,13 @@ export default defineConfig({
   webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
 
   use: {
-    baseURL: WEB_URL,
+    baseURL: DEFAULT_BASE_URL,
     ...(PW_CHANNEL ? { channel: PW_CHANNEL } : {}),
+    locale: "en-US",
+    timezoneId: "UTC",
+    colorScheme: "light",
+    reducedMotion: "reduce",
+    permissions: [],
+    trace: "retain-on-failure",
   },
 });

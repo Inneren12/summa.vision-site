@@ -12,6 +12,8 @@ const require = createRequire(import.meta.url);
 const isDev = process.env.NODE_ENV !== "production";
 const reportOnly = process.env.CSP_REPORT_ONLY === "1";
 const withSentry = Boolean(process.env.SENTRY_DSN);
+// E2E: allow disabling the service worker so Playwright doesn't fight cached responses.
+const disablePWA = isDev || process.env.E2E === "1" || process.env.DISABLE_PWA === "1";
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true" || process.env.NEXT_VIZ_ANALYZE === "1",
 });
@@ -110,7 +112,7 @@ const runtimeCaching = [
 const withPWA = createNextPWA({
   cacheOnFrontEndNav: true,
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
+  disable: disablePWA,
   fallbacks: {
     document: OFFLINE_PAGE,
   },
@@ -124,7 +126,10 @@ const withPWA = createNextPWA({
   runtimeCaching,
 });
 
-const isE2E = Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL ?? process.env.E2E_PORT);
+const isE2E =
+  Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL ?? process.env.E2E_PORT) ||
+  process.env.E2E === "1" ||
+  process.env.DISABLE_PWA === "1";
 
 const nextConfig = {
   reactStrictMode: true,
