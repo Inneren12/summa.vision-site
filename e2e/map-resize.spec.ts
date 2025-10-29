@@ -5,13 +5,13 @@ const CONTAINER_SELECTOR = "[data-testid='map-container']";
 async function waitForSizeMatch(page: Page) {
   await page.waitForFunction(
     () => {
-      const canvasEl = document.querySelector<HTMLCanvasElement>(
-        "[data-testid='map-container'] canvas",
-      );
-      const mapContainer = document.querySelector<HTMLElement>("[data-testid='map-container']");
-      if (!canvasEl || !mapContainer) return false;
-      const canvasRect = canvasEl.getBoundingClientRect();
-      const containerRect = mapContainer.getBoundingClientRect();
+      const canvas =
+        document.querySelector<HTMLCanvasElement>("canvas.maplibregl-canvas") ??
+        document.querySelector<HTMLCanvasElement>("[data-testid='map-container'] canvas");
+      const container = document.querySelector<HTMLElement>("[data-testid='map-container']");
+      if (!canvas || !container) return false;
+      const canvasRect = canvas.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
       return (
         Math.abs(canvasRect.width - containerRect.width) <= 1 &&
         Math.abs(canvasRect.height - containerRect.height) <= 1
@@ -42,9 +42,12 @@ test.describe("Map resize", () => {
 
     const [box, canvasSize] = await Promise.all([
       container.boundingBox(),
-      canvas.evaluate((node) => {
-        const rect = node.getBoundingClientRect();
-        return { width: rect.width, height: rect.height };
+      page.evaluate(() => {
+        const canvas =
+          document.querySelector<HTMLCanvasElement>("canvas.maplibregl-canvas") ??
+          document.querySelector<HTMLCanvasElement>("[data-testid='map-container'] canvas");
+        const rect = canvas?.getBoundingClientRect();
+        return { width: rect?.width ?? 0, height: rect?.height ?? 0 };
       }),
     ]);
 
