@@ -49,13 +49,21 @@ jobs:
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
 
-      - name: Install Playwright browsers (same version)
-        run: npx -y playwright@1.48.0 install --with-deps chromium
-
       - name: Build web
         run: npm run web:build
 
+      - name: Set Playwright to use system Chrome
+        env:
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          google-chrome --version || which google-chrome
+          echo "Using system Chrome via PW_CHANNEL=chrome"
+
       - name: Update visual snapshots (Playwright starts server)
+        env:
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npx -y @playwright/test@1.48.0 test e2e/visual --update-snapshots
 
       - name: Commit baseline PNGs

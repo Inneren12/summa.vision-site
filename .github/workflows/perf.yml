@@ -24,9 +24,6 @@ jobs:
       - name: Install (ignore scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
 
-      - name: Install Chromium (Playwright)
-        run: npx playwright install chromium
-
       - name: Postinstall (manual Next patch)
         run: |
           if [ -f scripts/patch-next.cjs ]; then node scripts/patch-next.cjs; fi

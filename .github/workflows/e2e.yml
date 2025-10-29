@@ -50,8 +50,6 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL=https://example.invalid
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
-      - name: Install Playwright browsers (1.48.0)
-        run: npx -y playwright@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
       # ОТЛАДКА: проверяем что создалось после сборки
@@ -86,11 +84,21 @@ jobs:
           echo $! > next-server.pid
           sleep 5
 
+      - name: Set Playwright to use system Chrome
+        env:
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          google-chrome --version || which google-chrome
+          echo "Using system Chrome via PW_CHANNEL=chrome"
+
       - name: Run E2E smoke
         env:
           E2E_PORT: "3000"
           E2E_HOST: "127.0.0.1"
           PW_SKIP_WEBSERVER: ${{ env.PW_SKIP_WEBSERVER }}
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts
 
       - name: Stop Next server (failsafe)

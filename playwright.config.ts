@@ -15,6 +15,9 @@ const WEB_URL = `http://${HOST}:${PORT}`;
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 
+// Allow opting into system Chrome/Edge via PW_CHANNEL (CI sets this to "chrome").
+const PW_CHANNEL = process.env.PW_CHANNEL as "chrome" | "chromium" | "msedge" | undefined;
+
 const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
 
 const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(device: T): T => {
@@ -86,5 +89,6 @@ export default defineConfig({
 
   use: {
     baseURL: WEB_URL,
+    channel: PW_CHANNEL,
   },
 });

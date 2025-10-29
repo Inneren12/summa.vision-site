@@ -26,19 +26,26 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install Playwright browsers (CLI)
-        run: npx -y playwright@1.48.0 install --with-deps
-
       - name: Install deps
         run: npm ci
 
       - name: Build web app
         run: npm run web:build
 
+      - name: Set Playwright to use system Chrome
+        env:
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          google-chrome --version || which google-chrome
+          echo "Using system Chrome via PW_CHANNEL=chrome"
+
       - name: Update visual snapshots
         env:
           E2E_PORT: 3000
           E2E_HOST: 127.0.0.1
+          PW_CHANNEL: chrome
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts e2e/visual --update-snapshots
 
       - name: Commit and push snapshots
