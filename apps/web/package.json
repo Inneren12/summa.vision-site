@@ -55,6 +55,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@mswjs/data": "^0.16.2",
+    "@mswjs/interceptors": "^0.40.0",
     "@next/bundle-analyzer": "^14.2.33",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^14.3.1",
@@ -69,6 +71,7 @@
     "clean-webpack-plugin": "4.0.0",
     "jest-axe": "^9.0.0",
     "jsdom": "^25.0.1",
+    "msw": "^2.11.6",
     "next-pwa": "5.6.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.10",
@@ -79,5 +82,10 @@
   },
   "version": "0.1.1",
   "overrides": {},
-  "resolutions": {}
+  "resolutions": {},
+  "msw": {
+    "workerDirectory": [
+      "apps/web/public"
+    ]
+  }
 }

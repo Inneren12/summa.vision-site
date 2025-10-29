@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2024-01-01T00:00:00.000Z",
+  "stories": [
+    {
+      "title": "Scrollytelling Demo",
+      "slug": "demo",
+      "description": "Demonstrates deterministic scrollytelling flow for testing.",
+      "cover": {
+        "src": "/brand/summa-vision-mark.png",
+        "alt": "Summa Vision mark"
+      },
+      "steps": [
+        { "id": "intro", "title": "Introduction" },
+        { "id": "focus", "title": "Focused insight" },
+        { "id": "action", "title": "Call to action" }
+      ],
+      "viz": {
+        "lib": "vega",
+        "needs": ["vega"],
+        "spec": "./viz/demo.json"
+      }
+    },
+    {
+      "title": "Analytics Stability",
+      "slug": "analytics",
+      "description": "Covers deterministic analytics events and ingestion.",
+      "cover": {
+        "src": "/brand/summa-vision-mark.png",
+        "alt": "Summa Vision mark"
+      },
+      "steps": [
+        { "id": "baseline", "title": "Baseline" },
+        { "id": "tracking", "title": "Tracking" }
+      ]
+    },
+    {
+      "title": "Reduced Motion",
+      "slug": "reduced-motion",
+      "description": "Ensures reduced motion preference is respected.",
+      "cover": {
+        "src": "/brand/summa-vision-mark.png",
+        "alt": "Summa Vision mark"
+      },
+      "steps": [
+        { "id": "prefers", "title": "Prefers reduce" },
+        { "id": "no-animations", "title": "No animations" }
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ apps/web/coverage
 apps/web/tsconfig.tsbuildinfo
 playwright-report
 test-results
+.playwright/
 reports/data-validation.json
 reports/logs/
 

@@ -1,0 +1,89 @@
+{
+  "ok": true,
+  "requestId": "request-330652",
+  "clock": 1708995306970,
+  "snapshot": "snapshot-analytics",
+  "events": [
+    {
+      "id": "evt-330652-01",
+      "type": "impression",
+      "clock": 1708995306595,
+      "stepId": "baseline",
+      "slug": "analytics",
+      "payload": {
+        "type": "impression",
+        "slug": "analytics",
+        "clock": 1708992500150,
+        "stepId": "baseline"
+      }
+    },
+    {
+      "id": "evt-330652-02",
+      "type": "scroll",
+      "clock": 1708995306670,
+      "stepId": "tracking",
+      "slug": "analytics",
+      "payload": {
+        "type": "scroll",
+        "slug": "analytics",
+        "clock": 1708992500300,
+        "position": 0.18,
+        "stepId": "tracking"
+      }
+    },
+    {
+      "id": "evt-330652-03",
+      "type": "change",
+      "clock": 1708995306745,
+      "stepId": null,
+      "slug": "analytics",
+      "payload": {
+        "type": "change",
+        "slug": "analytics",
+        "clock": 1708992500450,
+        "from": "baseline",
+        "to": "tracking"
+      }
+    },
+    {
+      "id": "evt-330652-04",
+      "type": "step",
+      "clock": 1708995306820,
+      "stepId": "tracking",
+      "slug": "analytics",
+      "payload": {
+        "type": "step",
+        "slug": "analytics",
+        "clock": 1708992500600,
+        "stepId": "tracking",
+        "direction": "forward"
+      }
+    },
+    {
+      "id": "evt-330652-05",
+      "type": "hash",
+      "clock": 1708995306895,
+      "stepId": null,
+      "slug": "analytics",
+      "payload": {
+        "type": "hash",
+        "slug": "analytics",
+        "clock": 1708992500750,
+        "hash": "step-tracking"
+      }
+    },
+    {
+      "id": "evt-330652-06",
+      "type": "restore",
+      "clock": 1708995306970,
+      "stepId": "tracking",
+      "slug": "analytics",
+      "payload": {
+        "type": "restore",
+        "slug": "analytics",
+        "clock": 1708992500900,
+        "stepId": "tracking"
+      }
+    }
+  ]
+}

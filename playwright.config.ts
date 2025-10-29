@@ -50,6 +50,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
 
+  globalSetup: path.resolve(__dirname, "scripts/pw.msw.setup.cjs"),
+
   // ВАЖНО: projects НЕ переопределяют webServer
   projects: [
     {
