@@ -137,14 +137,11 @@ const withPWA = createNextPWA({
   register: true,
   scope: "/",
   skipWaiting: true,
-  workboxOptions: {
-    clientsClaim: true,
-    additionalManifestEntries: ADDITIONAL_MANIFEST_ENTRIES,
-    ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
-    navigationPreload: true,
-    navigateFallback: OFFLINE_PAGE,
-    runtimeCaching,
-  },
+  clientsClaim: true,
+  additionalManifestEntries: ADDITIONAL_MANIFEST_ENTRIES,
+  ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
+  navigationPreload: true,
+  runtimeCaching,
 });
 
 const nextConfig = {
