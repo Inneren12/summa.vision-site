@@ -1,82 +1,94 @@
-"use client";
-
-import { useMemo } from "react";
-
 import DashLayout from "@/components/dash/DashLayout";
-import DataTable from "@/components/dash/DataTable";
-import VizWidget from "@/components/dash/VizWidget";
-import { useDashDataset } from "@/lib/dash/data";
-import { useDashState } from "@/lib/dash/useDashState";
+import FilterPanel from "@/components/dash/FilterPanel";
 
-const COUNTRY_OPTIONS = [
-  { value: "", label: "Все страны" },
-  { value: "CA", label: "Canada" },
-  { value: "US", label: "United States" },
-];
+interface DashboardPageProps {
+  params: {
+    slug: string;
+  };
+}
 
-export default function Page({ params }: { params: { slug: string } }) {
-  const { slug } = params;
-  const { state, setFilters } = useDashState();
-  const { dataset, isLoading } = useDashDataset(slug, state.filters);
-
-  const countryValue = useMemo(() => {
-    const raw = state.filters?.country;
-    return Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
-  }, [state.filters]);
-
-  const filters = (
-    <div className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Страна</span>
-        <select
-          value={countryValue}
-          onChange={(event) => {
-            const next = event.target.value;
-            setFilters((prev) => {
-              const draft = { ...prev };
-              if (next) {
-                draft.country = next;
-              } else {
-                delete draft.country;
-              }
-              return draft;
-            });
-          }}
-          className="rounded border px-2 py-1"
-        >
-          {COUNTRY_OPTIONS.map((option) => (
-            <option key={option.value || "all"} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="text-xs text-gray-500">Всего историй: {dataset?.items.length ?? 0}</div>
-    </div>
-  );
-
-  const storyList = dataset?.items ?? [];
+export default function DashboardPage({ params }: DashboardPageProps) {
+  const title = `Дашборд: ${decodeURIComponent(params.slug)}`;
 
   return (
-    <DashLayout title={`Дашборд: ${slug}`} filters={filters}>
-      <VizWidget title="График A">
-        <div className="text-sm text-gray-600">
-          {isLoading && <span>Загрузка данных…</span>}
-          {!isLoading && storyList.length === 0 && <span>Данные не найдены.</span>}
-          {!isLoading && storyList.length > 0 && (
-            <ul className="list-disc pl-5">
-              {storyList.map((story) => (
-                <li key={story.slug}>
-                  <span className="font-medium">{story.title}</span>
-                  <span className="text-gray-500"> · {story.country ?? "—"}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </VizWidget>
-      <VizWidget title="График B" />
+    <DashLayout title={title} filters={<FilterPanel />}>
+      <section aria-label="Визуализации" className="grid gap-4 md:grid-cols-2">
+        <VizWidget title="График A" />
+        <VizWidget title="График B" />
+      </section>
       <DataTable />
     </DashLayout>
+  );
+}
+
+function VizWidget({ title }: { title: string }) {
+  const safeId = `viz-${
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "section"
+  }`;
+  return (
+    <article
+      className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+      aria-labelledby={safeId}
+      role="region"
+    >
+      <h2 id={safeId} className="text-lg font-semibold text-neutral-900">
+        {title}
+      </h2>
+      <p className="text-sm text-neutral-600">
+        Данные появятся здесь. Используйте фильтры слева, чтобы уточнить визуализацию.
+      </p>
+      <div className="flex h-40 items-center justify-center rounded bg-neutral-100 text-sm text-neutral-500">
+        Заглушка графика
+      </div>
+    </article>
+  );
+}
+
+function DataTable() {
+  return (
+    <section
+      className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm"
+      aria-labelledby="dash-table-title"
+    >
+      <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-3">
+        <h2 id="dash-table-title" className="text-base font-semibold text-neutral-900">
+          Таблица данных
+        </h2>
+        <p className="text-xs text-neutral-600">
+          Табличные значения синхронизируются с выбранными фильтрами и обновятся автоматически.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-neutral-200 text-left text-sm">
+          <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
+            <tr>
+              <th scope="col" className="px-4 py-2">
+                Показатель
+              </th>
+              <th scope="col" className="px-4 py-2">
+                Значение
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-200 bg-white">
+            <tr>
+              <th scope="row" className="px-4 py-2 font-medium text-neutral-800">
+                Placeholder
+              </th>
+              <td className="px-4 py-2 text-neutral-700">0</td>
+            </tr>
+            <tr>
+              <th scope="row" className="px-4 py-2 font-medium text-neutral-800">
+                Placeholder 2
+              </th>
+              <td className="px-4 py-2 text-neutral-700">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
