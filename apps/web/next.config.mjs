@@ -16,7 +16,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  experimental: { externalDir: true, typedRoutes: true },
+  experimental: {
+    externalDir: true,
+    typedRoutes: true,
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
