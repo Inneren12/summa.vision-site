@@ -4,24 +4,54 @@ import { useEffect, useRef } from "react";
 
 type MapInstance = import("maplibre-gl").Map;
 
+function isWebGLAvailable(): boolean {
+  try {
+    const cv = document.createElement("canvas");
+    return Boolean(cv.getContext("webgl") || cv.getContext("experimental-webgl"));
+  } catch {
+    return false;
+  }
+}
+
 export default function MapE2EPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let map: MapInstance | undefined;
-    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    let resizeObserver: ResizeObserver | null = null;
 
     (async () => {
-      const { Map } = await import("maplibre-gl");
+      const root = containerRef.current;
+      if (!root) return;
 
-      const inlineStyle = { version: 8 as const, sources: {}, layers: [] };
+      const markReady = () => root.setAttribute("data-e2e-ready", "1");
 
-      if (!containerRef.current) {
+      if (!isWebGLAvailable()) {
+        const canvas = document.createElement("canvas");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        root.appendChild(canvas);
+
+        const fit = () => {
+          const rect = root.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.max(1, Math.round(rect.width * dpr));
+          canvas.height = Math.max(1, Math.round(rect.height * dpr));
+        };
+
+        fit();
+        resizeObserver = new ResizeObserver(fit);
+        resizeObserver.observe(root);
+
+        markReady();
         return;
       }
 
+      const { Map } = await import("maplibre-gl");
+      const inlineStyle = { version: 8 as const, sources: {}, layers: [] };
+
       map = new Map({
-        container: containerRef.current,
+        container: root,
         style: inlineStyle,
         attributionControl: false,
         antialias: false,
@@ -29,58 +59,61 @@ export default function MapE2EPage() {
         preserveDrawingBuffer: true,
       });
 
-      const markReady = () => containerRef.current?.setAttribute("data-e2e-ready", "1");
-
-      const cleanupListeners = () => {
+      const cleanup = () => {
         try {
-          map?.off?.("load", handleLoad);
-          map?.off?.("styledata", handleStyleData);
+          map?.off?.("load", onLoad);
+          map?.off?.("styledata", onStyleData);
         } catch {
-          // ignore cleanup errors
+          // ignore cleanup failures
         }
       };
 
-      const handleLoad = () => {
+      const onLoad = () => {
         markReady();
-        cleanupListeners();
+        cleanup();
       };
 
-      const handleStyleData = () => {
+      const onStyleData = () => {
         try {
           if (map?.isStyleLoaded?.()) {
             markReady();
-            cleanupListeners();
+            cleanup();
           }
         } catch {
-          // ignore style check failures
+          // ignore readiness errors
         }
       };
 
-      map.on("load", handleLoad);
-      map.on("styledata", handleStyleData);
+      map.on("load", onLoad);
+      map.on("styledata", onStyleData);
 
-      fallbackTimer = setTimeout(() => {
-        const hasCanvas = !!containerRef.current?.querySelector("canvas");
-        if (hasCanvas && !containerRef.current?.dataset.e2eReady) {
+      setTimeout(() => {
+        if (!root.dataset.e2eReady && root.querySelector("canvas")) {
           markReady();
         }
-      }, 1000);
+      }, 800);
     })();
 
     return () => {
-      if (fallbackTimer) {
-        clearTimeout(fallbackTimer);
-      }
-
       try {
         map?.remove?.();
       } catch {
-        // ignore cleanup errors
+        // ignore teardown errors
+      }
+
+      try {
+        resizeObserver?.disconnect();
+      } catch {
+        // ignore resize observer teardown errors
       }
     };
   }, []);
 
   return (
-    <div data-testid="map-container" ref={containerRef} style={{ width: "100%", height: "70vh" }} />
+    <div
+      data-testid="map-container"
+      ref={containerRef}
+      style={{ width: "100%", height: "70vh", minHeight: 300 }}
+    />
   );
 }
