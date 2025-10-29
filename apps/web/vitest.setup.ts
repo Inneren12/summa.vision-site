@@ -1,11 +1,11 @@
 // Worker-like globals for workbox when importing next-pwa under Node.
-const globalScope = globalThis as typeof globalThis & {
-  self?: typeof globalThis;
-  __WB_DISABLE_DEV_LOGS?: boolean;
-};
+const globalScope = globalThis as typeof globalThis &
+  Record<string, unknown> & {
+    __WB_DISABLE_DEV_LOGS?: boolean;
+  };
 
-if (typeof globalScope.self === "undefined") {
-  globalScope.self = globalScope;
+if (typeof (globalScope as Record<string, unknown>).self === "undefined") {
+  (globalScope as Record<string, unknown>).self = globalScope;
 }
 
 // Optionally silence workbox dev logs in tests.

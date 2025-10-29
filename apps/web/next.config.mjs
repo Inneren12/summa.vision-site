@@ -2,10 +2,7 @@
 import { createRequire } from "node:module";
 import bundleAnalyzer from "@next/bundle-analyzer";
 import createNextPWA from "next-pwa";
-import { CacheableResponsePlugin } from "workbox-cacheable-response";
-import { ExpirationPlugin } from "workbox-expiration";
 import { RangeRequestsPlugin } from "workbox-range-requests";
-import { NetworkFirst, StaleWhileRevalidate } from "workbox-strategies";
 
 import { securityHeaders } from "./security/headers.mjs";
 import { RareVizBudgetPlugin } from "./lib/webpack/rareVizBudgetPlugin.mjs";
@@ -38,26 +35,6 @@ const ADDITIONAL_MANIFEST_ENTRIES = [
   ...STORY_DATA_WARM_URLS.map((url) => ({ url, revision: null })),
 ];
 
-const pageCachePlugins = [
-  new CacheableResponsePlugin({ statuses: [200] }),
-  new ExpirationPlugin({ maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 3 }),
-];
-
-const staticAssetPlugins = [
-  new CacheableResponsePlugin({ statuses: [200] }),
-  new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 }),
-];
-
-const imageAssetPlugins = [
-  new CacheableResponsePlugin({ statuses: [200] }),
-  new ExpirationPlugin({ maxEntries: 128, maxAgeSeconds: 60 * 60 * 24 * 30 }),
-];
-
-const storyApiPlugins = [
-  new CacheableResponsePlugin({ statuses: [200] }),
-  new ExpirationPlugin({ maxEntries: 24, maxAgeSeconds: 60 * 60 * 12 }),
-];
-
 const runtimeCaching = [
   {
     urlPattern: ({ request }) => request.destination === "document",
@@ -65,7 +42,8 @@ const runtimeCaching = [
     options: {
       cacheName: "pages",
       networkTimeoutSeconds: 10,
-      plugins: pageCachePlugins,
+      cacheableResponse: { statuses: [200] },
+      expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 3 },
     },
   },
   {
@@ -76,7 +54,8 @@ const runtimeCaching = [
     handler: "StaleWhileRevalidate",
     options: {
       cacheName: "static-assets",
-      plugins: staticAssetPlugins,
+      cacheableResponse: { statuses: [200] },
+      expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 },
     },
   },
   GOOGLE_FONTS_CACHE,
@@ -85,7 +64,8 @@ const runtimeCaching = [
     handler: "StaleWhileRevalidate",
     options: {
       cacheName: "image-assets",
-      plugins: imageAssetPlugins,
+      cacheableResponse: { statuses: [200] },
+      expiration: { maxEntries: 128, maxAgeSeconds: 60 * 60 * 24 * 30 },
     },
   },
   {
@@ -95,7 +75,8 @@ const runtimeCaching = [
     options: {
       cacheName: "story-api",
       networkTimeoutSeconds: 10,
-      plugins: storyApiPlugins,
+      cacheableResponse: { statuses: [200] },
+      expiration: { maxEntries: 24, maxAgeSeconds: 60 * 60 * 12 },
     },
   },
   {
@@ -106,10 +87,8 @@ const runtimeCaching = [
     handler: "StaleWhileRevalidate",
     options: {
       cacheName: "datasets",
-      plugins: [
-        new CacheableResponsePlugin({ statuses: [200] }),
-        new ExpirationPlugin({ maxEntries: 48, maxAgeSeconds: 60 * 60 * 24 * 14 }),
-      ],
+      cacheableResponse: { statuses: [200] },
+      expiration: { maxEntries: 48, maxAgeSeconds: 60 * 60 * 24 * 14 },
     },
   },
   {
@@ -118,11 +97,9 @@ const runtimeCaching = [
     handler: "CacheFirst",
     options: {
       cacheName: "map-tiles",
-      plugins: [
-        new CacheableResponsePlugin({ statuses: [0, 200] }),
-        new ExpirationPlugin({ maxEntries: 256, maxAgeSeconds: 60 * 60 * 24 * 30 }),
-        new RangeRequestsPlugin(),
-      ],
+      cacheableResponse: { statuses: [0, 200] },
+      expiration: { maxEntries: 256, maxAgeSeconds: 60 * 60 * 24 * 30 },
+      plugins: [new RangeRequestsPlugin()],
     },
   },
 ];
