@@ -18,3 +18,5 @@ reports/logs/
 apps/web/.next/
 
 *.bak
+# Playwright outputs
+/test-results/

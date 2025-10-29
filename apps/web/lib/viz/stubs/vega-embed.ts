@@ -1,7 +1,10 @@
 // Минимальная заглушка для vega-embed
 export type VisualizationSpec = Record<string, unknown>;
 export type EmbedOptions = Record<string, unknown>;
-export type EmbedResult = { view: { runAsync: () => Promise<void>; finalize: () => void } };
+export type EmbedResult = {
+  finalize: () => void;
+  view: { runAsync: () => Promise<void>; finalize: () => void };
+};
 
 export default async function vegaEmbed(
   _el: unknown,

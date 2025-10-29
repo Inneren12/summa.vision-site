@@ -1,10 +1,14 @@
 declare module "vega-embed" {
   export type VisualizationSpec = Record<string, unknown>;
+  export type EmbedResult = {
+    finalize?: () => void;
+    view?: { finalize?: () => void };
+  };
   type Embed = (
     element: HTMLElement,
     spec: VisualizationSpec,
     options?: Record<string, unknown>,
-  ) => Promise<{ view?: { finalize?: () => void } }>;
+  ) => Promise<EmbedResult>;
   const embed: Embed;
   export default embed;
 }
