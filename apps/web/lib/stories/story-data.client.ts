@@ -90,7 +90,7 @@ export function useStoryIndex() {
     return () => {
       cancelled = true;
     };
-  }, [swr.mutate]);
+  }, [swr]);
 
   return {
     stories: swr.data ?? [],

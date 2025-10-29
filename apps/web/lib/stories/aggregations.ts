@@ -55,14 +55,24 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
     .orderby(desc("stepCount"), "slug")
     .objects() as StepsPerStory[];
 
-  const vizLibraryUsage = storyTable
-    .groupby("vizLib")
-    .rollup({ count: () => op.count() })
-    .orderby(desc("count"), "vizLib")
-    .objects()
-    .map((row) => ({
-      lib: row.vizLib as VizLibraryBucket,
-      count: row.count as number,
+  const vizLibraryUsage = (
+    storyTable
+      .groupby("vizLib")
+      .rollup({ count: () => op.count() })
+      .orderby(desc("count"), "vizLib")
+      .objects() as Record<string, unknown>[]
+  )
+    // Узкий тайпгард: оставляем только строки с нужными полями и типами
+    .filter((row): row is { vizLib: string; count: number } => {
+      if (row == null || typeof row !== "object") {
+        return false;
+      }
+      const candidate = row as Record<string, unknown>;
+      return typeof candidate.vizLib === "string" && typeof candidate.count === "number";
+    })
+    .map(({ vizLib, count }) => ({
+      lib: vizLib as VizLibraryBucket,
+      count,
     }));
 
   const needRows = stories.flatMap((story) =>
