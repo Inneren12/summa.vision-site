@@ -26,11 +26,12 @@ const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
 const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
 
 const REQUIRED_CI_ARGS = ["--headless=new", "--no-sandbox"] as const;
+const HEADLESS_ARGS_TO_IGNORE = ["--headless", "--headless=old", "--headless=new"] as const;
 
 const withHeadlessDefaults = <
   T extends {
     headless?: boolean;
-    launchOptions?: { args?: string[] };
+    launchOptions?: { args?: string[]; ignoreDefaultArgs?: string[] | boolean };
   },
 >(
   config: T,
@@ -46,6 +47,16 @@ const withHeadlessDefaults = <
       }
     }
     launchOptions.args = mergedArgs;
+  }
+
+  if (launchOptions.ignoreDefaultArgs === undefined) {
+    launchOptions.ignoreDefaultArgs = [...HEADLESS_ARGS_TO_IGNORE];
+  } else if (Array.isArray(launchOptions.ignoreDefaultArgs)) {
+    const merged = new Set(launchOptions.ignoreDefaultArgs);
+    for (const arg of HEADLESS_ARGS_TO_IGNORE) {
+      merged.add(arg);
+    }
+    launchOptions.ignoreDefaultArgs = Array.from(merged);
   }
 
   return {
