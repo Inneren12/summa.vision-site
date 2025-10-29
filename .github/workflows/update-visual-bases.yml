@@ -26,8 +26,8 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install Playwright browsers
-        uses: microsoft/playwright-github-action@v1
+      - name: Install Playwright browsers (CLI)
+        run: npx -y playwright@1.48.0 install --with-deps
 
       - name: Install deps
         run: npm ci
