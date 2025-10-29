@@ -398,14 +398,22 @@ export function sendAnalyticsEvent<TName extends string, TDetail extends Analyti
 
   try {
     const result = options.transport(envelope);
-    if (result && typeof (result as PromiseLike<unknown>).then === "function") {
-      void (result as PromiseLike<unknown>).catch(() => undefined);
+    if (isPromiseLike(result)) {
+      void Promise.resolve(result).catch(() => undefined);
       return true;
     }
     return result !== false;
   } catch {
     return false;
   }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  if (value == null) {
+    return false;
+  }
+  const then = (value as { then?: unknown }).then;
+  return typeof then === "function";
 }
 
 export function track<TDetail extends AnalyticsDetail = AnalyticsDetail>(
