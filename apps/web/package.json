@@ -79,5 +79,10 @@
   },
   "version": "0.1.1",
   "overrides": {},
-  "resolutions": {}
+  "resolutions": {},
+  "msw": {
+    "workerDirectory": [
+      "apps/web/public"
+    ]
+  }
 }

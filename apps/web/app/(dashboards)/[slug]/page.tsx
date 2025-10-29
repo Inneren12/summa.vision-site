@@ -1,3 +1,7 @@
+"use client";
+
+import { useMemo } from "react";
+
 import DashLayout from "@/components/dash/DashLayout";
 import FilterPanel from "@/components/dash/FilterPanel";
 

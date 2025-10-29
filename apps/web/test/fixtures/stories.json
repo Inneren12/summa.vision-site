@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "slug": "demo",
+      "title": "Demo Story",
+      "updatedAt": "2025-01-01T00:00:00Z",
+      "country": "CA",
+      "sector": ["Energy", "AI"],
+      "steps": [
+        { "id": "intro", "title": "Intro" },
+        { "id": "chart", "title": "Chart" }
+      ]
+    },
+    {
+      "slug": "us-market",
+      "title": "US Market",
+      "updatedAt": "2025-01-05T00:00:00Z",
+      "country": "US",
+      "sector": ["Finance"],
+      "steps": [{ "id": "main", "title": "Main" }]
+    }
+  ]
+}
