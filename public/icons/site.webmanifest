@@ -1,6 +1,7 @@
 {
-  "name": "summa.vision",
-  "short_name": "summa",
+  "name": "Summa Vision",
+  "short_name": "Summa",
+  "description": "Summa Vision progressive web experience.",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -29,5 +30,5 @@
   "background_color": "#2FAFEA",
   "display": "standalone",
   "scope": "/",
-  "start_url": "/"
+  "start_url": "/?source=pwa"
 }

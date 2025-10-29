@@ -10,48 +10,16 @@ import {
 } from "react";
 
 import { FakeChart } from "./FakeChart";
+import { storySteps } from "./story-static-content";
 
 import { scrollStepIntoView, useStepUrlSync } from "@/components/story/step-url";
 import useVisualViewportScale from "@/lib/viewport/useVisualViewportScale";
 import { scaleRootMargin } from "@/lib/viewport/visualViewportScale";
 
-interface StoryStep {
-  id: string;
-  title: string;
-  description: string;
-}
-
 const HASH_PREFIX = "step-";
 
-const STORY_STEPS: StoryStep[] = [
-  {
-    id: "baseline",
-    title: "Baseline momentum",
-    description:
-      "Summa Vision’s programmes start by mapping existing community assets and aligning local partners around a shared north star. Baseline data on education, health, and climate risks lets teams focus on leverage points rather than duplicating efforts.",
-  },
-  {
-    id: "activation",
-    title: "Activation and pilots",
-    description:
-      "Pilot projects launch quickly to prove traction—think microgrid pilots, digital skills cohorts, or regenerative agriculture demos. Every activation publishes metrics publicly so peers can replicate what works.",
-  },
-  {
-    id: "scale",
-    title: "Scaling with partners",
-    description:
-      "Once the pilot playbook is solid, it expands with regional delivery partners. Shared infrastructure, toolkits, and funding rails help municipalities and NGOs adopt the blueprint while adapting to local context.",
-  },
-  {
-    id: "impact",
-    title: "Measuring real outcomes",
-    description:
-      "Impact dashboards track emissions avoided, jobs created, and resilience gains. Communities can subscribe to alerts for new data drops, and media kits make it easy to report on progress without waiting for quarterly summaries.",
-  },
-];
-
 export function StorySteps() {
-  const steps = useMemo(() => STORY_STEPS, []);
+  const steps = useMemo(() => storySteps, []);
   const [activeStep, setActiveStep] = useState<string>(steps[0]?.id ?? "");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const observerRef = useRef<IntersectionObserver | null>(null);

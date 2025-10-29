@@ -62,7 +62,7 @@ export default defineConfig({
       },
     },
 
-    setupFiles: ["tests/setup.vitest.ts"],
+    setupFiles: ["./vitest.setup.ts", "tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
     isolate: true,
     clearMocks: true,
@@ -98,6 +98,7 @@ export default defineConfig({
         "app/(visual)/**",
         "components/**",
         "app/**",
+        "lib/stories/aggregations.ts",
       ],
     },
   },
