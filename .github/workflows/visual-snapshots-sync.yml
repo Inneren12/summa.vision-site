@@ -52,17 +52,22 @@ jobs:
       - name: Build web
         run: npm run web:build
 
-      - name: Set Playwright to use system Chrome
-        env:
-          PW_CHANNEL: chrome
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Detect system Chrome for Playwright
         run: |
-          google-chrome --version || which google-chrome
-          echo "Using system Chrome via PW_CHANNEL=chrome"
+          chrome_path="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -z "$chrome_path" ]; then
+            echo "System Chrome binary not found" >&2
+            exit 1
+          fi
+          "$chrome_path" --version
+          echo "Using system Chrome at $chrome_path"
+          {
+            echo "PW_CHROME_EXECUTABLE=$chrome_path"
+            echo "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1"
+          } >> "$GITHUB_ENV"
 
       - name: Update visual snapshots (Playwright starts server)
         env:
-          PW_CHANNEL: chrome
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npx -y @playwright/test@1.48.0 test e2e/visual --update-snapshots
 
