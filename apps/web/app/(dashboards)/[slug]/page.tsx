@@ -1,5 +1,7 @@
 import DashLayout from "@/components/dash/DashLayout";
 import FilterPanel from "@/components/dash/FilterPanel";
+import VizWidget from "@/components/dash/VizWidget";
+import { EC_LINE_MIN, VL_BAR_MIN } from "@/components/dash/vizSpecs";
 
 interface DashboardPageProps {
   params: {
@@ -10,40 +12,31 @@ interface DashboardPageProps {
 export default function DashboardPage({ params }: DashboardPageProps) {
   const title = `Дашборд: ${decodeURIComponent(params.slug)}`;
 
+  const categoryData = [
+    { category: "A", value: 120 },
+    { category: "B", value: 98 },
+    { category: "C", value: 143 },
+    { category: "D", value: 76 },
+  ];
+
+  const trendData = [
+    { t: "Пн", y: 34 },
+    { t: "Вт", y: 48 },
+    { t: "Ср", y: 51 },
+    { t: "Чт", y: 45 },
+    { t: "Пт", y: 62 },
+    { t: "Сб", y: 39 },
+    { t: "Вс", y: 28 },
+  ];
+
   return (
     <DashLayout title={title} filters={<FilterPanel />}>
       <section aria-label="Визуализации" className="grid gap-4 md:grid-cols-2">
-        <VizWidget title="График A" />
-        <VizWidget title="График B" />
+        <VizWidget title="Категории" lib="vega-lite" spec={VL_BAR_MIN} data={categoryData} />
+        <VizWidget title="Динамика" lib="echarts" spec={EC_LINE_MIN(trendData)} />
       </section>
       <DataTable />
     </DashLayout>
-  );
-}
-
-function VizWidget({ title }: { title: string }) {
-  const safeId = `viz-${
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "section"
-  }`;
-  return (
-    <article
-      className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
-      aria-labelledby={safeId}
-      role="region"
-    >
-      <h2 id={safeId} className="text-lg font-semibold text-neutral-900">
-        {title}
-      </h2>
-      <p className="text-sm text-neutral-600">
-        Данные появятся здесь. Используйте фильтры слева, чтобы уточнить визуализацию.
-      </p>
-      <div className="flex h-40 items-center justify-center rounded bg-neutral-100 text-sm text-neutral-500">
-        Заглушка графика
-      </div>
-    </article>
   );
 }
 
