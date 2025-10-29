@@ -6,6 +6,9 @@ const NO_VIZ_LIBRARY = "none" as const;
 
 type VizLibraryBucket = StoryVisualizationNeed | typeof NO_VIZ_LIBRARY;
 
+// Узкое безопасное приведение unknown → number
+const num = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0));
+
 type StepsPerStory = {
   readonly slug: string;
   readonly title: string;
@@ -43,12 +46,15 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
 
   const storyTable = from(storyRows);
 
-  const rollupRow = storyTable
-    .rollup({
-      stories: () => op.count(),
-      steps: (d) => op.sum(d.stepCount),
-    })
-    .objects()[0] ?? { stories: 0, steps: 0 };
+  const rollupRow =
+    (
+      storyTable
+        .rollup({
+          stories: () => op.count(),
+          steps: (d) => op.sum(d.stepCount),
+        })
+        .objects() as Record<string, unknown>[]
+    )[0] ?? {};
 
   const stepsPerStory = storyTable
     .select("slug", "title", "stepCount")
@@ -65,7 +71,7 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
     // Берём только корректные строки: vizLib:string, count:number
     .filter(
       (row): row is { vizLib: string; count: number } =>
-        typeof row.vizLib === "string" && typeof row.count === "number",
+        typeof row["vizLib"] === "string" && typeof row["count"] === "number",
     )
     .map(({ vizLib, count }) => ({
       lib: vizLib as VizLibraryBucket,
@@ -97,7 +103,7 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
           // Берём только строки с нужными типами: need:string, occurrences:number
           .filter(
             (row): row is { need: string; occurrences: number; storySlugs?: unknown } =>
-              typeof row.need === "string" && typeof row.occurrences === "number",
+              typeof row["need"] === "string" && typeof row["occurrences"] === "number",
           )
           .map(({ need, occurrences, storySlugs }) => ({
             need: need as StoryVisualizationNeed,
@@ -105,10 +111,12 @@ export function buildStoryAggregations(stories: StoryFrontMatter[]): StoryAggreg
             stories: Array.isArray(storySlugs) ? new Set((storySlugs as string[]) ?? []).size : 0,
           }));
 
+  // Безопасный доступ к полям результата rollup
+  const rr = (rollupRow ?? {}) as Record<string, unknown>;
   return {
     totals: {
-      stories: Number(rollupRow.stories ?? 0),
-      steps: Number(rollupRow.steps ?? 0),
+      stories: num(rr["stories"]),
+      steps: num(rr["steps"]),
     },
     stepsPerStory,
     vizLibraryUsage,
