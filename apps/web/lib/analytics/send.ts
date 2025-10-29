@@ -169,10 +169,12 @@ function collectContext(): AnalyticsContext {
   if (typeof window === "undefined") {
     return {};
   }
-  const context: AnalyticsContext = {};
+  // Build context via a mutable builder, then use it where AnalyticsContext is expected.
+  type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+  const context: Mutable<AnalyticsContext> = {} as Mutable<AnalyticsContext>;
   try {
-    context.href = window.location?.href;
-    context.path = window.location?.pathname;
+    context.href = typeof window !== "undefined" ? window.location?.href : undefined;
+    context.path = typeof window !== "undefined" ? window.location?.pathname : undefined;
   } catch {
     // Ignore location access failures.
   }
