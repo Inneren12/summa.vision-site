@@ -1,0 +1,30 @@
+name: Lighthouse CI
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - ".lighthouserc.cjs"
+      - ".github/workflows/lhci.yml"
+jobs:
+  lhci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - name: Install deps
+        run: npm ci
+      - name: Build web
+        run: npm --workspace apps/web run build
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+      - name: Run LHCI
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          LHCI_CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          LHCI_COLLECT__CHROME_FLAGS: "--headless=new --no-sandbox --disable-dev-shm-usage"
+        run: npx -y @lhci/cli@0.13.0 autorun --config=.lighthouserc.cjs
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: lhci, path: lighthouseci }
