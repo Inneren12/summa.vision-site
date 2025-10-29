@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { StorySteps } from "./StorySteps";
+import { storyOfflineContent } from "./story-static-content";
 
 export const metadata: Metadata = {
   title: "Story deep links",
@@ -12,13 +13,10 @@ export default function StoryPage() {
     <main className="min-h-screen bg-bg text-fg">
       <header className="bg-bg/80 py-16 text-center">
         <p className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Scrollytelling preview
+          {storyOfflineContent.heroTagline}
         </p>
-        <h1 className="mt-4 text-4xl font-bold">Infrastructure story with deep linked steps</h1>
-        <p className="mt-4 text-lg text-muted">
-          Navigate the steps below or copy the URL hash/query—refreshing or sharing restores the
-          same section.
-        </p>
+        <h1 className="mt-4 text-4xl font-bold">{storyOfflineContent.heroTitle}</h1>
+        <p className="mt-4 text-lg text-muted">{storyOfflineContent.heroDescription}</p>
       </header>
       <StorySteps />
     </main>
