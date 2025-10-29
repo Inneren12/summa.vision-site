@@ -2,6 +2,10 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+// В CI уводим браузер на системный Chrome и включаем тихий репортинг в файлы.
+const PW_CHANNEL = process.env.PW_CHANNEL as "chrome" | "chromium" | "msedge" | undefined;
+const PW_EXECUTABLE_PATH = process.env.PW_EXECUTABLE_PATH; // например: /usr/bin/google-chrome-stable
+
 // Где лежит Next-приложение
 const WEB_DIR = process.env.E2E_WEB_DIR
   ? path.resolve(process.cwd(), process.env.E2E_WEB_DIR)
@@ -38,6 +42,18 @@ const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(
 const desktopChromeDevice = withWebGLLaunchArgs(devices["Desktop Chrome"]);
 const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
 
+// Если передали явный путь к Chrome — используем его, иначе канал.
+const browserSelection: {
+  channel?: "chrome" | "chromium" | "msedge";
+  executablePath?: string;
+} = {};
+
+if (PW_EXECUTABLE_PATH) {
+  browserSelection.executablePath = PW_EXECUTABLE_PATH;
+} else if (PW_CHANNEL) {
+  browserSelection.channel = PW_CHANNEL;
+}
+
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
   command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
@@ -63,21 +79,40 @@ console.log(
 );
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./",
+  testMatch: ["e2e/**/*.spec.ts", "apps/web/e2e/**/*.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
 
+  // Куда складывать артефакты (репорты, логи, трэйсы)
+  outputDir: "test-results",
+
+  // Минимум шума в консоль + файлы для анализа и ошибок.
+  reporter: [
+    ["line"],
+    ["json", { outputFile: "test-results/e2e.json" }],
+    ["./tools/playwright/errors-only-reporter.js", { outputFile: "test-results/errors.log" }],
+  ],
+
   // ВАЖНО: projects НЕ переопределяют webServer
   projects: [
     {
       name: "desktop-chrome",
-      use: { ...desktopChromeDevice, baseURL: WEB_URL },
+      use: {
+        ...desktopChromeDevice,
+        ...browserSelection,
+        baseURL: WEB_URL,
+      },
     },
     {
       name: "mobile-chrome",
-      use: { ...pixel7Device, baseURL: WEB_URL },
+      use: {
+        ...pixel7Device,
+        ...browserSelection,
+        baseURL: WEB_URL,
+      },
     },
   ],
 
@@ -86,5 +121,7 @@ export default defineConfig({
 
   use: {
     baseURL: WEB_URL,
+    trace: "retain-on-failure",
+    ...browserSelection,
   },
 });
