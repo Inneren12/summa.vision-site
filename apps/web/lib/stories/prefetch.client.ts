@@ -1,14 +1,15 @@
 "use client";
 
+import { storyVisualizationSpecSchema } from "./schemas";
+import type { StoryVisualizationSpec } from "./schemas";
 import type { StoryVisualizationNeed, StoryVisualizationPrefetchPlan } from "./types";
 
 import { emitVizEvent } from "@/lib/analytics/send";
 import type { MotionMode, VizLibraryTag } from "@/lib/viz/types";
 
-
 const needPromises = new Map<StoryVisualizationNeed, Promise<void>>();
-const specPromises = new Map<string, Promise<unknown>>();
-const specCache = new Map<string, unknown>();
+const specPromises = new Map<string, Promise<StoryVisualizationSpec>>();
+const specCache = new Map<string, StoryVisualizationSpec>();
 
 const NEED_LOADERS: Record<StoryVisualizationNeed, () => Promise<void>> = {
   echarts: async () => {
@@ -46,7 +47,7 @@ function loadNeed(need: StoryVisualizationNeed): Promise<void> {
   return task;
 }
 
-async function fetchSpec(specPath: string, signal?: AbortSignal): Promise<unknown> {
+async function fetchSpec(specPath: string, signal?: AbortSignal): Promise<StoryVisualizationSpec> {
   const response = await fetch(`/api/story-spec?path=${encodeURIComponent(specPath)}`, {
     method: "GET",
     signal,
@@ -59,13 +60,18 @@ async function fetchSpec(specPath: string, signal?: AbortSignal): Promise<unknow
     throw new Error(`Unable to load story spec (${response.status})`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  const parsed = storyVisualizationSpecSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw parsed.error;
+  }
+  return parsed.data;
 }
 
 export async function loadStorySpec(
   specPath: string,
   options: { signal?: AbortSignal } = {},
-): Promise<unknown> {
+): Promise<StoryVisualizationSpec> {
   const existing = specPromises.get(specPath);
   if (existing) {
     return existing;
@@ -90,7 +96,7 @@ export async function loadStorySpec(
   }
 }
 
-export function getCachedStorySpec(specPath: string): unknown | undefined {
+export function getCachedStorySpec(specPath: string): StoryVisualizationSpec | undefined {
   return specCache.get(specPath);
 }
 
