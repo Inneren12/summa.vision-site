@@ -1,5 +1,4 @@
-'use client';
-import { useMemo, useState } from 'react';
+"use client";
 import {
   useReactTable,
   getCoreRowModel,
@@ -7,7 +6,8 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
-} from '@tanstack/react-table';
+} from "@tanstack/react-table";
+import { useMemo, useState } from "react";
 
 type Row = Record<string, unknown>;
 
@@ -15,7 +15,7 @@ export default function DataTable({ rows = [] as Row[] }: { rows?: Row[] }) {
   const columnHelper = createColumnHelper<Row>();
 
   // Берём ключи первой строки; если данных нет — делаем одну колонку "value".
-  const keys = useMemo(() => Object.keys(rows[0] ?? { value: '—' }), [rows]);
+  const keys = useMemo(() => Object.keys(rows[0] ?? { value: "—" }), [rows]);
 
   const columns = useMemo(
     () =>
@@ -24,11 +24,11 @@ export default function DataTable({ rows = [] as Row[] }: { rows?: Row[] }) {
           header: k,
           cell: (ctx) => {
             const v = ctx.getValue();
-            return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+            return typeof v === "string" || typeof v === "number" || typeof v === "boolean"
               ? String(v)
               : v == null
-              ? ''
-              : JSON.stringify(v);
+                ? ""
+                : JSON.stringify(v);
           },
         }),
       ),
@@ -61,8 +61,8 @@ export default function DataTable({ rows = [] as Row[] }: { rows?: Row[] }) {
                 >
                   <span className="inline-flex items-center gap-1">
                     {flexRender(h.column.columnDef.header, h.getContext())}
-                    {h.column.getIsSorted() === 'asc' && <span>▲</span>}
-                    {h.column.getIsSorted() === 'desc' && <span>▼</span>}
+                    {h.column.getIsSorted() === "asc" && <span>▲</span>}
+                    {h.column.getIsSorted() === "desc" && <span>▼</span>}
                   </span>
                 </th>
               ))}
