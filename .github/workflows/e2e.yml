@@ -1,4 +1,6 @@
 name: E2E
+permissions:
+  contents: write  # нужно, чтобы коммитнуть снапшоты в ветку PR
 on:
   push:
     branches: ["*"]
@@ -52,6 +54,21 @@ jobs:
         run: npx -y playwright@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
+
+      # --- ONE-TIME SEED OF VISUAL BASELINES (run once, потом удалим этот шаг) ---
+      - name: Seed visual baselines (one-time)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          E2E_PORT: 3000
+          E2E_HOST: 127.0.0.1
+        run: |
+          # создадим/обновим эталоны только для визуальных тестов
+          npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts e2e/visual --update-snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add e2e/visual/*-snapshots/*.png || true
+          git commit -m "test(visual): seed/update visual baselines (CI)" || true
+          git push || true
       
       # ОТЛАДКА: проверяем что создалось после сборки
       - name: Debug - Check build output
