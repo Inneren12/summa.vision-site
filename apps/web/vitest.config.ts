@@ -62,7 +62,7 @@ export default defineConfig({
       },
     },
 
-    setupFiles: ["./vitest.setup.ts", "tests/setup.vitest.ts"],
+    setupFiles: ["./test/msw/server.ts", "./vitest.setup.ts", "tests/setup.vitest.ts"],
     globals: true, // describe/it/vi глобально
     isolate: true,
     clearMocks: true,
