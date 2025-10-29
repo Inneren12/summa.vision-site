@@ -134,7 +134,6 @@ const withPWA = createNextPWA({
   fallbacks: {
     document: OFFLINE_PAGE,
   },
-  precachePages: ["/", "/story", OFFLINE_PAGE],
   register: true,
   scope: "/",
   skipWaiting: true,
