@@ -20,14 +20,18 @@ const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : 
 
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
+// По умолчанию запускаем next start; standalone включаем флагом
+const USE_STANDALONE = process.env.PW_USE_STANDALONE === "1" && !!SERVER_JS;
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command: SERVER_JS ? `node ${JSON.stringify(SERVER_JS)}` : `npx -y next@14.2.8 start -p ${PORT}`,
+  command: USE_STANDALONE
+    ? `node ${JSON.stringify(SERVER_JS)}`
+    : `npx -y next@14.2.8 start -p ${PORT}`,
   port: PORT,
   reuseExistingServer: !process.env.CI,
   timeout: 120_000,
-  cwd: SERVER_JS ? path.dirname(SERVER_JS) : WEB_DIR,
+  cwd: USE_STANDALONE ? path.dirname(SERVER_JS!) : WEB_DIR,
   env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
 } as const;
 
