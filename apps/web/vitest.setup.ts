@@ -1,3 +1,16 @@
+// Worker-like globals for workbox when importing next-pwa under Node.
+const globalScope = globalThis as typeof globalThis & {
+  self?: typeof globalThis;
+  __WB_DISABLE_DEV_LOGS?: boolean;
+};
+
+if (typeof globalScope.self === "undefined") {
+  globalScope.self = globalScope;
+}
+
+// Optionally silence workbox dev logs in tests.
+globalScope.__WB_DISABLE_DEV_LOGS = true;
+
 import "@testing-library/jest-dom";
 
 process.env.NEXT_PUBLIC_APP_NAME ??= "Summa Vision";
