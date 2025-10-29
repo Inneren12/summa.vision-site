@@ -58,6 +58,9 @@ declare module "maplibre-gl" {
     bearing?: number;
     container?: HTMLElement;
     attributionControl?: boolean;
+    antialias?: boolean;
+    hash?: boolean;
+    preserveDrawingBuffer?: boolean;
   }
   export class Map {
     constructor(options: MapOptions);
@@ -69,6 +72,9 @@ declare module "maplibre-gl" {
     getStyle(): { sprite?: string } | undefined;
     addControl(control: unknown, position?: string): void;
     once(type: string, listener: () => void): void;
+    on(type: string, listener: () => void): void;
+    off(type: string, listener: () => void): void;
+    isStyleLoaded(): boolean;
     resize(): void;
     remove(): void;
   }

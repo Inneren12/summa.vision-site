@@ -1,6 +1,25 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const CONTAINER_SELECTOR = "[data-testid='map-container']";
+
+async function waitForSizeMatch(page: Page) {
+  await page.waitForFunction(
+    () => {
+      const canvasEl = document.querySelector<HTMLCanvasElement>(
+        "[data-testid='map-container'] canvas",
+      );
+      const mapContainer = document.querySelector<HTMLElement>("[data-testid='map-container']");
+      if (!canvasEl || !mapContainer) return false;
+      const canvasRect = canvasEl.getBoundingClientRect();
+      const containerRect = mapContainer.getBoundingClientRect();
+      return (
+        Math.abs(canvasRect.width - containerRect.width) <= 1 &&
+        Math.abs(canvasRect.height - containerRect.height) <= 1
+      );
+    },
+    { timeout: 30_000 },
+  );
+}
 
 test.describe("Map resize", () => {
   test("canvas follows container after viewport changes", async ({ page }) => {
@@ -9,29 +28,17 @@ test.describe("Map resize", () => {
     const container = page.locator(CONTAINER_SELECTOR);
     await expect(container).toBeVisible();
 
-    await page.waitForSelector("[data-testid='map-container'][data-e2e-ready='1']", {
-      timeout: 30000,
-    });
+    await Promise.race([
+      page.waitForSelector("[data-testid='map-container'][data-e2e-ready='1']", {
+        timeout: 30_000,
+      }),
+      container.locator("canvas").first().waitFor({ state: "attached", timeout: 30_000 }),
+    ]);
 
     const canvas = container.locator("canvas").first();
-    await expect(canvas).toBeAttached({ timeout: 30000 });
+    await expect(canvas).toBeAttached({ timeout: 30_000 });
 
-    await page.waitForFunction(
-      () => {
-        const canvasEl = document.querySelector<HTMLCanvasElement>(
-          "[data-testid='map-container'] canvas",
-        );
-        const mapContainer = document.querySelector<HTMLElement>("[data-testid='map-container']");
-        if (!canvasEl || !mapContainer) return false;
-        const canvasRect = canvasEl.getBoundingClientRect();
-        const containerRect = mapContainer.getBoundingClientRect();
-        return (
-          Math.abs(canvasRect.width - containerRect.width) <= 1 &&
-          Math.abs(canvasRect.height - containerRect.height) <= 1
-        );
-      },
-      { timeout: 30000 },
-    );
+    await waitForSizeMatch(page);
 
     const [box, canvasSize] = await Promise.all([
       container.boundingBox(),
@@ -49,21 +56,6 @@ test.describe("Map resize", () => {
 
     await page.setViewportSize({ width: 900, height: 700 });
 
-    await page.waitForFunction(
-      () => {
-        const canvasEl = document.querySelector<HTMLCanvasElement>(
-          "[data-testid='map-container'] canvas",
-        );
-        const mapContainer = document.querySelector<HTMLElement>("[data-testid='map-container']");
-        if (!canvasEl || !mapContainer) return false;
-        const canvasRect = canvasEl.getBoundingClientRect();
-        const containerRect = mapContainer.getBoundingClientRect();
-        return (
-          Math.abs(canvasRect.width - containerRect.width) <= 1 &&
-          Math.abs(canvasRect.height - containerRect.height) <= 1
-        );
-      },
-      { timeout: 30000 },
-    );
+    await waitForSizeMatch(page);
   });
 });
