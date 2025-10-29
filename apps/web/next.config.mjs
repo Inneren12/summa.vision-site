@@ -124,9 +124,11 @@ const withPWA = createNextPWA({
   runtimeCaching,
 });
 
+const isE2E = Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL ?? process.env.E2E_PORT);
+
 const nextConfig = {
   reactStrictMode: true,
-  output: "standalone",
+  ...(isE2E ? {} : { output: "standalone" }),
   experimental: {
     externalDir: true,
     typedRoutes: true,

@@ -3,6 +3,13 @@ export const metadata = {
   description: "Visual snapshots for basic UI atoms",
 };
 
+import dynamic from "next/dynamic";
+
+const MapCss = dynamic(() => import("@/components/MapCss.client"), { ssr: false });
+const MapView = dynamic(() => import("@/components/map/MapView.client"), {
+  ssr: false,
+});
+
 export default function AtomsPage() {
   return (
     <main className="min-h-screen p-6 space-y-8">
@@ -21,6 +28,18 @@ export default function AtomsPage() {
         <div className="flex items-center gap-4">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
           <span className="text-sm text-neutral-500">Loading…</span>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h1 className="text-xl font-semibold">Map</h1>
+        <p className="text-sm text-neutral-500">
+          MapLibre GL JS demo powered by self-hosted OpenMapTiles (configure via environment
+          variables).
+        </p>
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <MapCss />
+          <MapView />
         </div>
       </section>
     </main>

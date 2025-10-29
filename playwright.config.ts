@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
@@ -13,26 +12,46 @@ const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
 const HOST = process.env.E2E_HOST ?? "127.0.0.1";
 const WEB_URL = `http://${HOST}:${PORT}`;
 
-// Ищем server.js в standalone (новая/старая раскладки)
-const MODERN = path.join(WEB_DIR, ".next", "standalone", "server.js");
-const MONO = path.join(WEB_DIR, ".next", "standalone", "apps", "web", "server.js");
-const SERVER_JS = fs.existsSync(MODERN) ? MODERN : fs.existsSync(MONO) ? MONO : null;
-
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
-// По умолчанию запускаем next start; standalone включаем флагом
-const USE_STANDALONE = process.env.PW_USE_STANDALONE === "1" && !!SERVER_JS;
+
+const GPU_LAUNCH_ARGS = ["--ignore-gpu-blocklist", "--use-gl=swiftshader"] as const;
+
+const withWebGLLaunchArgs = <T extends { launchOptions?: { args?: string[] } }>(device: T): T => {
+  const existingArgs = device.launchOptions?.args ?? [];
+  const mergedArgs = existingArgs.slice();
+  for (const arg of GPU_LAUNCH_ARGS) {
+    if (!mergedArgs.includes(arg)) {
+      mergedArgs.push(arg);
+    }
+  }
+
+  return {
+    ...device,
+    launchOptions: {
+      ...device.launchOptions,
+      args: mergedArgs,
+    },
+  };
+};
+
+const desktopChromeDevice = withWebGLLaunchArgs(devices["Desktop Chrome"]);
+const pixel7Device = withWebGLLaunchArgs(devices["Pixel 7"]);
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command: USE_STANDALONE
-    ? `node ${JSON.stringify(SERVER_JS)}`
-    : `npx -y next@14.2.8 start -p ${PORT}`,
+  command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
   port: PORT,
-  reuseExistingServer: !process.env.CI,
-  timeout: 120_000,
-  cwd: USE_STANDALONE ? path.dirname(SERVER_JS!) : WEB_DIR,
-  env: { ...process.env, PORT: String(PORT), HOSTNAME: HOST },
+  reuseExistingServer: false,
+  timeout: 180_000,
+  cwd: WEB_DIR,
+  env: {
+    ...process.env,
+    PORT: String(PORT),
+    HOSTNAME: HOST,
+    NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
+    NEXT_PUBLIC_MAP_STYLE_URL: "https://demotiles.maplibre.org/style.json",
+  },
 } as const;
 
 // Отладочный вывод — видно, какой конфиг реально используется
@@ -54,11 +73,11 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chrome",
-      use: { ...devices["Desktop Chrome"], baseURL: WEB_URL },
+      use: { ...desktopChromeDevice, baseURL: WEB_URL },
     },
     {
       name: "mobile-chrome",
-      use: { ...devices["Pixel 7"], baseURL: WEB_URL },
+      use: { ...pixel7Device, baseURL: WEB_URL },
     },
   ],
 
