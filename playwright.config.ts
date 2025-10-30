@@ -15,7 +15,7 @@ const WEB_DIR = process.env.E2E_WEB_DIR
 
 // Параметры сервера e2e. Playwright 1.48.0 требует, чтобы в webServer был либо port, либо url.
 const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
-const HOST = process.env.E2E_HOST ?? "127.0.0.1";
+const HOST = process.env.E2E_HOST ?? "localhost";
 const WEB_URL = process.env.PW_BASE_URL?.length
   ? process.env.PW_BASE_URL
   : `http://${HOST}:${PORT}`;
@@ -100,6 +100,7 @@ const webServerConfig = {
   cwd: WEB_DIR,
   env: {
     ...process.env,
+    NODE_ENV: "production",
     PORT: String(PORT),
     HOSTNAME: HOST,
     NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
