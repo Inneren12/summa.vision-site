@@ -30,20 +30,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     snapshotId = "";
   }
   const correlation = correlationFromNextContext();
-  const e2eEnabled = process.env.SV_E2E === "1" || process.env["NEXT_PUBLIC_E2E"] === "1";
-  const mswEnabled = process.env.NEXT_PUBLIC_MSW === "1";
-  const shouldHydrateE2E = e2eEnabled || mswEnabled;
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className="bg-bg text-fg"
         data-ff-snapshot={snapshotId}
-        data-sv-e2e={e2eEnabled ? "1" : undefined}
+        data-e2e={process.env.SV_E2E === "1" || process.env.NEXT_PUBLIC_E2E === "1" ? "1" : "0"}
       >
-        {shouldHydrateE2E ? (
-          <E2EClientInit enableMsw={mswEnabled} enableDashOverlay={e2eEnabled} />
-        ) : null}
+        <E2EClientInit />
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content

@@ -43,9 +43,7 @@ export async function GET(req: Request) {
         .map((value) => value.trim())
         .filter(Boolean)
         .forEach((name) => {
-          if (!store.events.some((event) => event.name === name)) {
-            store.events.push({ name, ts: now });
-          }
+          store.events.push({ name, ts: now });
         });
     }
   } catch {

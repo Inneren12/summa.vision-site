@@ -7,7 +7,10 @@ export const revalidate = 0;
 
 export default function ExposureTestPage() {
   useEffect(() => {
-    void fetch("/api/dev/flags-events?emit=exp-a,exp-b,exp-c").catch(() => {});
+    const id = Math.random().toString(36).slice(2);
+    void fetch(`/api/dev/flags-events?emit=exposure-ssr-${id}`, {
+      headers: { "x-msw-bypass": "true" },
+    }).catch(() => {});
   }, []);
 
   return (
