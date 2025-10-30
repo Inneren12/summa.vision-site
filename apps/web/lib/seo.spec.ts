@@ -20,11 +20,12 @@ describe("SEO helpers", () => {
 
   it("merges defaults and canonical", async () => {
     const { buildMetadata, siteMeta } = await import("./seo");
+    const { canonical } = await import("./seo/site");
 
     const metadata = buildMetadata({ title: "Custom" });
 
     expect(metadata.title).toBe("Custom");
-    expect(metadata.alternates?.canonical).toBe(siteMeta.siteUrl);
+    expect(metadata.alternates?.canonical).toBe(canonical("/"));
     expect(metadata.openGraph?.siteName).toBe(siteMeta.siteName);
     expect(metadata.openGraph?.title).toBe("Custom");
   });

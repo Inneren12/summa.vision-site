@@ -12,12 +12,35 @@ import { Providers } from "./providers";
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { buildMetadata } from "@/lib/seo";
+import { SITE, canonical } from "@/lib/seo/site";
 
-export const metadata: Metadata = buildMetadata();
+const defaultCanonical = canonical("/");
+const languageAlternates: Record<string, string> = Object.fromEntries(
+  SITE.locales.map((locale) => [locale, canonical("/", locale)]),
+);
+
+languageAlternates["x-default"] = defaultCanonical;
+
+export const metadata: Metadata = buildMetadata({
+  metadataBase: SITE.baseUrl,
+  alternates: {
+    canonical: defaultCanonical,
+    languages: languageAlternates,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    url: defaultCanonical,
+    locale: "en_US",
+  },
+});
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
   viewportFit: "cover",
 };
 
@@ -31,7 +54,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const correlation = correlationFromNextContext();
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={SITE.defaultLocale} suppressHydrationWarning>
       <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">

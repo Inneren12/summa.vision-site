@@ -1,26 +1,26 @@
 import type { Metadata } from "next";
 
 import { env } from "./env";
-
-const normalizedSiteUrl = env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "");
+import { SITE, canonical } from "./seo/site";
 
 export const siteMeta = {
   siteName: env.NEXT_PUBLIC_APP_NAME,
-  siteUrl: normalizedSiteUrl,
+  siteUrl: SITE.host,
   defaultTitle: env.NEXT_PUBLIC_APP_NAME,
   defaultDescription: "Site baseline",
 };
 
 export function buildMetadata(partial?: Partial<Metadata>): Metadata {
   const base: Metadata = {
+    metadataBase: SITE.baseUrl,
     title: siteMeta.defaultTitle,
     description: siteMeta.defaultDescription,
     alternates: {
-      canonical: siteMeta.siteUrl,
+      canonical: canonical("/"),
     },
     openGraph: {
       siteName: siteMeta.siteName,
-      url: siteMeta.siteUrl,
+      url: canonical("/"),
       title: siteMeta.defaultTitle,
       description: siteMeta.defaultDescription,
       type: "website",
@@ -51,7 +51,7 @@ export function buildMetadata(partial?: Partial<Metadata>): Metadata {
   const resolvedDescription = metadata.description ?? siteMeta.defaultDescription;
 
   metadata.alternates = {
-    canonical: siteMeta.siteUrl,
+    canonical: canonical("/"),
     ...metadata.alternates,
   };
 
@@ -59,7 +59,7 @@ export function buildMetadata(partial?: Partial<Metadata>): Metadata {
     ...metadata.openGraph,
   } as NonNullable<Metadata["openGraph"]>;
   openGraph.siteName = partial?.openGraph?.siteName ?? siteMeta.siteName;
-  openGraph.url = partial?.openGraph?.url ?? siteMeta.siteUrl;
+  openGraph.url = partial?.openGraph?.url ?? canonical("/");
   openGraph.title = partial?.openGraph?.title ?? resolvedTitle;
   openGraph.description = partial?.openGraph?.description ?? resolvedDescription;
   metadata.openGraph = openGraph;
