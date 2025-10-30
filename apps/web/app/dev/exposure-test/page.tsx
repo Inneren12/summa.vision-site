@@ -1,16 +1,25 @@
-"use client";
-
-import { useEffect } from "react";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function ExposureTestPage() {
-  useEffect(() => {
-    void fetch("/api/dev/flags-events?emit=duplicate-gate&etype=exposure&source=ssr", {
-      headers: { "x-msw-bypass": "true" },
-    }).catch(() => {});
-  }, []);
+async function logOneExposureOnServer() {
+  const h = headers();
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const base = `${proto}://${host}`;
+
+  try {
+    await fetch(`${base}/api/dev/flags-events?emit=dedup-gate&etype=exposure&source=ssr`, {
+      cache: "no-store",
+    });
+  } catch {
+    // ignore network errors; tests only need best-effort logging
+  }
+}
+
+export default async function ExposureTestPage() {
+  await logOneExposureOnServer();
 
   return (
     <main className="p-6 space-y-3">

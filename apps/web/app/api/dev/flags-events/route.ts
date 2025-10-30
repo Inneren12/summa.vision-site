@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const runtime = "nodejs";
 
-type FlagEvent = { type: "exposure"; gate: string; source?: string; ts: string };
-type FlagsEventsPayload = { events: FlagEvent[] };
+type ExposureEvent = { type: "exposure"; gate: string; source?: string; ts: string };
+
+type FlagsEventsStore = { events: ExposureEvent[] };
 
 type GlobalWithStore = typeof globalThis & {
-  __SV_FLAGS_EVENTS__?: FlagsEventsPayload;
+  __SV_DEV_FLAGS_STORE__?: FlagsEventsStore;
 };
 
-function ensureStore(globalObject: GlobalWithStore): FlagsEventsPayload {
-  if (!globalObject.__SV_FLAGS_EVENTS__) {
-    globalObject.__SV_FLAGS_EVENTS__ = { events: [] };
+function ensureStore(globalObject: GlobalWithStore): FlagsEventsStore {
+  if (!globalObject.__SV_DEV_FLAGS_STORE__) {
+    globalObject.__SV_DEV_FLAGS_STORE__ = { events: [] };
   }
-  const store = globalObject.__SV_FLAGS_EVENTS__;
+  const store = globalObject.__SV_DEV_FLAGS_STORE__;
   if (!Array.isArray(store.events)) {
     store.events = [];
   }
@@ -27,10 +28,6 @@ function json<T>(body: T) {
 }
 
 export async function GET(req: Request) {
-  const e2e = process.env.SV_E2E === "1" || process.env.NEXT_PUBLIC_E2E === "1";
-  const allow =
-    process.env.NODE_ENV !== "production" || e2e || process.env.SV_ALLOW_DEV_API === "1";
-
   const store = ensureStore(globalThis as GlobalWithStore);
 
   try {
@@ -38,24 +35,19 @@ export async function GET(req: Request) {
     const emit = url.searchParams.get("emit");
     const eventType = (url.searchParams.get("etype") || "exposure").toLowerCase();
     const source = url.searchParams.get("source") || "e2e";
-    if (emit && allow) {
+
+    if (emit && eventType === "exposure") {
       const now = new Date().toISOString();
       emit
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean)
-        .forEach((name) => {
-          if (eventType === "exposure") {
-            store.events.push({ type: "exposure", gate: name, source, ts: now });
-          }
+        .forEach((gate) => {
+          store.events.push({ type: "exposure", gate, source, ts: now });
         });
     }
   } catch {
     // ignore malformed URLs
-  }
-
-  if (!allow) {
-    return json({ events: [] });
   }
 
   return json({ events: store.events });

@@ -1,3 +1,5 @@
+import E2ESelectFallback from "../_components/E2ESelectFallback";
+
 import DashLayout from "@/components/dash/DashLayout";
 import FilterPanel from "@/components/dash/FilterPanel";
 
@@ -12,6 +14,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
   return (
     <DashLayout title={title} filters={<FilterPanel />}>
+      <E2ESelectFallback />
       <section aria-label="Визуализации" className="grid gap-4 md:grid-cols-2">
         <VizWidget title="График A" />
         <VizWidget title="График B" />
