@@ -4,8 +4,6 @@ npm-debug.log*
 .env
 .idea
 .vscode
-apps/web/app/tokens.css
-apps/web/app/typography.css
 apps/web/.next
 apps/web/coverage
 apps/web/tsconfig.tsbuildinfo
