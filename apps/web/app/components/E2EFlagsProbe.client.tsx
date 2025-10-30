@@ -29,9 +29,8 @@ export default function E2EFlagsProbeClient() {
     const overrides = parseOverridesCookie(readCookie("sv_flags_override") || undefined);
     const context = document.getElementById("e2e-flags-context");
     const hadIncomingSv = context?.getAttribute("data-had-sv") === "1";
-    const useEnvDev =
-      (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
-      (readCookie("sv_use_env") || "") === "dev";
+    // На /flags-e2e CSR также не учитывает сборочное ENV — только cookie sv_use_env управляет dev-режимом
+    const useEnvDev = (readCookie("sv_use_env") || "") === "dev";
 
     const betaOverride = overrides.betaUI;
     const betaValue = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;

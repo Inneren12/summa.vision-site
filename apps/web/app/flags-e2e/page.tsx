@@ -26,9 +26,8 @@ export default function FlagsE2EPage() {
   const incomingId = fromCookie(raw, "sv_id") || "";
   const hadIncoming = incomingId.length > 0;
   const overrides = parseOverridesCookie(fromCookie(raw, "sv_flags_override") || undefined);
-  const useEnvDev =
-    (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
-    (fromCookie(raw, "sv_use_env") || "") === "dev";
+  // На /flags-e2e запрещаем опираться на сборочное ENV — только cookie-тумблер управляет "dev"
+  const useEnvDev = (fromCookie(raw, "sv_use_env") || "") === "dev";
 
   const betaSSR = typeof overrides.betaUI === "boolean" ? overrides.betaUI : useEnvDev;
 
