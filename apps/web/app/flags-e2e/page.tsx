@@ -26,10 +26,13 @@ export default function FlagsE2EPage() {
   const overrides = parseOverridesCookie(
     readCookieFromHeader(rawCookie, "sv_flags_override") ?? "",
   );
-  const useEnvDev = (readCookieFromHeader(rawCookie, "sv_use_env") ?? "") === "dev";
+
+  const envDev =
+    (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
+    (readCookieFromHeader(rawCookie, "sv_use_env") ?? "") === "dev";
 
   const betaOverride = overrides.betaUI;
-  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
+  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : envDev;
 
   const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
   const percent = Number.isFinite(pct) ? pct : 25;
@@ -38,14 +41,16 @@ export default function FlagsE2EPage() {
   const newCheckoutSSR =
     typeof overrideNewCheckout === "boolean"
       ? overrideNewCheckout
-      : hadIncomingSv
-        ? gatePercent({
-            name: "newcheckout",
-            overrides,
-            id: incomingSvId,
-            percent,
-          })
-        : false;
+      : envDev
+        ? true
+        : hadIncomingSv
+          ? gatePercent({
+              name: "newcheckout",
+              overrides,
+              id: incomingSvId,
+              percent,
+            })
+          : false;
 
   return (
     <main className="space-y-3 p-6">

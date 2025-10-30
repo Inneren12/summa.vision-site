@@ -17,12 +17,22 @@ export default function E2EInit() {
 
     const startMSW = async () => {
       try {
-        const mod = await import("../mocks/browser");
-        await mod?.worker?.start?.({
-          quiet: true,
-          onUnhandledRequest: "bypass",
-          serviceWorker: { url: "/mockServiceWorker.js" },
-        });
+        const candidates = [() => import("../mocks/browser"), () => import("@/mocks/browser")];
+        for (const load of candidates) {
+          try {
+            const mod = await load();
+            if (mod?.worker?.start) {
+              await mod.worker.start({
+                quiet: true,
+                onUnhandledRequest: "bypass",
+                serviceWorker: { url: "/mockServiceWorker.js" },
+              });
+              break;
+            }
+          } catch {
+            // пробуем следующий вариант
+          }
+        }
       } catch {
         // отсутствует MSW — приемлемо
       }
@@ -32,10 +42,13 @@ export default function E2EInit() {
       void startMSW();
     }
 
-    if (!sessionStorage.getItem("e2e_stories_probe")) {
-      sessionStorage.setItem("e2e_stories_probe", "1");
+    const probeStories = () => {
       void fetch("/api/stories?probe=1", { cache: "no-store" }).catch(() => undefined);
-    }
+    };
+
+    window.addEventListener("pageshow", probeStories);
+    window.addEventListener("load", probeStories);
+    probeStories();
 
     const ensureSelect = () => {
       if (!location.pathname.startsWith("/dash") && !location.pathname.startsWith("/dashboards")) {
@@ -67,6 +80,8 @@ export default function E2EInit() {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.removeEventListener("popstate", ensureSelect);
+      window.removeEventListener("pageshow", probeStories);
+      window.removeEventListener("load", probeStories);
     };
   }, []);
 
