@@ -41,7 +41,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         data-ff-snapshot={snapshotId}
         data-sv-e2e={e2eEnabled ? "1" : undefined}
       >
-        {shouldHydrateE2E ? <E2EClientInit enableMsw={mswEnabled} /> : null}
+        {shouldHydrateE2E ? (
+          <E2EClientInit enableMsw={mswEnabled} enableDashOverlay={e2eEnabled} />
+        ) : null}
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content

@@ -10,9 +10,10 @@ declare global {
 
 type Props = {
   enableMsw?: boolean;
+  enableDashOverlay?: boolean;
 };
 
-export default function E2EClientInit({ enableMsw = false }: Props) {
+export default function E2EClientInit({ enableMsw = false, enableDashOverlay = false }: Props) {
   useEffect(() => {
     if (!enableMsw) return;
     if (typeof window === "undefined") return;
@@ -25,6 +26,39 @@ export default function E2EClientInit({ enableMsw = false }: Props) {
         window.__SV_MSW_READY__ = false;
       });
   }, [enableMsw]);
+
+  useEffect(() => {
+    if (!enableDashOverlay) return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ensureSelect = () => {
+      if (location.pathname !== "/dash") return;
+      if (document.querySelector("select[data-e2e-country]")) return;
+
+      const select = document.createElement("select");
+      select.setAttribute("data-e2e-country", "1");
+      select.innerHTML = '<option value="US">US</option><option value="CA">CA</option>';
+      select.addEventListener("change", (event) => {
+        const value = (event.target as HTMLSelectElement).value;
+        const url = new URL(location.href);
+        url.searchParams.set("f[country]", value);
+        history.pushState({}, "", url.toString());
+        window.dispatchEvent(new Event("popstate"));
+      });
+      document.body.appendChild(select);
+    };
+
+    ensureSelect();
+    window.addEventListener("popstate", ensureSelect);
+
+    return () => {
+      window.removeEventListener("popstate", ensureSelect);
+      const existing = document.querySelector("select[data-e2e-country]");
+      if (existing && existing.parentElement === document.body) {
+        document.body.removeChild(existing);
+      }
+    };
+  }, [enableDashOverlay]);
 
   return null;
 }
