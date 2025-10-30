@@ -93,7 +93,7 @@ if (PW_EXECUTABLE_PATH) {
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
+  command: `npx -y next@14.2.8 start -p ${PORT}`,
   port: PORT,
   reuseExistingServer: false,
   timeout: 120_000,
