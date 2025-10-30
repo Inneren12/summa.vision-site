@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 import { createRequire } from "node:module";
+
 import bundleAnalyzer from "@next/bundle-analyzer";
 import createNextPWA from "next-pwa";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 
-import { securityHeaders } from "./security/headers.mjs";
 import { RareVizBudgetPlugin } from "./lib/webpack/rareVizBudgetPlugin.mjs";
+import { securityHeaders } from "./security/headers.mjs";
 
 const require = createRequire(import.meta.url);
 

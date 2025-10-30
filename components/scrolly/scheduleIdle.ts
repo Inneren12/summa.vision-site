@@ -21,7 +21,7 @@ export function cancelIdle(handle: IdleHandle): void {
     w.cancelIdleCallback(handle);
     return;
   }
-  clearTimeout(handle as any);
+  clearTimeout(handle as ReturnType<typeof setTimeout>);
 }
 
 /** Планирует task в idle и возвращает функцию отмены. SSR/jsdom-safe. */
@@ -30,9 +30,15 @@ export function scheduleIdle(task: IdleTask, opts?: { timeout?: number }): () =>
   if (w && typeof w.requestIdleCallback === "function") {
     const id = w.requestIdleCallback(
       () => {
-        try { task(); } catch {}
+        try {
+          task();
+        } catch (error) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error("scheduleIdle task failed", error);
+          }
+        }
       },
-      opts?.timeout ? ({ timeout: opts.timeout } as any) : undefined,
+      opts?.timeout !== undefined ? { timeout: opts.timeout } : undefined,
     );
     return () => cancelIdle(id);
   }

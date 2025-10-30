@@ -1,1 +1,4 @@
-declare module "gray-matter" { const matter: any; export default matter; }
+declare module "gray-matter" {
+  const matter: unknown;
+  export default matter;
+}

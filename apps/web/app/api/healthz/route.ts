@@ -5,7 +5,11 @@ export const revalidate = 0;
 
 export async function GET() {
   return NextResponse.json(
-    { ok: true },
+    {
+      status: "ok",
+      ok: true,
+      ts: new Date().toISOString(),
+    },
     {
       status: 200,
       headers: {
