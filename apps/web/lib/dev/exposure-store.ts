@@ -11,7 +11,10 @@ export type ExposureEvent = {
   source?: string;
 };
 
-type Store = { events: ExposureEvent[] };
+type Store = {
+  events: ExposureEvent[];
+  last?: { gate: string; ts: number };
+};
 
 async function readStore(): Promise<Store> {
   try {
@@ -33,13 +36,17 @@ async function writeStore(store: Store) {
 
 export async function appendExposure(event: { gate: string; source?: string }) {
   const store = await readStore();
-  store.events.push({
-    type: "exposure",
-    gate: event.gate,
-    ts: new Date().toISOString(),
-    source: event.source,
-  });
-  await writeStore(store);
+  const now = Date.now();
+  if (!store.last || store.last.gate !== event.gate || now - store.last.ts > 1000) {
+    store.events.push({
+      type: "exposure",
+      gate: event.gate,
+      ts: new Date(now).toISOString(),
+      source: event.source,
+    });
+    store.last = { gate: event.gate, ts: now };
+    await writeStore(store);
+  }
 }
 
 export async function getEvents() {
