@@ -11,7 +11,7 @@ import "klaro/dist/klaro.min.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
-import E2EClientInit from "./_components/E2EClientInit";
+import E2EInit from "./_components/E2EInit";
 import { Providers } from "./providers";
 
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
@@ -39,9 +39,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body
         className="bg-bg text-fg"
         data-ff-snapshot={snapshotId}
-        data-e2e={process.env.SV_E2E === "1" || process.env.NEXT_PUBLIC_E2E === "1" ? "1" : "0"}
+        data-e2e={process.env.CI === "true" || process.env.NEXT_PUBLIC_E2E === "1" ? "1" : "0"}
+        data-e2e-ci={process.env.CI === "true" ? "1" : "0"}
       >
-        <E2EClientInit />
+        <E2EInit />
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content

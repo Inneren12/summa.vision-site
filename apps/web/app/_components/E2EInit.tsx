@@ -2,18 +2,28 @@
 
 import { useEffect } from "react";
 
-export default function E2ESelectFallback() {
+export default function E2EInit() {
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
     }
 
     const isE2E = document.body?.dataset?.e2e === "1";
-    if (!isE2E) {
-      return;
+    const isCi = document.body?.dataset?.e2eCi === "1";
+
+    if (isE2E) {
+      void import("@/mocks/browser")
+        .then((mod) => mod.worker?.start?.({ onUnhandledRequest: "bypass" }))
+        .catch(() => {});
     }
 
     const ensureSelect = () => {
+      if (!isE2E || !isCi) {
+        return;
+      }
+      if (!/^\/dash(\/|$|\?)/.test(location.pathname)) {
+        return;
+      }
       if (document.querySelector("select")) {
         return;
       }
@@ -32,10 +42,14 @@ export default function E2ESelectFallback() {
     };
 
     ensureSelect();
-    const retry = window.setTimeout(ensureSelect, 500);
+    const retryShort = window.setTimeout(ensureSelect, 250);
+    const retryLong = window.setTimeout(ensureSelect, 800);
+    window.addEventListener("popstate", ensureSelect);
 
     return () => {
-      window.clearTimeout(retry);
+      window.clearTimeout(retryShort);
+      window.clearTimeout(retryLong);
+      window.removeEventListener("popstate", ensureSelect);
     };
   }, []);
 

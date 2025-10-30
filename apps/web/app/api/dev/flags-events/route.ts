@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,8 +27,14 @@ function json<T>(body: T) {
   return NextResponse.json(body, { headers: { "cache-control": "no-store" } });
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const store = ensureStore(globalThis as GlobalWithStore);
+
+  const marker = req.cookies.get("sv_exposure_mark")?.value;
+  if (marker) {
+    const now = new Date().toISOString();
+    store.events.push({ type: "exposure", gate: marker, source: "ssr", ts: now });
+  }
 
   try {
     const url = new URL(req.url);
@@ -50,5 +56,9 @@ export async function GET(req: Request) {
     // ignore malformed URLs
   }
 
-  return json({ events: store.events });
+  const response = json({ events: store.events });
+  if (marker) {
+    response.cookies.delete("sv_exposure_mark");
+  }
+  return response;
 }
