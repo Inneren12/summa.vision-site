@@ -24,7 +24,7 @@ export default function E2EInit() {
           serviceWorker: { url: "/mockServiceWorker.js" },
         });
       } catch {
-        // MSW отсутствует — это приемлемо
+        // отсутствует MSW — приемлемо
       }
     };
 
@@ -32,8 +32,8 @@ export default function E2EInit() {
       void startMSW();
     }
 
-    if (!sessionStorage.getItem("e2e_msw_probe_done")) {
-      sessionStorage.setItem("e2e_msw_probe_done", "1");
+    if (!sessionStorage.getItem("e2e_stories_probe")) {
+      sessionStorage.setItem("e2e_stories_probe", "1");
       void fetch("/api/stories?probe=1", { cache: "no-store" }).catch(() => undefined);
     }
 
