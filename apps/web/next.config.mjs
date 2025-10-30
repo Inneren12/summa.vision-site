@@ -148,12 +148,30 @@ const nextConfig = {
       { source: "/api/:path*", headers },
     ];
   },
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.resolve.alias = {
       ...config.resolve.alias,
       "d3-array": require.resolve("d3-array"),
       "d3-scale": require.resolve("d3-scale"),
+      "node:crypto": "crypto",
+      "node:fs": "fs",
+      "node:fs/promises": "fs/promises",
+      "node:path": "path",
+      "node:path/posix": "path/posix",
+      "node:path/win32": "path/win32",
     };
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        fs: false,
+        "fs/promises": false,
+        path: false,
+        "path/posix": false,
+        "path/win32": false,
+      };
+    }
 
     if (process.env.NEXT_VIZ_ENFORCE_BUDGETS !== "0") {
       config.plugins = config.plugins || [];
