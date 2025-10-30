@@ -44,9 +44,10 @@ export default function E2EFlagsProbeClient() {
       const overrides = parseOverridesCookie(readCookie("sv_flags_override"));
       const context = document.getElementById("e2e-flags-context");
       const hadIncomingSv = context?.getAttribute("data-had-sv") === "1";
+      const useEnv = (readCookie("sv_use_env") || "") === "dev";
 
       const betaOverride = overrides["betaUI"];
-      const beta = typeof betaOverride === "boolean" ? betaOverride : false;
+      const beta = typeof betaOverride === "boolean" ? betaOverride : useEnv;
 
       let newCheckout = false;
       const overrideNewCheckout =

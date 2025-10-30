@@ -2,6 +2,7 @@ import { appendExposure } from "@/lib/dev/exposure-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const runtime = "nodejs";
 
 export default async function Page() {
   await appendExposure({ gate: "identical-gates", source: "ssr-page" });

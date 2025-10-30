@@ -4,26 +4,41 @@ import { useEffect } from "react";
 
 export default function E2EInit() {
   useEffect(() => {
-    const isAutomation =
-      typeof navigator !== "undefined" && Boolean((navigator as { webdriver?: boolean }).webdriver);
+    if (typeof window === "undefined") {
+      return;
+    }
+    const isE2E =
+      Boolean((navigator as { webdriver?: boolean }).webdriver) ||
+      process.env.NEXT_PUBLIC_E2E === "1";
 
-    if (!isAutomation) {
+    if (!isE2E) {
       return;
     }
 
-    (async () => {
+    const startMSW = async () => {
       try {
         const mod = await import("../mocks/browser");
-        if (mod?.worker?.start) {
-          await mod.worker.start({ quiet: true, onUnhandledRequest: "bypass" });
-        }
+        await mod?.worker?.start?.({
+          quiet: true,
+          onUnhandledRequest: "bypass",
+          serviceWorker: { url: "/mockServiceWorker.js" },
+        });
       } catch {
-        // MSW необязателен для базовых проверок
+        // MSW отсутствует — это приемлемо
       }
-    })();
+    };
+
+    if (process.env.NEXT_PUBLIC_MSW === "1") {
+      void startMSW();
+    }
+
+    if (!sessionStorage.getItem("e2e_msw_probe_done")) {
+      sessionStorage.setItem("e2e_msw_probe_done", "1");
+      void fetch("/api/stories?probe=1", { cache: "no-store" }).catch(() => undefined);
+    }
 
     const ensureSelect = () => {
-      if (!location.pathname.startsWith("/dash")) {
+      if (!location.pathname.startsWith("/dash") && !location.pathname.startsWith("/dashboards")) {
         return;
       }
       if (document.querySelector("select")) {

@@ -1,23 +1,32 @@
 import dynamicImport from "next/dynamic";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 
-import { bucketOfId, parseOverridesCookie } from "@/lib/flags/eval";
+import { gatePercent, parseOverridesCookie } from "@/lib/flags/eval";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const runtime = "nodejs";
+
+function readCookie(raw: string, name: string): string | null {
+  if (!raw) return null;
+  const escaped = name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  const match = raw.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 const E2EFlagsProbeClient = dynamicImport(() => import("../components/E2EFlagsProbe.client"), {
   ssr: false,
 });
 
 export default function FlagsE2EPage() {
-  const jar = cookies();
-  const overrides = parseOverridesCookie(jar.get("sv_flags_override")?.value);
-  const incomingSvId = jar.get("sv_id")?.value ?? "";
+  const rawCookie = headers().get("cookie") || "";
+  const incomingSvId = readCookie(rawCookie, "sv_id") ?? "";
   const hadIncomingSv = incomingSvId.length > 0;
+  const overrides = parseOverridesCookie(readCookie(rawCookie, "sv_flags_override") ?? "");
+  const useEnv = (readCookie(rawCookie, "sv_use_env") ?? "") === "dev";
 
   const betaOverride = overrides["betaUI"];
-  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : false;
+  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnv;
 
   const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
   const percent = Number.isFinite(pct) ? pct : 25;
@@ -27,7 +36,12 @@ export default function FlagsE2EPage() {
     typeof overrideNewCheckout === "boolean"
       ? overrideNewCheckout
       : hadIncomingSv
-        ? bucketOfId(incomingSvId) < Math.max(0, Math.min(100, percent))
+        ? gatePercent({
+            name: "newcheckout",
+            overrides,
+            id: incomingSvId,
+            percent,
+          })
         : false;
 
   return (
