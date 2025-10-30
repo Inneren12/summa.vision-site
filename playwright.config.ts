@@ -96,7 +96,8 @@ const webServerConfig = {
   command: "bash -lc 'npx -y next@14.2.8 start -p ${E2E_PORT:-3000}'",
   port: PORT,
   reuseExistingServer: false,
-  timeout: 180_000,
+  timeout: 120_000,
+  url: `${WEB_URL}/api/healthz`,
   cwd: WEB_DIR,
   env: {
     ...process.env,
@@ -129,8 +130,11 @@ export default defineConfig({
   testMatch: ["e2e/**/*.spec.ts", "apps/web/e2e/**/*.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  retries: 0,
+  workers: CI ? 1 : undefined,
+  expect: {
+    timeout: 10_000,
+  },
 
   // Куда складывать артефакты (репорты, логи, трэйсы)
   outputDir: "test-results",
@@ -150,6 +154,7 @@ export default defineConfig({
         ...desktopChromeDevice,
         ...browserSelection,
         baseURL: WEB_URL,
+        testIdAttribute: "data-testid",
       }),
     },
     {
@@ -158,6 +163,7 @@ export default defineConfig({
         ...pixel7Device,
         ...browserSelection,
         baseURL: WEB_URL,
+        testIdAttribute: "data-testid",
       }),
     },
   ],
@@ -168,6 +174,7 @@ export default defineConfig({
   use: withHeadlessDefaults({
     baseURL: WEB_URL,
     trace: "retain-on-failure",
+    testIdAttribute: "data-testid",
     ...browserSelection,
   }),
 });

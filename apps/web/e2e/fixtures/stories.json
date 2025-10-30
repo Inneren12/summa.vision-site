@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "id": "stub-story",
+      "title": "Stubbed Story",
+      "summary": "Story data provided by E2E fixtures.",
+      "url": "https://example.test/story/stub"
+    }
+  ]
+}

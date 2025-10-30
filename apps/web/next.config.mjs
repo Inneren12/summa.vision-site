@@ -113,14 +113,20 @@ const runtimeCaching = [
   },
 ];
 
+const disablePWA =
+  process.env.NODE_ENV === "development" ||
+  process.env.NEXT_E2E === "1" ||
+  process.env.CI === "true" ||
+  isE2E;
+
 const withPWA = createNextPWA({
   cacheOnFrontEndNav: true,
   dest: "public",
-  disable: process.env.NODE_ENV === "development" || isE2E,
+  disable: disablePWA,
   fallbacks: {
     document: OFFLINE_PAGE,
   },
-  register: true,
+  register: disablePWA ? false : true,
   scope: "/",
   skipWaiting: true,
   clientsClaim: true,
