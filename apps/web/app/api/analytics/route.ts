@@ -1,7 +1,7 @@
 import { AnyEvent } from "@/lib/analytics/schema";
 
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-const PHONE_PATTERN = /\+?\d[\d\s().-]{6,}/;
+const PHONE_KEY_PATTERN = /(^|[_\-.\s])(phone|tel|mobile|msisdn|whats?app|contact)/i;
 
 const QUERY_KEYS = new Set([
   "query",
@@ -54,30 +54,67 @@ const stripUrlQuery = (value: string): string => {
   return trimmed.slice(0, end);
 };
 
-const sanitizeString = (key: string, value: string): string => {
-  const normalizedKey = key.toLowerCase();
+const TIME_KEYS = new Set([
+  "ts",
+  "time",
+  "timestamp",
+  "date",
+  "datetime",
+  "created_at",
+  "updated_at",
+]);
 
-  if (isQueryKey(normalizedKey)) {
+const isIsoLike = (candidate: string): boolean => {
+  if (!/\d{4}-\d{2}-\d{2}/.test(candidate)) {
+    return false;
+  }
+  return /[T ]\d{2}:\d{2}/.test(candidate) || /Z$/.test(candidate);
+};
+
+const looksLikePhone = (candidate: string): boolean => {
+  const digits = (candidate.match(/\d/g) || []).length;
+  if (digits < 10 || digits > 15) {
+    return false;
+  }
+  if (isIsoLike(candidate)) {
+    return false;
+  }
+  const normalized = candidate.replace(/\u00A0/g, " ");
+  return /^(?:\+|00)?\d(?:[()\s.-]*\d){6,14}$/.test(normalized);
+};
+
+const sanitizeString = (candidate: string, key?: string): string => {
+  const normalizedKey = key?.toLowerCase() ?? "";
+
+  if (normalizedKey && isQueryKey(normalizedKey)) {
     return QUERY_REDACTED;
   }
 
-  let candidate = value;
-  if (isUrlKey(normalizedKey)) {
-    candidate = stripUrlQuery(candidate);
-    if (!candidate) {
+  let result = candidate;
+  if (normalizedKey && isUrlKey(normalizedKey)) {
+    result = stripUrlQuery(result);
+    if (!result) {
       return URL_REDACTED;
     }
   }
 
-  if (EMAIL_PATTERN.test(candidate)) {
+  if (EMAIL_PATTERN.test(result)) {
     return isUrlKey(normalizedKey) ? URL_REDACTED : EMAIL_REDACTED;
   }
 
-  if (PHONE_PATTERN.test(candidate)) {
+  if (normalizedKey && TIME_KEYS.has(normalizedKey)) {
+    return result;
+  }
+
+  if (normalizedKey && PHONE_KEY_PATTERN.test(normalizedKey) && looksLikePhone(result)) {
     return PHONE_REDACTED;
   }
 
-  return candidate;
+  if (!normalizedKey && looksLikePhone(result)) {
+    return PHONE_REDACTED;
+  }
+
+  return result;
 };
 
 const scrubPII = <T>(payload: T): T => {
@@ -85,14 +122,35 @@ const scrubPII = <T>(payload: T): T => {
     return payload;
   }
 
-  return JSON.parse(
-    JSON.stringify(payload, (key, value) => {
-      if (typeof value === "string") {
-        return sanitizeString(key, value);
+  const seen = new WeakMap<object, unknown>();
+
+  const sanitize = (value: unknown, key?: string): unknown => {
+    if (typeof value === "string") {
+      return sanitizeString(value, key);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => sanitize(entry, key));
+    }
+
+    if (value && typeof value === "object") {
+      const existing = seen.get(value as object);
+      if (existing) {
+        return existing;
       }
-      return value;
-    }),
-  );
+
+      const clone: Record<string, unknown> = {};
+      seen.set(value as object, clone);
+      for (const [innerKey, innerValue] of Object.entries(value as Record<string, unknown>)) {
+        clone[innerKey] = sanitize(innerValue, innerKey);
+      }
+      return clone;
+    }
+
+    return value;
+  };
+
+  return sanitize(payload) as T;
 };
 
 export async function POST(req: Request): Promise<Response> {

@@ -5,9 +5,7 @@
 /* third-party global styles */
 /* MapLibre CSS перенесён в ленивый клиентский компонент, чтобы не попадать в initial chunks */
 
-/* generated tokens and typography are copied via scripts */
-@import "./tokens.css";
-@import "./typography.css";
+/* generated tokens and typography are imported via the root layout */
 
 :root {
   --bg: 255 255 255;

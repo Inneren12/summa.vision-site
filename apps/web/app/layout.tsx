@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
+// Глобальные токены и стили подключаем только в корневом layout,
+// чтобы Next.js не ругался на импорты CSS вне App Router.
+import "./tokens.css";
+import "./typography.css";
 import "./globals.css";
 import "klaro/dist/klaro.min.css";
 

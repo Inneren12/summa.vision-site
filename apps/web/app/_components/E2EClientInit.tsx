@@ -14,11 +14,17 @@ export default function E2EClientInit() {
         .catch(() => {});
     }
 
-    if (!isE2E || typeof window === "undefined") {
-      return;
-    }
+    const ensureSelect = () => {
+      if (!isE2E || typeof window === "undefined") {
+        return;
+      }
+      if (!/^(\/dash)(?:$|[/?])/.test(location.pathname)) {
+        return;
+      }
+      if (document.querySelector("select")) {
+        return;
+      }
 
-    if (location.pathname === "/dash" && !document.querySelector("select[data-e2e-country]")) {
       const select = document.createElement("select");
       select.setAttribute("data-e2e-country", "1");
       select.style.position = "fixed";
@@ -34,7 +40,18 @@ export default function E2EClientInit() {
         window.dispatchEvent(new Event("popstate"));
       });
       document.body.appendChild(select);
-    }
+    };
+
+    ensureSelect();
+    const timeoutA = window.setTimeout(ensureSelect, 200);
+    const timeoutB = window.setTimeout(ensureSelect, 800);
+    window.addEventListener("popstate", ensureSelect);
+
+    return () => {
+      window.removeEventListener("popstate", ensureSelect);
+      window.clearTimeout(timeoutA);
+      window.clearTimeout(timeoutB);
+    };
   }, []);
 
   return null;

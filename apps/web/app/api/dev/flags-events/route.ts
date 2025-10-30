@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-type FlagEvent = { name: string; ts: number };
+type FlagEvent = { type: "exposure"; gate: string; source?: string; ts: string };
 type FlagsEventsPayload = { events: FlagEvent[] };
 
 type GlobalWithStore = typeof globalThis & {
@@ -36,14 +36,18 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const emit = url.searchParams.get("emit");
+    const eventType = (url.searchParams.get("etype") || "exposure").toLowerCase();
+    const source = url.searchParams.get("source") || "e2e";
     if (emit && allow) {
-      const now = Date.now();
+      const now = new Date().toISOString();
       emit
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean)
         .forEach((name) => {
-          store.events.push({ name, ts: now });
+          if (eventType === "exposure") {
+            store.events.push({ type: "exposure", gate: name, source, ts: now });
+          }
         });
     }
   } catch {
