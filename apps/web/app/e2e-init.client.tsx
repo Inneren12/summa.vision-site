@@ -22,31 +22,6 @@ export default function E2EInit() {
         .catch(() => undefined);
     }
 
-    const startMSW = async () => {
-      try {
-        const candidates = [() => import("../mocks/browser"), () => import("@/mocks/browser")];
-        for (const load of candidates) {
-          try {
-            const mod = await load();
-            if (mod?.worker?.start) {
-              await mod.worker.start({
-                quiet: true,
-                onUnhandledRequest: "bypass",
-                serviceWorker: { url: "/mockServiceWorker.js" },
-              });
-              break;
-            }
-          } catch {
-            // пробуем следующий кандидат
-          }
-        }
-      } catch {
-        // отсутствует MSW — это допустимо для smoke
-      }
-    };
-
-    void startMSW();
-
     const ensureSelect = () => {
       if (!location.pathname.startsWith("/dash") && !location.pathname.startsWith("/dashboards")) {
         return;
