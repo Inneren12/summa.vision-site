@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       name: COOKIE_NAME,
       value: "",
       path: "/",
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "lax",
       secure: false,
       maxAge: 0,
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       name: ALT_COOKIE_NAME,
       value: "",
       path: "/",
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "lax",
       secure: false,
       maxAge: 0,
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
   const attributes = {
     path: "/",
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax" as const,
     secure: false,
     maxAge: ONE_YEAR,
