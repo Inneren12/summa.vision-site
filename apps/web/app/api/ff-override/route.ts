@@ -59,7 +59,7 @@ function readOverrides(req: NextRequest): Record<string, boolean> {
 function cookieAttributes() {
   return {
     path: "/",
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax" as const,
     secure: false,
     maxAge: 60 * 60,

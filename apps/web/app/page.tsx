@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
+import { cookies } from "next/headers";
 
 import { Container } from "@/components/Container";
 import { Link } from "@/components/Link";
 import { Text } from "@/components/Text";
+import { gateBoolean, gatePercent, parseOverridesCookie } from "@/lib/flags/eval";
 import { buildMetadata, jsonLd, siteMeta } from "@/lib/seo";
+
+const E2EFlagsProbeClient = dynamic(() => import("./components/E2EFlagsProbe.client"), {
+  ssr: false,
+});
 
 export const revalidate = 300;
 
@@ -15,6 +22,30 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default function Home() {
+  const isE2E =
+    process.env.SV_E2E === "1" ||
+    process.env.NEXT_PUBLIC_E2E === "1" ||
+    process.env.SV_ALLOW_DEV_API === "1";
+
+  let betaSSR = false;
+  let newCheckoutSSR = false;
+
+  if (isE2E) {
+    const jar = cookies();
+    const svId = jar.get("sv_id")?.value ?? "";
+    const overrides = parseOverridesCookie(jar.get("sv_flags_override")?.value);
+    const env = process.env.NEXT_PUBLIC_FLAGS_ENV;
+    betaSSR = gateBoolean({ name: "betaUI", overrides, env, envDefault: true });
+    const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
+    newCheckoutSSR = gatePercent({
+      name: "newCheckout",
+      overrides,
+      id: svId,
+      percent: Number.isFinite(pct) ? pct : 25,
+      env,
+    });
+  }
+
   return (
     <Container>
       <div className="space-y-4">
@@ -31,6 +62,17 @@ export default function Home() {
             url: siteMeta.siteUrl,
           })}
         />
+        {isE2E ? (
+          <>
+            <div data-testid={betaSSR ? "beta-ssr-on" : "beta-ssr-off"}>
+              {betaSSR ? "beta ssr on" : "beta ssr off"}
+            </div>
+            <div data-testid={newCheckoutSSR ? "newcheckout-ssr-on" : "newcheckout-ssr-off"}>
+              {newCheckoutSSR ? "newcheckout ssr on" : "newcheckout ssr off"}
+            </div>
+            <E2EFlagsProbeClient />
+          </>
+        ) : null}
       </div>
     </Container>
   );
