@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { Container } from "@/components/Container";
 import { Link } from "@/components/Link";
 import { Text } from "@/components/Text";
-import { gateBoolean, gatePercent, parseOverridesCookie } from "@/lib/flags/eval";
+import { gatePercent, parseOverridesCookie } from "@/lib/flags/eval";
 import { buildMetadata, jsonLd, siteMeta } from "@/lib/seo";
 
 const E2EFlagsProbeClient = dynamic(() => import("./components/E2EFlagsProbe.client"), {
@@ -34,16 +34,21 @@ export default function Home() {
     const jar = cookies();
     const svId = jar.get("sv_id")?.value ?? "";
     const overrides = parseOverridesCookie(jar.get("sv_flags_override")?.value);
-    const env = process.env.NEXT_PUBLIC_FLAGS_ENV;
-    betaSSR = gateBoolean({ name: "betaUI", overrides, env, envDefault: true });
+    const useEnvDev = jar.get("sv_use_env")?.value === "dev";
+    const betaOverride = overrides.betaUI;
+    betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
+
     const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
-    newCheckoutSSR = gatePercent({
-      name: "newCheckout",
-      overrides,
-      id: svId,
-      percent: Number.isFinite(pct) ? pct : 25,
-      env,
-    });
+    const percent = Number.isFinite(pct) ? pct : 25;
+    const overrideNewCheckout =
+      overrides.newcheckout ?? overrides.newCheckout ?? overrides["new-checkout"];
+    if (typeof overrideNewCheckout === "boolean") {
+      newCheckoutSSR = overrideNewCheckout;
+    } else if (useEnvDev) {
+      newCheckoutSSR = true;
+    } else {
+      newCheckoutSSR = gatePercent({ overrides, id: svId, percent });
+    }
   }
 
   return (

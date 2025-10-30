@@ -43,10 +43,10 @@ export default function E2EFlagsProbeClient() {
       const overrides = parseOverridesCookie(readCookie("sv_flags_override") || undefined);
       const context = document.getElementById("e2e-flags-context");
       const hadIncomingSv = context?.getAttribute("data-had-sv") === "1";
-      const envDev = (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev";
+      const useEnvDev = (readCookie("sv_use_env") || "") === "dev";
 
       const betaOverride = overrides.betaUI;
-      const betaValue = typeof betaOverride === "boolean" ? betaOverride : envDev;
+      const betaValue = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
 
       const percentEnv = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
       const percent = Number.isFinite(percentEnv) ? percentEnv : 25;
@@ -55,7 +55,7 @@ export default function E2EFlagsProbeClient() {
       let newCheckoutValue = false;
       if (typeof overrideNewCheckout === "boolean") {
         newCheckoutValue = overrideNewCheckout;
-      } else if (envDev) {
+      } else if (useEnvDev) {
         newCheckoutValue = true;
       } else if (hadIncomingSv) {
         const svId = readCookie("sv_id") || (await fetchSvId());

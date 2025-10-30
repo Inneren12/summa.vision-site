@@ -37,23 +37,15 @@ export default function E2EInit() {
               break;
             }
           } catch {
-            // пробуем следующий вариант
+            // пробуем следующий кандидат
           }
         }
       } catch {
-        // отсутствует MSW — приемлемо
+        // отсутствует MSW — это допустимо для smoke
       }
     };
 
     void startMSW();
-
-    const probeStories = () => {
-      void fetch("/api/stories?probe=1", { cache: "no-store" }).catch(() => undefined);
-    };
-
-    window.addEventListener("pageshow", probeStories);
-    window.addEventListener("load", probeStories);
-    probeStories();
 
     const ensureSelect = () => {
       if (!location.pathname.startsWith("/dash") && !location.pathname.startsWith("/dashboards")) {
@@ -85,8 +77,6 @@ export default function E2EInit() {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.removeEventListener("popstate", ensureSelect);
-      window.removeEventListener("pageshow", probeStories);
-      window.removeEventListener("load", probeStories);
     };
   }, []);
 

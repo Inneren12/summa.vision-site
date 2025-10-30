@@ -8,8 +8,10 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function fromRawCookie(raw: string, name: string): string | null {
-  if (!raw) return null;
-  const escaped = name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  if (!raw) {
+    return null;
+  }
+  const escaped = name.replace(/[\\^$*+?.()|[\]{}-]/g, "\\$&");
   const match = raw.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
 }
@@ -23,21 +25,22 @@ export default function FlagsE2EPage() {
   const incomingId = fromRawCookie(raw, "sv_id") || "";
   const hadIncoming = incomingId.length > 0;
   const overrides = parseOverridesCookie(fromRawCookie(raw, "sv_flags_override") || "");
-  const envDev = (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev";
+  const useEnvDev = (fromRawCookie(raw, "sv_use_env") || "") === "dev";
 
-  const betaSSR = typeof overrides.betaUI === "boolean" ? overrides.betaUI : envDev;
+  const betaOverride = overrides.betaUI;
+  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
 
-  const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
-  const percent = Number.isFinite(pct) ? pct : 25;
+  const pctRaw = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
+  const percent = Number.isFinite(pctRaw) ? pctRaw : 25;
   const overrideNewCheckout =
     overrides.newcheckout ?? overrides.newCheckout ?? overrides["new-checkout"];
   const newCheckoutSSR =
     typeof overrideNewCheckout === "boolean"
       ? overrideNewCheckout
-      : envDev
+      : useEnvDev
         ? true
         : hadIncoming
-          ? gatePercent({ name: "newcheckout", overrides, id: incomingId, percent })
+          ? gatePercent({ overrides, id: incomingId, percent })
           : false;
 
   return (
