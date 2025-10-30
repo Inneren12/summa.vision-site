@@ -54,6 +54,9 @@ jobs:
         run: npx -y @playwright/test@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
+
+      - name: Debug Playwright config path
+        run: node -e "console.log('PW config path:', require.resolve('./playwright.config.ts'))"
       # ОТЛАДКА: проверяем что создалось после сборки
       - name: Debug - Check build output
         run: |
@@ -90,6 +93,7 @@ jobs:
         env:
           E2E_PORT: "3000"
           E2E_HOST: "127.0.0.1"
+          PW_USE_STANDALONE: "1"
           PW_SKIP_WEBSERVER: ${{ env.PW_SKIP_WEBSERVER }}
         run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts
 
