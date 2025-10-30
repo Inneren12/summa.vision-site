@@ -6,11 +6,10 @@ type MaybeSelect = HTMLSelectElement | null;
 
 type EnsureSelectOptions = {
   isE2E: boolean;
-  isCi: boolean;
 };
 
-function attachFallbackSelect({ isE2E, isCi }: EnsureSelectOptions) {
-  if (!isE2E || !isCi) {
+function attachFallbackSelect({ isE2E }: EnsureSelectOptions) {
+  if (!isE2E) {
     return () => {};
   }
 
@@ -95,7 +94,6 @@ export default function E2EInit() {
     }
 
     const isE2E = document.body?.dataset?.e2e === "1";
-    const isCi = document.body?.dataset?.e2eCi === "1";
 
     if (isE2E) {
       void import("@/mocks/browser")
@@ -103,7 +101,7 @@ export default function E2EInit() {
         .catch(() => {});
     }
 
-    return attachFallbackSelect({ isE2E, isCi });
+    return attachFallbackSelect({ isE2E });
   }, []);
 
   return null;

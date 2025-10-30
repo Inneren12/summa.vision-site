@@ -39,7 +39,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body
         className="bg-bg text-fg"
         data-ff-snapshot={snapshotId}
-        data-e2e={process.env.CI === "true" || process.env.NEXT_PUBLIC_E2E === "1" ? "1" : "0"}
+        data-e2e={
+          process.env.CI === "true" ||
+          process.env.NEXT_PUBLIC_E2E === "1" ||
+          process.env.SV_ALLOW_DEV_API === "1"
+            ? "1"
+            : "0"
+        }
         data-e2e-ci={process.env.CI === "true" ? "1" : "0"}
       >
         <E2EInit />

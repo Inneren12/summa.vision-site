@@ -32,7 +32,7 @@ test.describe("Percent rollout (deterministic & stable)", () => {
     const salt = "newCheckout";
     const { inId, outId } = await pickStableIds(25, salt);
 
-    await context.addCookies([{ name: "sv_id", value: inId, url: baseURL!, path: "/" }]);
+    await context.addCookies([{ name: "sv_id", value: inId, url: baseURL! }]);
     await page.goto("/flags-e2e");
     const inFirst = await page.locator('[data-testid="newcheckout-ssr-on"]').isVisible();
     await page.reload();
@@ -41,7 +41,7 @@ test.describe("Percent rollout (deterministic & stable)", () => {
     expect(inSecond).toBe(true);
 
     await context.clearCookies();
-    await context.addCookies([{ name: "sv_id", value: outId, url: baseURL!, path: "/" }]);
+    await context.addCookies([{ name: "sv_id", value: outId, url: baseURL! }]);
     await page.goto("/flags-e2e");
     await expect(page.locator('[data-testid="newcheckout-ssr-on"]')).toHaveCount(0);
   });

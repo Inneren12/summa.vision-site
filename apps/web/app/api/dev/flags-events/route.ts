@@ -1,16 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type ExposureEvent = { type: "exposure"; gate: string; source?: string; ts: string };
+type ExposureEvent = { type: "exposure"; flag: string; source?: string; ts: string };
 
 type FlagsEventsStore = { events: ExposureEvent[] };
 
 type GlobalWithStore = typeof globalThis & {
   __SV_DEV_FLAGS_STORE__?: FlagsEventsStore;
 };
+
+const CACHE_HEADERS = { "cache-control": "no-store" } as const;
 
 function ensureStore(globalObject: GlobalWithStore): FlagsEventsStore {
   if (!globalObject.__SV_DEV_FLAGS_STORE__) {
@@ -24,30 +26,74 @@ function ensureStore(globalObject: GlobalWithStore): FlagsEventsStore {
 }
 
 function json<T>(body: T) {
-  return NextResponse.json(body, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(body, { headers: CACHE_HEADERS });
 }
 
-export async function GET(request: Request) {
+function isDevApiEnabled() {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+  return process.env.SV_ALLOW_DEV_API === "1" || process.env.NEXT_PUBLIC_E2E === "1";
+}
+
+function cookieSecureFlag(req: NextRequest) {
+  return req.nextUrl.protocol === "https:";
+}
+
+function logExposure(store: FlagsEventsStore, flag: string, source: string) {
+  store.events.push({ type: "exposure", flag, source, ts: new Date().toISOString() });
+}
+
+function parseEmitParam(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+export async function GET(req: NextRequest) {
   const store = ensureStore(globalThis as GlobalWithStore);
 
-  try {
-    const url = new URL(request.url);
-    const emit = url.searchParams.get("emit");
-    const source = url.searchParams.get("source") || "e2e";
-
-    if (emit) {
-      const now = new Date().toISOString();
-      emit
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .forEach((gate) => {
-          store.events.push({ type: "exposure", gate, source, ts: now });
-        });
-    }
-  } catch {
-    // ignore malformed URLs
+  if (!isDevApiEnabled()) {
+    return json({ events: [] });
   }
 
-  return json({ events: store.events });
+  const mark = req.cookies.get("sv_exposure_mark");
+  const allowManualEmit = true;
+
+  if (mark?.value) {
+    logExposure(store, mark.value, "ssr-cookie");
+  }
+
+  if (allowManualEmit) {
+    try {
+      const emitParam = req.nextUrl.searchParams.get("emit");
+      const source = req.nextUrl.searchParams.get("source") ?? "e2e";
+      const type = (req.nextUrl.searchParams.get("etype") ?? "exposure").toLowerCase();
+      if (type === "exposure") {
+        for (const flag of parseEmitParam(emitParam)) {
+          logExposure(store, flag, source);
+        }
+      }
+    } catch {
+      // ignore malformed URLs
+    }
+  }
+
+  const response = json({ events: store.events });
+
+  if (mark?.value) {
+    response.cookies.set({
+      name: "sv_exposure_mark",
+      value: "",
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: cookieSecureFlag(req),
+      maxAge: 0,
+    });
+  }
+
+  return response;
 }
