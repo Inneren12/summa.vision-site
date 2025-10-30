@@ -27,41 +27,49 @@ function readCookie(name: string): string | undefined {
 }
 
 export default function E2EFlagsProbeClient() {
+  const isAutomation =
+    typeof navigator !== "undefined" && Boolean((navigator as { webdriver?: boolean }).webdriver);
+
   const [ready, setReady] = useState(false);
   const [betaOn, setBetaOn] = useState(false);
   const [newCheckoutOn, setNewCheckoutOn] = useState(false);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !(navigator as { webdriver?: boolean }).webdriver) {
+    if (!isAutomation) {
       return;
     }
-
-    const env = process.env.NEXT_PUBLIC_FLAGS_ENV;
     const percentEnv = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
 
     (async () => {
       const overrides = parseOverridesCookie(readCookie("sv_flags_override"));
-      const svId = await fetchSvId();
+      const context = document.getElementById("e2e-flags-context");
+      const hadIncomingSv = context?.getAttribute("data-had-sv") === "1";
 
-      const betaOverrideKey = "betaUI" as const;
-      const beta = Object.prototype.hasOwnProperty.call(overrides, betaOverrideKey)
-        ? overrides[betaOverrideKey]
-        : env === "dev";
+      const betaOverride = overrides["betaUI"];
+      const beta = typeof betaOverride === "boolean" ? betaOverride : false;
 
-      const percent = Number.isFinite(percentEnv) ? percentEnv : 25;
-      const rolloutOverrideKey = "newCheckout" as const;
-      const newCheckout = Object.prototype.hasOwnProperty.call(overrides, rolloutOverrideKey)
-        ? overrides[rolloutOverrideKey]
-        : svId
-          ? bucketOfId(svId) < Math.max(0, Math.min(100, percent))
-          : false;
+      let newCheckout = false;
+      const overrideNewCheckout =
+        overrides["newcheckout"] ?? overrides["newCheckout"] ?? overrides["new-checkout"];
+      if (typeof overrideNewCheckout === "boolean") {
+        newCheckout = overrideNewCheckout;
+      } else if (hadIncomingSv) {
+        const svId = await fetchSvId();
+        const percent = Number.isFinite(percentEnv) ? percentEnv : 25;
+        newCheckout = svId ? bucketOfId(svId) < Math.max(0, Math.min(100, percent)) : false;
+      } else {
+        newCheckout = false;
+      }
 
-      setBetaOn(beta ?? false);
-      setNewCheckoutOn(newCheckout ?? false);
+      setBetaOn(Boolean(beta));
+      setNewCheckoutOn(Boolean(newCheckout));
       setReady(true);
     })();
-  }, []);
+  }, [isAutomation]);
 
+  if (!isAutomation) {
+    return null;
+  }
   if (!ready) {
     return null;
   }
