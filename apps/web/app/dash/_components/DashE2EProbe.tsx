@@ -17,9 +17,11 @@ export default function DashE2EProbe() {
 
     probe();
     window.addEventListener("pageshow", probe);
+    window.addEventListener("load", probe);
 
     return () => {
       window.removeEventListener("pageshow", probe);
+      window.removeEventListener("load", probe);
     };
   }, [isAutomation]);
 
