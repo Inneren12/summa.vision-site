@@ -17,7 +17,7 @@ export function middleware(req: NextRequest) {
       name: "sv_id",
       value: generateId(),
       path: "/",
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "lax",
       secure: false,
       maxAge: ONE_YEAR,

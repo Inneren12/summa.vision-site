@@ -36,7 +36,9 @@ export default function E2EInit() {
         const value = (event.target as HTMLSelectElement).value;
         const url = new URL(location.href);
         url.searchParams.set("f[country]", value);
-        location.href = url.toString();
+        const decodedQuery = url.search.replace(/%5B/g, "[").replace(/%5D/g, "]");
+        const nextUrl = `${url.pathname}${decodedQuery}${url.hash}`;
+        history.pushState({}, "", nextUrl);
       });
       document.body.appendChild(select);
     };
