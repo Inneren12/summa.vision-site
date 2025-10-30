@@ -13,12 +13,10 @@ const WEB_DIR = process.env.E2E_WEB_DIR
   ? path.resolve(process.cwd(), process.env.E2E_WEB_DIR)
   : path.resolve(__dirname, "apps/web");
 
-// Параметры сервера e2e. Playwright 1.48.0 требует, чтобы в webServer был либо port, либо url.
-const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
-const HOST = process.env.E2E_HOST ?? "localhost";
-const WEB_URL = process.env.PW_BASE_URL?.length
-  ? process.env.PW_BASE_URL
-  : `http://${HOST}:${PORT}`;
+// Playwright webServer ждёт явные port+url. В E2E гоняем Next на localhost:3000.
+const PORT = 3000;
+const BASE_URL = "http://localhost:3000";
+const HEALTHCHECK_URL = `${BASE_URL}/api/healthz`;
 
 // Флаг: пропустить webServer-плагин (если стартуем сервер отдельно)
 const SKIP_WEBSERVER = process.env.PW_SKIP_WEBSERVER === "1";
@@ -93,24 +91,18 @@ if (PW_EXECUTABLE_PATH) {
 
 // ЕДИНЫЙ источник правды для webServer
 const webServerConfig = {
-  command: `npx -y next@14.2.8 start -p ${PORT}`,
+  command: "npx -y next@14.2.8 start -p 3000",
+  cwd: WEB_DIR,
   port: PORT,
+  url: HEALTHCHECK_URL,
   reuseExistingServer: false,
   timeout: 120_000,
-  url: `${WEB_URL}/api/healthz`,
-  cwd: WEB_DIR,
   env: {
-    ...process.env,
-    NODE_ENV: "production",
-    PORT: String(PORT),
-    HOSTNAME: HOST,
-    NEXT_PUBLIC_OMT_STYLE_URL: "https://demotiles.maplibre.org/style.json",
-    NEXT_PUBLIC_MAP_STYLE_URL: "https://demotiles.maplibre.org/style.json",
-    // E2E toggles — overrideable via explicit env if needed
+    NEXT_E2E: process.env.NEXT_E2E ?? "1",
+    NEXT_PUBLIC_MSW: process.env.NEXT_PUBLIC_MSW ?? "1",
     SV_E2E: process.env.SV_E2E ?? "1",
     SV_ALLOW_DEV_API: process.env.SV_ALLOW_DEV_API ?? "1",
     NEXT_PUBLIC_E2E: process.env.NEXT_PUBLIC_E2E ?? "1",
-    NEXT_PUBLIC_MSW: process.env.NEXT_PUBLIC_MSW ?? "1",
     NEXT_PUBLIC_DEV_TOOLS: process.env.NEXT_PUBLIC_DEV_TOOLS ?? "true",
     NEXT_PUBLIC_FLAGS_ENV: process.env.NEXT_PUBLIC_FLAGS_ENV ?? "dev",
     FF_TELEMETRY_SINK: process.env.FF_TELEMETRY_SINK ?? "memory",
@@ -153,7 +145,7 @@ export default defineConfig({
       use: withHeadlessDefaults({
         ...desktopChromeDevice,
         ...browserSelection,
-        baseURL: WEB_URL,
+        baseURL: BASE_URL,
         testIdAttribute: "data-testid",
       }),
     },
@@ -162,7 +154,7 @@ export default defineConfig({
       use: withHeadlessDefaults({
         ...pixel7Device,
         ...browserSelection,
-        baseURL: WEB_URL,
+        baseURL: BASE_URL,
         testIdAttribute: "data-testid",
       }),
     },
@@ -172,7 +164,7 @@ export default defineConfig({
   webServer: SKIP_WEBSERVER ? undefined : webServerConfig,
 
   use: withHeadlessDefaults({
-    baseURL: WEB_URL,
+    baseURL: BASE_URL,
     trace: "retain-on-failure",
     testIdAttribute: "data-testid",
     ...browserSelection,
