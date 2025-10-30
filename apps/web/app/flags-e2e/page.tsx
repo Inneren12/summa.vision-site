@@ -1,4 +1,4 @@
-import dynamicImport from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import { headers } from "next/headers";
 
 import { gatePercent, parseOverridesCookie } from "@/lib/flags/eval";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-function readCookie(raw: string, name: string): string | null {
+function fromCookie(raw: string, name: string): string | null {
   if (!raw) {
     return null;
   }
@@ -16,21 +16,21 @@ function readCookie(raw: string, name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-const ClientProbe = dynamicImport(() => import("../components/E2EFlagsProbe.client"), {
+const ClientProbe = nextDynamic(() => import("../components/E2EFlagsProbe.client"), {
   ssr: false,
 });
 
 export default function FlagsE2EPage() {
   const raw = headers().get("cookie") || "";
-  const incomingId = readCookie(raw, "sv_id") || "";
+
+  const incomingId = fromCookie(raw, "sv_id") || "";
   const hadIncoming = incomingId.length > 0;
-  const overrides = parseOverridesCookie(readCookie(raw, "sv_flags_override") || undefined);
+  const overrides = parseOverridesCookie(fromCookie(raw, "sv_flags_override") || undefined);
   const useEnvDev =
     (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
-    (readCookie(raw, "sv_use_env") || "") === "dev";
+    (fromCookie(raw, "sv_use_env") || "") === "dev";
 
-  const betaOverride = overrides.betaUI;
-  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
+  const betaSSR = typeof overrides.betaUI === "boolean" ? overrides.betaUI : useEnvDev;
 
   const pctRaw = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
   const percent = Number.isFinite(pctRaw) ? pctRaw : 25;
@@ -44,18 +44,14 @@ export default function FlagsE2EPage() {
           : false;
 
   return (
-    <main className="space-y-3 p-6">
+    <main className="space-y-2 p-6">
       <div
         id="e2e-flags-context"
         data-had-sv={hadIncoming ? "1" : "0"}
         style={{ display: "none" }}
       />
-      <div data-testid={betaSSR ? "beta-ssr-on" : "beta-ssr-off"}>
-        {betaSSR ? "beta ssr on" : "beta ssr off"}
-      </div>
-      <div data-testid={newCheckoutSSR ? "newcheckout-ssr-on" : "newcheckout-ssr-off"}>
-        {newCheckoutSSR ? "newcheckout ssr on" : "newcheckout ssr off"}
-      </div>
+      <div data-testid={betaSSR ? "beta-ssr-on" : "beta-ssr-off"} />
+      <div data-testid={newCheckoutSSR ? "newcheckout-ssr-on" : "newcheckout-ssr-off"} />
       <ClientProbe />
     </main>
   );

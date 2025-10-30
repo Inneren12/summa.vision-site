@@ -5,14 +5,8 @@ export function parseOverridesCookie(raw?: string): Overrides {
     return {};
   }
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object") {
-      return {};
-    }
-    const entries = Object.entries(parsed as Record<string, unknown>)
-      .filter(([, value]) => typeof value === "boolean")
-      .map(([key, value]) => [key, value as boolean]);
-    return Object.fromEntries(entries);
+    const parsed = JSON.parse(raw) as Overrides;
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
@@ -36,9 +30,8 @@ export function gatePercent({
   id: string;
   percent: number;
 }): boolean {
-  const overrideValue = overrides.newcheckout;
-  if (typeof overrideValue === "boolean") {
-    return overrideValue;
+  if (typeof overrides.newcheckout === "boolean") {
+    return overrides.newcheckout;
   }
   if (!id) {
     return false;
