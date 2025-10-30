@@ -20,6 +20,12 @@ const OFFLINE_PAGE = "/offline";
 const HERO_IMAGE_WARM_URL = "/brand/summa-vision-mark.png";
 const STORY_DATA_WARM_URLS = ["/api/stories"];
 
+const isE2E = Boolean(
+  process.env.PLAYWRIGHT_TEST_BASE_URL ??
+    process.env.E2E_PORT ??
+    (process.env.CI === "true" && process.env.NEXT_PUBLIC_E2E === "1"),
+);
+
 const GOOGLE_FONTS_CACHE = {
   urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
   handler: "CacheFirst",
@@ -110,7 +116,7 @@ const runtimeCaching = [
 const withPWA = createNextPWA({
   cacheOnFrontEndNav: true,
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development" || isE2E,
   fallbacks: {
     document: OFFLINE_PAGE,
   },
@@ -123,8 +129,6 @@ const withPWA = createNextPWA({
   navigationPreload: true,
   runtimeCaching,
 });
-
-const isE2E = Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL ?? process.env.E2E_PORT);
 
 const nextConfig = {
   reactStrictMode: true,
