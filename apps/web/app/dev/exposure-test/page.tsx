@@ -1,18 +1,10 @@
-import { cookies } from "next/headers";
+import { appendExposure } from "@/lib/dev/exposure-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function Page() {
-  const jar = cookies();
-  jar.set({
-    name: "sv_exposure_mark",
-    value: "betaUI",
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    secure: false,
-  });
+export default async function Page() {
+  await appendExposure({ gate: "identical-gates", source: "ssr-page" });
 
   return (
     <main className="p-6 space-y-3">

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import dynamic from "next/dynamic";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
@@ -11,7 +12,7 @@ import "klaro/dist/klaro.min.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
-import E2EInit from "./_components/E2EInit";
+const E2EInit = dynamic(() => import("./e2e-init.client"), { ssr: false });
 import { Providers } from "./providers";
 
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";

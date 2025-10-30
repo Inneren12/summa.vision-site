@@ -4,17 +4,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 const COOKIE_NAME = "sv_id";
-const FF_COOKIE_NAME = "ff_aid";
-
-type CookieAttributes = {
-  path?: string;
-  sameSite?: "lax" | "strict" | "none";
-  httpOnly?: boolean;
-  secure?: boolean;
-  maxAge?: number;
-};
+const ALT_COOKIE_NAME = "ff_aid";
+const ONE_YEAR = 60 * 60 * 24 * 365;
 
 function isDevApiEnabled() {
   if (process.env.NODE_ENV !== "production") {
@@ -23,22 +15,12 @@ function isDevApiEnabled() {
   return process.env.SV_ALLOW_DEV_API === "1" || process.env.NEXT_PUBLIC_E2E === "1";
 }
 
-function cookieOptions(req: NextRequest, overrides: CookieAttributes = {}): CookieAttributes {
-  return {
-    path: "/",
-    sameSite: "lax",
-    httpOnly: false,
-    secure: req.nextUrl.protocol === "https:",
-    ...overrides,
-  } satisfies CookieAttributes;
-}
-
 function randomId() {
-  const crypto = globalThis.crypto as Crypto | undefined;
-  if (crypto?.randomUUID) {
+  try {
     return crypto.randomUUID().replace(/-/g, "");
+  } catch {
+    return Math.random().toString(16).slice(2, 18);
   }
-  return `sv_${Math.random().toString(16).slice(2, 18)}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -46,23 +28,44 @@ export async function GET(req: NextRequest) {
     return new NextResponse("dev api disabled", { status: 404 });
   }
 
-  const url = req.nextUrl;
-  const requestedId = url.searchParams.get("id");
+  const requested = req.nextUrl.searchParams.get("id");
   const response = NextResponse.json({ ok: true });
 
-  if (requestedId === "clear") {
-    const removal = cookieOptions(req, { maxAge: 0 });
-    response.cookies.set({ name: COOKIE_NAME, value: "", ...removal });
-    response.cookies.set({ name: FF_COOKIE_NAME, value: "", ...removal });
+  if (requested === "clear") {
+    response.cookies.set({
+      name: COOKIE_NAME,
+      value: "",
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: 0,
+    });
+    response.cookies.set({
+      name: ALT_COOKIE_NAME,
+      value: "",
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: 0,
+    });
     return response;
   }
 
-  const id = !requestedId || requestedId === "random" ? randomId() : requestedId;
-  const cookieValue = id.slice(0, 64);
-  const attrs = cookieOptions(req, { maxAge: COOKIE_MAX_AGE });
+  const id = !requested || requested === "random" ? randomId() : requested;
+  const value = id.slice(0, 64);
 
-  response.cookies.set({ name: COOKIE_NAME, value: cookieValue, ...attrs });
-  response.cookies.set({ name: FF_COOKIE_NAME, value: cookieValue, ...attrs });
+  const attributes = {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: false,
+    maxAge: ONE_YEAR,
+  };
+
+  response.cookies.set({ name: COOKIE_NAME, value, ...attributes });
+  response.cookies.set({ name: ALT_COOKIE_NAME, value, ...attributes });
 
   return response;
 }
