@@ -15,6 +15,13 @@ export default function E2EInit() {
       return;
     }
 
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .getRegistrations?.()
+        .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+        .catch(() => undefined);
+    }
+
     const startMSW = async () => {
       try {
         const candidates = [() => import("../mocks/browser"), () => import("@/mocks/browser")];
@@ -38,9 +45,7 @@ export default function E2EInit() {
       }
     };
 
-    if (process.env.NEXT_PUBLIC_MSW === "1") {
-      void startMSW();
-    }
+    void startMSW();
 
     const probeStories = () => {
       void fetch("/api/stories?probe=1", { cache: "no-store" }).catch(() => undefined);

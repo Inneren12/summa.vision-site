@@ -7,32 +7,25 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-function readCookieFromHeader(raw: string, name: string): string | null {
+function fromRawCookie(raw: string, name: string): string | null {
   if (!raw) return null;
   const escaped = name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
   const match = raw.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-const E2EFlagsProbeClient = dynamicImport(() => import("../components/E2EFlagsProbe.client"), {
+const ClientProbe = dynamicImport(() => import("../components/E2EFlagsProbe.client"), {
   ssr: false,
 });
 
 export default function FlagsE2EPage() {
-  const rawCookie = headers().get("cookie") || "";
+  const raw = headers().get("cookie") || "";
+  const incomingId = fromRawCookie(raw, "sv_id") || "";
+  const hadIncoming = incomingId.length > 0;
+  const overrides = parseOverridesCookie(fromRawCookie(raw, "sv_flags_override") || "");
+  const envDev = (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev";
 
-  const incomingSvId = readCookieFromHeader(rawCookie, "sv_id") ?? "";
-  const hadIncomingSv = incomingSvId.length > 0;
-  const overrides = parseOverridesCookie(
-    readCookieFromHeader(rawCookie, "sv_flags_override") ?? "",
-  );
-
-  const envDev =
-    (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
-    (readCookieFromHeader(rawCookie, "sv_use_env") ?? "") === "dev";
-
-  const betaOverride = overrides.betaUI;
-  const betaSSR = typeof betaOverride === "boolean" ? betaOverride : envDev;
+  const betaSSR = typeof overrides.betaUI === "boolean" ? overrides.betaUI : envDev;
 
   const pct = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
   const percent = Number.isFinite(pct) ? pct : 25;
@@ -43,20 +36,15 @@ export default function FlagsE2EPage() {
       ? overrideNewCheckout
       : envDev
         ? true
-        : hadIncomingSv
-          ? gatePercent({
-              name: "newcheckout",
-              overrides,
-              id: incomingSvId,
-              percent,
-            })
+        : hadIncoming
+          ? gatePercent({ name: "newcheckout", overrides, id: incomingId, percent })
           : false;
 
   return (
     <main className="space-y-3 p-6">
       <div
         id="e2e-flags-context"
-        data-had-sv={hadIncomingSv ? "1" : "0"}
+        data-had-sv={hadIncoming ? "1" : "0"}
         style={{ display: "none" }}
       />
       <div data-testid={betaSSR ? "beta-ssr-on" : "beta-ssr-off"}>
@@ -65,7 +53,7 @@ export default function FlagsE2EPage() {
       <div data-testid={newCheckoutSSR ? "newcheckout-ssr-on" : "newcheckout-ssr-off"}>
         {newCheckoutSSR ? "newcheckout ssr on" : "newcheckout ssr off"}
       </div>
-      <E2EFlagsProbeClient />
+      <ClientProbe />
     </main>
   );
 }
