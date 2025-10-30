@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-function fromRawCookie(raw: string, name: string): string | null {
+function readCookie(raw: string, name: string): string | null {
   if (!raw) {
     return null;
   }
@@ -22,21 +22,21 @@ const ClientProbe = dynamicImport(() => import("../components/E2EFlagsProbe.clie
 
 export default function FlagsE2EPage() {
   const raw = headers().get("cookie") || "";
-  const incomingId = fromRawCookie(raw, "sv_id") || "";
+  const incomingId = readCookie(raw, "sv_id") || "";
   const hadIncoming = incomingId.length > 0;
-  const overrides = parseOverridesCookie(fromRawCookie(raw, "sv_flags_override") || "");
-  const useEnvDev = (fromRawCookie(raw, "sv_use_env") || "") === "dev";
+  const overrides = parseOverridesCookie(readCookie(raw, "sv_flags_override") || undefined);
+  const useEnvDev =
+    (process.env.NEXT_PUBLIC_FLAGS_ENV || "").toLowerCase() === "dev" ||
+    (readCookie(raw, "sv_use_env") || "") === "dev";
 
   const betaOverride = overrides.betaUI;
   const betaSSR = typeof betaOverride === "boolean" ? betaOverride : useEnvDev;
 
   const pctRaw = Number.parseInt(process.env.NEXT_PUBLIC_NEWCHECKOUT_PCT || "25", 10);
   const percent = Number.isFinite(pctRaw) ? pctRaw : 25;
-  const overrideNewCheckout =
-    overrides.newcheckout ?? overrides.newCheckout ?? overrides["new-checkout"];
   const newCheckoutSSR =
-    typeof overrideNewCheckout === "boolean"
-      ? overrideNewCheckout
+    typeof overrides.newcheckout === "boolean"
+      ? overrides.newcheckout
       : useEnvDev
         ? true
         : hadIncoming

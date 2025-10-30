@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-export default function DashE2EProbe() {
+export default function DashboardsE2EProbe() {
   const isAutomation =
     typeof navigator !== "undefined" && Boolean((navigator as { webdriver?: boolean }).webdriver);
 

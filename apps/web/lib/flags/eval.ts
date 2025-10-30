@@ -36,7 +36,7 @@ export function gatePercent({
   id: string;
   percent: number;
 }): boolean {
-  const overrideValue = overrides.newcheckout ?? overrides.newCheckout ?? overrides["new-checkout"];
+  const overrideValue = overrides.newcheckout;
   if (typeof overrideValue === "boolean") {
     return overrideValue;
   }
