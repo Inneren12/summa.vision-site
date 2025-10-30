@@ -15,16 +15,7 @@ export type Env = {
   FF_BUCKET_STRATEGY?: string;
 };
 
-const DEFAULTS: Pick<
-  Env,
-  | "FF_COOKIE_PATH"
-  | "FF_COOKIE_SECURE"
-  | "ROLLOUT_LOCK_TTL_MS"
-  | "METRICS_WINDOW_MS"
-  | "METRICS_ROTATE_MAX_MB"
-  | "METRICS_ROTATE_DAYS"
-  | "NEXT_PUBLIC_DEV_TOOLS"
-> = {
+const DEFAULTS = {
   FF_COOKIE_PATH: "/",
   FF_COOKIE_SECURE: false,
   ROLLOUT_LOCK_TTL_MS: 15_000,
@@ -32,7 +23,8 @@ const DEFAULTS: Pick<
   METRICS_ROTATE_MAX_MB: 50,
   METRICS_ROTATE_DAYS: 7,
   NEXT_PUBLIC_DEV_TOOLS: false,
-};
+  NODE_ENV: process.env.NODE_ENV ?? "production",
+} as const satisfies Partial<Env>;
 
 const REQUIRED_IN_PRODUCTION = [
   "ADMIN_TOKENS",
@@ -54,11 +46,15 @@ function cleanString(value: string | undefined): string | undefined {
 function applyDefault<K extends DefaultKey>(
   key: K,
   value: EnvSchemaShape[K],
-  defaultsUsed: string[],
+  defaultsUsed: Array<keyof Env>,
 ): Env[K] {
   if (value === undefined) {
     defaultsUsed.push(key);
-    return DEFAULTS[key];
+    const defaultValue = DEFAULTS[key];
+    if (defaultValue === undefined) {
+      throw new Error(`[env] Missing value for ${String(key)} and no default provided`);
+    }
+    return defaultValue as Env[K];
   }
   return value as Env[K];
 }
@@ -70,7 +66,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Readonly<Env> 
   }
 
   const raw = parsed.data;
-  const defaultsUsed: string[] = [];
+  const defaultsUsed: Array<keyof Env> = [];
 
   const cleanedStrings: Pick<
     EnvSchemaShape,
