@@ -1,3 +1,5 @@
+"use client";
+
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
