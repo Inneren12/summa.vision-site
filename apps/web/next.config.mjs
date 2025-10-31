@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 import { createRequire } from "node:module";
+
 import bundleAnalyzer from "@next/bundle-analyzer";
 import createNextPWA from "next-pwa";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 
-import { securityHeaders } from "./security/headers.mjs";
 import { RareVizBudgetPlugin } from "./lib/webpack/rareVizBudgetPlugin.mjs";
+import { securityHeaders } from "./security/headers.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -19,6 +20,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 const OFFLINE_PAGE = "/offline";
 const HERO_IMAGE_WARM_URL = "/brand/summa-vision-mark.png";
 const STORY_DATA_WARM_URLS = ["/api/stories"];
+
+const isE2E = Boolean(
+  process.env.PLAYWRIGHT_TEST_BASE_URL ??
+    process.env.E2E_PORT ??
+    (process.env.CI === "true" && process.env.NEXT_PUBLIC_E2E === "1"),
+);
 
 const GOOGLE_FONTS_CACHE = {
   urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
@@ -107,14 +114,20 @@ const runtimeCaching = [
   },
 ];
 
+const disablePWA =
+  process.env.NODE_ENV === "development" ||
+  process.env.NEXT_E2E === "1" ||
+  process.env.CI === "true" ||
+  isE2E;
+
 const withPWA = createNextPWA({
   cacheOnFrontEndNav: true,
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
+  disable: disablePWA,
   fallbacks: {
     document: OFFLINE_PAGE,
   },
-  register: true,
+  register: disablePWA ? false : true,
   scope: "/",
   skipWaiting: true,
   clientsClaim: true,
@@ -123,8 +136,6 @@ const withPWA = createNextPWA({
   navigationPreload: true,
   runtimeCaching,
 });
-
-const isE2E = Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL ?? process.env.E2E_PORT);
 
 const nextConfig = {
   reactStrictMode: true,
@@ -148,12 +159,30 @@ const nextConfig = {
       { source: "/api/:path*", headers },
     ];
   },
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.resolve.alias = {
       ...config.resolve.alias,
       "d3-array": require.resolve("d3-array"),
       "d3-scale": require.resolve("d3-scale"),
+      "node:crypto": "crypto",
+      "node:fs": "fs",
+      "node:fs/promises": "fs/promises",
+      "node:path": "path",
+      "node:path/posix": "path/posix",
+      "node:path/win32": "path/win32",
     };
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+        fs: false,
+        "fs/promises": false,
+        path: false,
+        "path/posix": false,
+        "path/win32": false,
+      };
+    }
 
     if (process.env.NEXT_VIZ_ENFORCE_BUDGETS !== "0") {
       config.plugins = config.plugins || [];

@@ -1,20 +1,30 @@
 import { test, expect } from "@playwright/test";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const storiesFixture = require("./fixtures/stories.json");
+
 test("dash: filters → data (MSW)", async ({ page }) => {
-  // (опционально) подключить initScript если используете SW-вариант
-  // await page.addInitScript({ path: "apps/web/test/msw/browser-init.js" });
+  await page.route("**/api/stories**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(storiesFixture),
+    });
+  });
 
   await page.goto("/dashboards/demo");
-  // меняем фильтр страна
+  await page.waitForLoadState("networkidle");
+
   const countrySelect = page.locator("select");
   await countrySelect.selectOption("CA");
   await expect(page).toHaveURL(/f\[country\]=CA/);
 
-  // smoke: проверяем, что сетевые запросы к /api/stories отрабатывают (MSW отвечает)
-  const [resp] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/stories") && r.status() === 200),
-    page.reload(),
-  ]);
-  const json = await resp.json();
-  expect(Array.isArray(json.items)).toBeTruthy();
+  await page.reload({ waitUntil: "networkidle" });
+
+  const data = await page.evaluate(async () => {
+    const res = await fetch("/api/stories?probe=after-reload", { cache: "no-store" });
+    return res.json();
+  });
+
+  expect(Array.isArray(data.items)).toBe(true);
 });

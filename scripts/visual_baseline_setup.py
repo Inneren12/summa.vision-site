@@ -102,30 +102,13 @@ def ensure_visual_specs():
     print("[OK] Created minimal visual specs in %s" % VISUAL_DIR)
 
 def write_local_pw_config(port: int, use_standalone: bool):
-    if use_standalone:
-        command = "node .next/standalone/server.js"
-        cwd_line = 'cwd: "apps/web",'
-        env_line = 'env: { PORT: "%d" },' % port
-        url = "http://localhost:%d" % port
-    else:
-        # Fallback: next start via workspace script; pass PORT via env (Windows-safe)
-        command = "npm --workspace apps/web run start"
-        cwd_line = ''
-        env_line = 'env: { PORT: "%d" },' % port
-        url = "http://localhost:%d" % port
-
+    url = "http://localhost:%d" % port
     content = dedent(f"""\
         import {{ defineConfig }} from "@playwright/test";
         export default defineConfig({{
           testDir: "./e2e/visual",
-          webServer: {{
-            command: "{command}",
-            {cwd_line}
-            {env_line}
-            url: "{url}",
-            reuseExistingServer: false,
-            timeout: 120000
-          }},
+          // Визуальные тесты ожидают, что сервер запущен отдельно.
+          webServer: undefined,
           use: {{
             baseURL: "{url}",
             headless: true,

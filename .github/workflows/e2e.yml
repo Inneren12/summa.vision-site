@@ -50,15 +50,27 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL=https://example.invalid
           NEXT_PUBLIC_SITE_URL=http://localhost:3010
           EOENV
-      - name: Use system Chrome (skip Playwright browser downloads)
-        env:
-          PW_CHANNEL: chrome
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: |
-          which google-chrome || which google-chrome-stable || true
-          echo "Using system Chrome via PW_CHANNEL=chrome"
+      - name: Install Playwright browsers
+        run: npx -y @playwright/test@1.48.0 install --with-deps chromium
       - name: Build web (standalone)
         run: npm run web:build
+
+      - name: Scan for stray Playwright webServer declarations
+        run: |
+          echo '--- Scanning for invalid Playwright webServer blocks ---'
+          matches=$(git grep -nE 'webServer\\s*:\\s*{\\s*}' || true)
+          matches_array=$(git grep -nE 'webServer\\s*:\\s*\\[\\s*\\]' || true)
+          if [ -n "$matches" ] || [ -n "$matches_array" ]; then
+            echo "$matches"
+            echo "$matches_array"
+            echo '::error::Found empty/invalid webServer config. Please use the shared builder.'
+            exit 1
+          fi
+          echo 'Playwright config files:'
+          git ls-files "*playwright*.config.*" | sed 's/^/ - /'
+
+      - name: Debug Playwright config path
+        run: node -e "console.log('PW config path:', require.resolve('./playwright.config.ts'))"
       # ОТЛАДКА: проверяем что создалось после сборки
       - name: Debug - Check build output
         run: |
@@ -95,9 +107,8 @@ jobs:
         env:
           E2E_PORT: "3000"
           E2E_HOST: "127.0.0.1"
+          PW_USE_STANDALONE: "1"
           PW_SKIP_WEBSERVER: ${{ env.PW_SKIP_WEBSERVER }}
-          PW_CHANNEL: chrome
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npx -y @playwright/test@1.48.0 test -c ./playwright.config.ts
 
       - name: Stop Next server (failsafe)
@@ -108,10 +119,11 @@ jobs:
             rm -f next-server.pid
           fi
       
-      - name: Upload Playwright report
-        if: always()
+      - name: Upload Playwright traces
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-traces
+          path: playwright-report/**/*trace.zip
+          if-no-files-found: ignore
           retention-days: 7

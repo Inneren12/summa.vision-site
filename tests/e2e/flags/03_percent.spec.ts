@@ -32,17 +32,23 @@ test.describe("Percent rollout (deterministic & stable)", () => {
     const salt = "newCheckout";
     const { inId, outId } = await pickStableIds(25, salt);
 
-    await context.addCookies([{ name: "sv_id", value: inId, url: baseURL!, path: "/" }]);
+    await context.addCookies([{ name: "sv_id", value: inId, url: baseURL! }]);
     await page.goto("/flags-e2e");
-    const inFirst = await page.locator('[data-testid="newcheckout-ssr-on"]').isVisible();
-    await page.reload();
-    const inSecond = await page.locator('[data-testid="newcheckout-ssr-on"]').isVisible();
-    expect(inFirst).toBe(true);
-    expect(inSecond).toBe(true);
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator('[data-testid="newcheckout-ssr-on"]')).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator('[data-testid="newcheckout-ssr-on"]')).toBeVisible({
+      timeout: 10_000,
+    });
 
     await context.clearCookies();
-    await context.addCookies([{ name: "sv_id", value: outId, url: baseURL!, path: "/" }]);
+    await context.addCookies([{ name: "sv_id", value: outId, url: baseURL! }]);
     await page.goto("/flags-e2e");
-    await expect(page.locator('[data-testid="newcheckout-ssr-on"]')).toHaveCount(0);
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator('[data-testid="newcheckout-ssr-on"]')).toHaveCount(0, {
+      timeout: 10_000,
+    });
   });
 });

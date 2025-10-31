@@ -1,5 +1,11 @@
+import dynamic from "next/dynamic";
+
 import DashLayout from "@/components/dash/DashLayout";
 import FilterPanel from "@/components/dash/FilterPanel";
+
+const DashboardsE2EProbe = dynamic(() => import("./_components/DashboardsE2EProbe"), {
+  ssr: false,
+});
 
 interface DashboardPageProps {
   params: {
@@ -12,6 +18,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
   return (
     <DashLayout title={title} filters={<FilterPanel />}>
+      <DashboardsE2EProbe />
       <section aria-label="Визуализации" className="grid gap-4 md:grid-cols-2">
         <VizWidget title="График A" />
         <VizWidget title="График B" />

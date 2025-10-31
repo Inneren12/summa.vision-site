@@ -69,7 +69,7 @@ function main() {
   // No standalone: serverless or static
   const hadServer = copy(path.join(next, "server"), path.join(out, ".next", "server"));
   const hadStatic = copy(staticSrc, path.join(out, ".next", "static"));
-  const hadPublic = copy(publicSrc, path.join(out, "public"));
+  copy(publicSrc, path.join(out, "public"));
   console.log(
     `[copy-standalone] Collected ${hadServer ? "serverless " : ""}${hadStatic ? "static " : ""}assets -> ${out}`,
   );

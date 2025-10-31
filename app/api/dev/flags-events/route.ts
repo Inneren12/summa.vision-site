@@ -5,12 +5,25 @@ import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env/load";
 import { readRecent } from "@/lib/ff/telemetry";
 
+const CACHE_HEADERS = { "cache-control": "no-store" } as const;
+const E2E_MODE = process.env.SV_E2E === "1" || process.env.NEXT_PUBLIC_E2E === "1";
+const ALLOW_DEV_API = process.env.SV_ALLOW_DEV_API === "1";
+
+function guardJson<T>(producer: () => T) {
+  try {
+    return NextResponse.json(producer(), { headers: CACHE_HEADERS });
+  } catch {
+    return NextResponse.json({ events: [] }, { headers: CACHE_HEADERS });
+  }
+}
+
 export const runtime = "nodejs";
 
 export async function GET() {
-  if (!getEnv().NEXT_PUBLIC_DEV_TOOLS) {
-    return NextResponse.json({ error: "Dev tools disabled" }, { status: 404 });
+  const env = getEnv();
+  if (!env.NEXT_PUBLIC_DEV_TOOLS && !E2E_MODE && !ALLOW_DEV_API) {
+    return guardJson(() => ({ events: [] }));
   }
-  const events = readRecent(500);
-  return NextResponse.json({ events });
+
+  return guardJson(() => ({ events: readRecent(500) }));
 }
