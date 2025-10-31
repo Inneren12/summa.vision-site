@@ -119,7 +119,8 @@ export function VegaLiteDemo() {
       <div
         ref={viz.ref}
         data-testid="vega-lite-chart"
-        className="h-[320px] w-full rounded-xl border border-muted/30 bg-background"
+        className="block h-[320px] w-full min-w-px rounded-xl border border-muted/30 bg-background sm:h-[420px] xl:h-[480px]"
+        style={{ contain: "layout size", position: "relative" }}
         role="group"
         aria-label="Демонстрация Vega-Lite"
       />

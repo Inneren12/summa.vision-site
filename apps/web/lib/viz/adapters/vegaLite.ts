@@ -55,6 +55,37 @@ type RegisterResizeObserver =
   | ((callback: ResizeObserverCallback) => (() => void) | undefined)
   | undefined;
 
+function observeElementSize(
+  el: HTMLElement,
+  handler: () => void,
+  registerResizeObserver: RegisterResizeObserver,
+): (() => void) | null {
+  const callback: ResizeObserverCallback = () => {
+    handler();
+  };
+
+  if (registerResizeObserver) {
+    return registerResizeObserver(callback) ?? null;
+  }
+
+  if (typeof window !== "undefined") {
+    const ResizeObserverCtor = (
+      window as typeof window & {
+        ResizeObserver?: typeof ResizeObserver;
+      }
+    ).ResizeObserver;
+    if (typeof ResizeObserverCtor === "function") {
+      const observer = new ResizeObserverCtor(callback);
+      observer.observe(el);
+      return () => {
+        observer.disconnect();
+      };
+    }
+  }
+
+  return null;
+}
+
 function mountFallbackCanvas(options: {
   el: HTMLElement;
   discrete: boolean;
@@ -127,9 +158,7 @@ function mountFallbackCanvas(options: {
     });
   };
 
-  const cleanupResizeObserver = registerResizeObserver?.(() => {
-    draw();
-  });
+  const cleanupResizeObserver = observeElementSize(el, draw, registerResizeObserver);
 
   let cleanupWindowResize: (() => void) | null = null;
   if (typeof window !== "undefined") {
@@ -426,6 +455,19 @@ function prepareSpec(spec: VegaLiteSpec, opts: { discrete: boolean }): VegaLiteS
   if (themeConfig) {
     clone.config = themeConfig;
   }
+  const autosizePatch = {
+    type: "fit" as const,
+    contains: "padding" as const,
+    resize: true,
+  };
+  if (isPlainObject(clone.autosize)) {
+    clone.autosize = {
+      ...(clone.autosize as PlainObject),
+      ...autosizePatch,
+    } as VegaLiteSpec["autosize"];
+  } else {
+    clone.autosize = autosizePatch;
+  }
   if (clone.background === undefined) {
     clone.background = tokens.color.bg.canvas;
   }
@@ -707,17 +749,23 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       }
     };
 
-    const cleanupResize = registerResizeObserver
-      ? registerResizeObserver(() => {
-          if (!viewBase) {
-            return;
-          }
-          const resized = viewBase.resize ? viewBase.resize() : viewBase;
-          void resized.runAsync().catch((error: unknown) => {
-            emitError("resize", error);
-          });
-        })
-      : null;
+    const runResize = () => {
+      if (!viewBase) {
+        return;
+      }
+      try {
+        const target = typeof viewBase.resize === "function" ? viewBase.resize() : viewBase;
+        void target.runAsync().catch((error: unknown) => {
+          emitError("resize", error);
+        });
+      } catch (error) {
+        emitError("resize", error);
+      }
+    };
+
+    const cleanupResize = observeElementSize(el, runResize, registerResizeObserver);
+
+    runResize();
 
     emitEvent(onEvent, "viz_ready", { discrete, renderer: "canvas" });
 
