@@ -43,6 +43,7 @@ npm run build:tokens && npm run copy:tokens
 - Unit: `npm test` / CI: `npm run test:ci`
 - E2E: `npx playwright install --with-deps` (один раз) → `npm run e2e`
 - Full gate: `CI=1 npm run ci:check`
+- Playwright setup tips: [docs/dev/e2e.md](docs/dev/e2e.md)
 
 ## Visual snapshots (S1‑I)
 
