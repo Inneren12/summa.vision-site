@@ -12,12 +12,29 @@ type VisualizationSpec = Parameters<VegaEmbedFn>[1];
 type EmbedOptions = NonNullable<Parameters<VegaEmbedFn>[2]>;
 type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
 
+type VegaLiteSelectionState = {
+  selection?: string;
+};
+
+type StateEmitter = (type: string, payload: unknown, meta?: Record<string, unknown>) => void;
+
 interface VegaLiteInstance {
   element: HTMLElement | null;
   embed: typeof import("vega-embed") | null;
   result: VegaEmbedResult | null;
   spec: VegaLiteSpec | null;
   resizeListener: ((event: Event) => void) | null;
+  selectionSignal: string | null;
+  signalListener: ((name: string, value: unknown) => void) | null;
+  emitState: StateEmitter | null;
+  stateCache: VegaLiteSelectionState;
+}
+
+interface VegaLiteMountOptions {
+  readonly discrete: boolean;
+  readonly state?: Readonly<VegaLiteSelectionState>;
+  readonly selectionSignal?: string | null;
+  readonly emit?: StateEmitter | null;
 }
 
 type PlainObject = Record<string, unknown>;
@@ -309,6 +326,118 @@ function withAutosize(spec: VegaLiteSpec): VegaLiteSpec {
   };
 }
 
+function cloneSelectionState(
+  state: Readonly<VegaLiteSelectionState> | undefined,
+): VegaLiteSelectionState {
+  if (!state) {
+    return {};
+  }
+
+  const clone: VegaLiteSelectionState = {};
+  if (state.selection !== undefined) {
+    clone.selection = state.selection;
+  }
+  return clone;
+}
+
+function coerceSelectionValue(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return undefined;
+}
+
+function isSelectionStateUpdate(value: unknown): value is Partial<VegaLiteSelectionState> {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  if (!Object.prototype.hasOwnProperty.call(value, "selection")) {
+    return false;
+  }
+  const selection = (value as PlainObject).selection;
+  return (
+    selection === undefined ||
+    selection === null ||
+    typeof selection === "string" ||
+    typeof selection === "number" ||
+    typeof selection === "boolean"
+  );
+}
+
+function detachSelectionListener(instance: VegaLiteInstance): void {
+  const signal = instance.selectionSignal;
+  const listener = instance.signalListener;
+  const view = instance.result?.view;
+  if (!signal || !listener || !view || typeof view.removeSignalListener !== "function") {
+    instance.signalListener = null;
+    return;
+  }
+  try {
+    view.removeSignalListener(signal, listener);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[vega-lite] Failed to detach selection listener", error);
+    }
+  }
+  instance.signalListener = null;
+}
+
+function attachSelectionListener(instance: VegaLiteInstance): void {
+  const signal = instance.selectionSignal;
+  const view = instance.result?.view;
+  if (!signal || !view || typeof view.addSignalListener !== "function") {
+    return;
+  }
+
+  detachSelectionListener(instance);
+
+  const listener = (_name: string, value: unknown) => {
+    const selectionValue = coerceSelectionValue(value);
+    const nextState: VegaLiteSelectionState = { ...instance.stateCache };
+    if (selectionValue === undefined) {
+      delete nextState.selection;
+    } else {
+      nextState.selection = selectionValue;
+    }
+    instance.stateCache = nextState;
+    instance.emitState?.("state", selectionValue, { signal });
+  };
+
+  try {
+    view.addSignalListener(signal, listener);
+    instance.signalListener = listener;
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[vega-lite] Failed to attach selection listener", error);
+    }
+  }
+}
+
+async function applySelectionStateToView(instance: VegaLiteInstance): Promise<void> {
+  const signal = instance.selectionSignal;
+  const view = instance.result?.view;
+  if (!signal || !view || typeof view.signal !== "function") {
+    return;
+  }
+
+  try {
+    view.signal(signal, instance.stateCache.selection ?? null);
+    if (typeof view.runAsync === "function") {
+      await view.runAsync();
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[vega-lite] Failed to sync selection state", error);
+    }
+  }
+}
+
 async function waitForAnimationFrame(): Promise<void> {
   if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
     return;
@@ -380,28 +509,49 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
 async function render(
   instance: VegaLiteInstance,
   spec: VegaLiteSpec,
-  discrete: boolean,
+  options: VegaLiteMountOptions,
 ): Promise<VegaEmbedResult | null> {
   const embedModule = instance.embed;
   const element = instance.element;
   if (!embedModule || !element) {
     instance.spec = spec;
+    if (options.state !== undefined) {
+      instance.stateCache = cloneSelectionState(options.state);
+    }
+    if (options.selectionSignal !== undefined) {
+      instance.selectionSignal = options.selectionSignal ?? null;
+    }
+    if (options.emit !== undefined) {
+      instance.emitState = options.emit ?? null;
+    }
     return instance.result;
   }
   const embed = embedModule.default ?? embedModule;
-  const preparedSpec = withAutosize(prepareSpec(spec, { discrete }));
-  const options = buildEmbedOptions(discrete);
-  const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
+  const preparedSpec = withAutosize(prepareSpec(spec, { discrete: options.discrete }));
+  const embedOptions = buildEmbedOptions(options.discrete);
+  detachSelectionListener(instance);
+  const result = await embed(element, preparedSpec as unknown as VisualizationSpec, embedOptions);
   instance.result?.view?.finalize?.();
   instance.result = result;
   instance.spec = preparedSpec;
+  const nextState =
+    options.state !== undefined ? cloneSelectionState(options.state) : { ...instance.stateCache };
+  instance.stateCache = nextState;
+  if (options.selectionSignal !== undefined) {
+    instance.selectionSignal = options.selectionSignal ?? null;
+  }
+  if (options.emit !== undefined) {
+    instance.emitState = options.emit ?? null;
+  }
   await settleLayout();
   await runViewResize(result.view);
+  attachSelectionListener(instance);
+  await applySelectionStateToView(instance);
   return result;
 }
 
 export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
-  async mount(el, spec, opts) {
+  async mount(el, spec, opts: VegaLiteMountOptions) {
     const embed = await import("vega-embed");
     const instance: VegaLiteInstance = {
       element: el,
@@ -409,8 +559,17 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
       result: null,
       spec: null,
       resizeListener: null,
+      selectionSignal: opts.selectionSignal ?? null,
+      signalListener: null,
+      emitState: opts.emit ?? null,
+      stateCache: cloneSelectionState(opts.state),
     };
-    await render(instance, spec, opts.discrete);
+    await render(instance, spec, {
+      discrete: opts.discrete,
+      state: instance.stateCache,
+      selectionSignal: instance.selectionSignal,
+      emit: instance.emitState,
+    });
     if (!instance.resizeListener) {
       const listener = createResizeListener(instance);
       el.addEventListener("viz_resized", listener as EventListener);
@@ -418,16 +577,46 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
     }
     return instance;
   },
-  applyState(instance, next, opts) {
+  applyState(instance, next, opts: VegaLiteMountOptions) {
+    const selectionSignal = opts.selectionSignal ?? instance.selectionSignal;
+    if (selectionSignal && isSelectionStateUpdate(next)) {
+      const selectionValue = coerceSelectionValue(
+        (next as Partial<VegaLiteSelectionState>).selection,
+      );
+      const updated: VegaLiteSelectionState = { ...instance.stateCache };
+      if (selectionValue === undefined) {
+        delete updated.selection;
+      } else {
+        updated.selection = selectionValue;
+      }
+      instance.stateCache = updated;
+      if (opts.selectionSignal !== undefined) {
+        instance.selectionSignal = opts.selectionSignal ?? null;
+      } else {
+        instance.selectionSignal = selectionSignal;
+      }
+      if (opts.emit !== undefined) {
+        instance.emitState = opts.emit ?? null;
+      }
+      void applySelectionStateToView(instance);
+      return;
+    }
+
     const currentSpec = instance.spec;
     if (!currentSpec) {
       return;
     }
     const previous = cloneSpec(currentSpec);
     const spec = typeof next === "function" ? next(previous) : next;
-    void render(instance, spec, opts.discrete);
+    void render(instance, spec, {
+      discrete: opts.discrete,
+      state: instance.stateCache,
+      selectionSignal: opts.selectionSignal ?? instance.selectionSignal,
+      emit: opts.emit ?? instance.emitState,
+    });
   },
   destroy(instance) {
+    detachSelectionListener(instance);
     instance.result?.view?.finalize?.();
     instance.result = null;
     if (instance.element && instance.resizeListener) {
@@ -437,5 +626,9 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
     instance.embed = null;
     instance.spec = null;
     instance.resizeListener = null;
+    instance.selectionSignal = null;
+    instance.signalListener = null;
+    instance.emitState = null;
+    instance.stateCache = {};
   },
 };
