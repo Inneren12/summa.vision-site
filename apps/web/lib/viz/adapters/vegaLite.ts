@@ -125,6 +125,7 @@ function mountFallbackCanvas(options: {
     if (canvas.height !== height) {
       canvas.height = height;
     }
+    enforceCanvasSizing(el);
     if (!context) {
       return;
     }
@@ -471,6 +472,10 @@ function prepareSpec(spec: VegaLiteSpec, opts: { discrete: boolean }): VegaLiteS
   if (clone.background === undefined) {
     clone.background = tokens.color.bg.canvas;
   }
+  const cloneObject = clone as unknown as PlainObject;
+  if (!("width" in cloneObject) || cloneObject.width === undefined) {
+    cloneObject.width = "container";
+  }
   if (opts.discrete) {
     return removeTransitions(clone);
   }
@@ -586,6 +591,17 @@ function clearElement(element: HTMLElement): void {
   }
 }
 
+function enforceCanvasSizing(container: HTMLElement): void {
+  const canvases = container.querySelectorAll("canvas");
+  canvases.forEach((canvas) => {
+    canvas.style.display = "block";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.maxWidth = "100%";
+    canvas.style.maxHeight = "100%";
+  });
+}
+
 export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
   async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
     if (!el) {
@@ -648,6 +664,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       emitEvent(onEvent, "viz_ready", { discrete, renderer: "fallback" });
       return instance;
     }
+    enforceCanvasSizing(el);
     const viewBase = view ? (view as unknown as ViewBase) : null;
     const selectionSignal = resolveSelectionSignal(preparedSpec);
     const viewWithSignals = view && asViewWithSignals(view) ? (view as ViewWithSignals) : null;
@@ -733,6 +750,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
         listenerTriggered = false;
         signalCapableView.signal(selectionSignal, normalized);
         await signalCapableView.runAsync();
+        enforceCanvasSizing(el);
       } catch (error) {
         supportsSignal = false;
         emitError("signal", error);
@@ -750,20 +768,37 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
     };
 
     const runResize = () => {
+      enforceCanvasSizing(el);
       if (!viewBase) {
         return;
       }
       try {
         const target = typeof viewBase.resize === "function" ? viewBase.resize() : viewBase;
-        void target.runAsync().catch((error: unknown) => {
-          emitError("resize", error);
-        });
+        void target
+          .runAsync()
+          .then(() => {
+            enforceCanvasSizing(el);
+          })
+          .catch((error: unknown) => {
+            emitError("resize", error);
+          });
       } catch (error) {
         emitError("resize", error);
       }
     };
 
     const cleanupResize = observeElementSize(el, runResize, registerResizeObserver);
+
+    let cleanupWindowResize: (() => void) | null = null;
+    if (typeof window !== "undefined") {
+      const handleWindowResize = () => {
+        runResize();
+      };
+      window.addEventListener("resize", handleWindowResize);
+      cleanupWindowResize = () => {
+        window.removeEventListener("resize", handleWindowResize);
+      };
+    }
 
     runResize();
 
@@ -781,6 +816,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       removeSignalListener?.();
       removeSignalListener = null;
       cleanupResize?.();
+      cleanupWindowResize?.();
       if (viewBase) {
         try {
           viewBase.finalize?.();
