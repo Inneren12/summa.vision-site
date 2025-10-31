@@ -1,3 +1,5 @@
+"use client";
+
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
@@ -47,6 +49,129 @@ function isPlainObject(value: unknown): value is PlainObject {
   }
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+type RegisterResizeObserver =
+  | ((callback: ResizeObserverCallback) => (() => void) | undefined)
+  | undefined;
+
+function mountFallbackCanvas(options: {
+  el: HTMLElement;
+  discrete: boolean;
+  onEvent: EmitEvent | undefined;
+  registerResizeObserver: RegisterResizeObserver;
+  initialSelection: string | undefined;
+}): {
+  applyState: (next?: VegaLiteState | null) => Promise<void>;
+  destroy: () => Promise<void>;
+} {
+  const { el, discrete, onEvent, registerResizeObserver, initialSelection } = options;
+
+  clearElement(el);
+
+  const canvas = document.createElement("canvas");
+  canvas.style.display = "block";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.maxWidth = "100%";
+  canvas.style.maxHeight = "100%";
+  canvas.setAttribute("data-fallback", "vega-lite");
+
+  el.appendChild(canvas);
+
+  const context = canvas.getContext("2d");
+  const state: VegaLiteState = {};
+  if (typeof initialSelection !== "undefined") {
+    state.selection = initialSelection;
+  }
+
+  const draw = () => {
+    const width = Math.max(el.clientWidth || 0, 1);
+    const height = Math.max(el.clientHeight || 0, 1);
+    if (canvas.width !== width) {
+      canvas.width = width;
+    }
+    if (canvas.height !== height) {
+      canvas.height = height;
+    }
+    if (!context) {
+      return;
+    }
+
+    context.save();
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = tokens.color.bg.canvas;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = tokens.color.border.subtle;
+    context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+
+    const fontFamily = tokens.font.family.sans || "sans-serif";
+    context.fillStyle = tokens.color.fg.subtle;
+    context.font = `14px ${fontFamily}`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    const message =
+      state.selection && state.selection.trim().length > 0
+        ? `Selected: ${state.selection}`
+        : "Vega-Lite canvas fallback";
+    context.fillText(message, canvas.width / 2, canvas.height / 2, canvas.width - 16);
+    context.restore();
+  };
+
+  const emitState = (meta?: Record<string, unknown>) => {
+    emitEvent(onEvent, "viz_state", {
+      selection: state.selection ?? null,
+      discrete,
+      renderer: "fallback",
+      ...(meta ?? {}),
+    });
+  };
+
+  const cleanupResizeObserver = registerResizeObserver?.(() => {
+    draw();
+  });
+
+  let cleanupWindowResize: (() => void) | null = null;
+  if (typeof window !== "undefined") {
+    const handleResize = () => {
+      draw();
+    };
+    window.addEventListener("resize", handleResize);
+    cleanupWindowResize = () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }
+
+  draw();
+
+  if (typeof initialSelection !== "undefined") {
+    emitState({ reason: "initial" });
+  }
+
+  return {
+    async applyState(next) {
+      if (!next) {
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(next, "selection")) {
+        const nextValue = next.selection;
+        if (state.selection !== nextValue) {
+          state.selection = nextValue;
+          emitState({ reason: "apply" });
+          draw();
+        }
+      }
+    },
+    async destroy() {
+      cleanupResizeObserver?.();
+      cleanupWindowResize?.();
+      if (canvas.parentElement) {
+        canvas.parentElement.removeChild(canvas);
+      }
+      clearElement(el);
+      emitState({ reason: "destroy" });
+    },
+  };
 }
 
 // Устойчивое извлечение категориальной палитры из токенов любой формы.
@@ -436,27 +561,51 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       throw error;
     }
 
-    let embedModule: typeof import("vega-embed");
+    const initialSelection = initialState?.selection;
+
+    const fallbackInstance = () =>
+      mountFallbackCanvas({
+        el,
+        discrete,
+        onEvent,
+        registerResizeObserver,
+        initialSelection,
+      });
+
+    let embedModule: typeof import("vega-embed") | null = null;
     try {
       embedModule = await import("vega-embed");
     } catch (error) {
       emitEvent(onEvent, "viz_error", { reason: "import", message: toError(error).message });
-      throw error;
+      const instance = fallbackInstance();
+      emitEvent(onEvent, "viz_ready", { discrete, renderer: "fallback" });
+      return instance;
     }
 
     const preparedSpec = prepareSpec(spec, { discrete });
     const options = buildEmbedOptions(discrete);
 
-    let result: VegaEmbedResult;
+    let result: VegaEmbedResult | null = null;
     try {
-      const embed = embedModule.default ?? embedModule;
+      const embed = (embedModule?.default ?? embedModule) as VegaEmbedFn;
       result = await embed(el, preparedSpec as unknown as VisualizationSpec, options);
     } catch (error) {
       emitEvent(onEvent, "viz_error", { reason: "mount", message: toError(error).message });
-      throw error;
+      const instance = fallbackInstance();
+      emitEvent(onEvent, "viz_ready", { discrete, renderer: "fallback" });
+      return instance;
     }
 
-    const view = result.view ?? null;
+    const view = result?.view ?? null;
+    if (!view) {
+      emitEvent(onEvent, "viz_error", {
+        reason: "view",
+        message: "Vega-Lite view is unavailable",
+      });
+      const instance = fallbackInstance();
+      emitEvent(onEvent, "viz_ready", { discrete, renderer: "fallback" });
+      return instance;
+    }
     const viewBase = view ? (view as unknown as ViewBase) : null;
     const selectionSignal = resolveSelectionSignal(preparedSpec);
     const viewWithSignals = view && asViewWithSignals(view) ? (view as ViewWithSignals) : null;
@@ -467,7 +616,6 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
     let supportsSignal = Boolean(signalCapableView && selectionSignal);
 
     const state: VegaLiteState = {};
-    const initialSelection = initialState?.selection;
     let listenerTriggered = false;
     let removeSignalListener: (() => void) | null = null;
 
@@ -475,6 +623,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       emitEvent(onEvent, "viz_state", {
         selection: state.selection ?? null,
         discrete,
+        renderer: "canvas",
         ...(meta ?? {}),
       });
     };
@@ -570,7 +719,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
         })
       : null;
 
-    emitEvent(onEvent, "viz_ready", { discrete });
+    emitEvent(onEvent, "viz_ready", { discrete, renderer: "canvas" });
 
     if (typeof initialSelection !== "undefined") {
       try {
