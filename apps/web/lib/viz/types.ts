@@ -1,6 +1,44 @@
+export type VizEventType = "viz_init" | "viz_ready" | "viz_state" | "viz_error";
+
+export type VizEvent = {
+  readonly type: VizEventType;
+  readonly ts: number;
+  readonly meta?: Record<string, unknown>;
+};
+
+export interface VizInstance<S = unknown> {
+  applyState(next: Partial<S>): Promise<void> | void;
+  destroy(): Promise<void> | void;
+}
+
+export type RegisterResizeObserver = (callback: ResizeObserverCallback) => () => void;
+
+export type VizMountArgs<S, Spec, Data> = {
+  readonly el: HTMLElement;
+  readonly spec?: Spec;
+  readonly data?: Data;
+  readonly initialState?: S;
+  readonly discrete?: boolean;
+  readonly onEvent?: (event: VizEvent) => void;
+  readonly registerResizeObserver?: RegisterResizeObserver;
+};
+
+export interface VizAdapter<S = unknown, Spec = unknown, Data = unknown> {
+  mount(args: VizMountArgs<S, Spec, Data>): Promise<VizInstance<S>> | VizInstance<S>;
+}
+
+export type InferVizState<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapter<infer State, unknown, unknown> ? State : never;
+
+export type InferVizSpec<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapter<unknown, infer Spec, unknown> ? Spec : never;
+
+export type InferVizData<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapter<unknown, unknown, infer Data> ? Data : never;
+
 export type MotionMode = "animated" | "discrete";
 
-export interface VizAdapter<TInstance, TSpec extends object> {
+export interface LegacyVizAdapter<TInstance, TSpec extends object> {
   mount(el: HTMLElement, spec: TSpec, opts: { discrete: boolean }): Promise<TInstance> | TInstance;
   applyState(
     instance: TInstance,
@@ -10,13 +48,13 @@ export interface VizAdapter<TInstance, TSpec extends object> {
   destroy(instance: TInstance): void;
 }
 
-export type VizAdapterModule<TInstance, TSpec extends object> =
-  | VizAdapter<TInstance, TSpec>
-  | { default: VizAdapter<TInstance, TSpec> };
+export type LegacyVizAdapterModule<TInstance, TSpec extends object> =
+  | LegacyVizAdapter<TInstance, TSpec>
+  | { default: LegacyVizAdapter<TInstance, TSpec> };
 
-export type VizAdapterLoader<TInstance, TSpec extends object> = () =>
-  | VizAdapterModule<TInstance, TSpec>
-  | Promise<VizAdapterModule<TInstance, TSpec>>;
+export type LegacyVizAdapterLoader<TInstance, TSpec extends object> = () =>
+  | LegacyVizAdapterModule<TInstance, TSpec>
+  | Promise<LegacyVizAdapterModule<TInstance, TSpec>>;
 
 export type VizLibraryTag = "vega" | "echarts" | "maplibre" | "visx" | "deck" | "fake";
 

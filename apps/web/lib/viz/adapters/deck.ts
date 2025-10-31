@@ -1,6 +1,6 @@
 import { emitVizEvent } from "../../analytics/send";
 import type { DeckSpec } from "../spec-types";
-import type { MotionMode, VizAdapter } from "../types";
+import type { MotionMode, LegacyVizAdapter } from "../types";
 import { renderWebglFallback, supportsWebGL, supportsWebGL2 } from "../webgl";
 
 type DeckProps = import("@deck.gl/core").DeckProps;
@@ -221,7 +221,7 @@ async function mountDeck(
   };
 }
 
-export const deckAdapter: VizAdapter<Instance, DeckSpec> = {
+export const deckAdapter: LegacyVizAdapter<Instance, DeckSpec> = {
   async mount(el, spec, opts) {
     return mountDeck(el as HTMLDivElement, spec, opts);
   },

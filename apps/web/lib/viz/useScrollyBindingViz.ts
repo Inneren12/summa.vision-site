@@ -1,154 +1,118 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { VizAdapter, VizAdapterLoader, VizLibraryTag } from "./types";
-import type { UseVizMountResult } from "./useVizMount";
-import { useVizMount } from "./useVizMount";
+import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
 
-import { useScrollyContext } from "@/lib/scrolly/ScrollyContext";
-import { type ScrollyBindingStatesMap, useScrollyBinding } from "@/lib/scrolly/useScrollyBinding";
+import type { VizEvent, VizEventDetail, VizEventName, VizInstance } from "./types";
+import { type UseVizMountOptions, type UseVizMountResult, useVizMount } from "./useVizMount";
 
-export interface VizStateContext<TSpec> {
-  readonly stepId: string;
-  readonly previous: TSpec | null;
-  readonly discrete: boolean;
+export interface VizStepState<S> {
+  readonly id: string | null;
+  readonly state: Partial<S>;
 }
 
-export type VizStateProducer<TSpec> = TSpec | ((context: VizStateContext<TSpec>) => TSpec);
+export type SubscribeActiveStep = (callback: (stepId: string | null) => void) => () => void;
 
-type AdapterSource<TInstance, TSpec extends object> =
-  | VizAdapter<TInstance, TSpec>
-  | VizAdapterLoader<TInstance, TSpec>;
-
-export interface UseScrollyBindingVizOptions<TInstance, TSpec extends object> {
-  readonly adapter: AdapterSource<TInstance, TSpec>;
-  readonly lib: VizLibraryTag;
-  readonly states: Record<string, VizStateProducer<TSpec>>;
+export interface UseScrollyBindingVizOptions<S, Spec, Data>
+  extends Omit<UseVizMountOptions<S, Spec, Data>, "onEvent"> {
+  readonly steps: ReadonlyArray<VizStepState<S>>;
   readonly initialStepId?: string | null;
+  readonly activeStepId?: string | null;
+  readonly subscribeActiveStep?: SubscribeActiveStep;
+  readonly onEvent?: (event: VizEvent) => void;
 }
 
-export interface UseScrollyBindingVizResult<TInstance, TSpec extends object>
-  extends Omit<UseVizMountResult<TInstance, TSpec>, "applyState"> {
+export interface UseScrollyBindingVizResult<S> extends UseVizMountResult<S> {
   readonly activeStepId: string | null;
-  readonly applyStepState: (stepId: string, options?: VizStepApplyOptions) => void;
 }
 
-export interface VizStepApplyOptions {
-  readonly reason?: string;
-  readonly force?: boolean;
-  readonly discrete?: boolean;
-}
-
-function resolveState<TSpec>(
-  producer: VizStateProducer<TSpec>,
-  context: VizStateContext<TSpec>,
-): TSpec {
-  if (typeof producer === "function") {
-    return (producer as (ctx: VizStateContext<TSpec>) => TSpec)(context);
+function applyStepState<S>(instance: VizInstance<S>, state: Partial<S>): void {
+  const result = instance.applyState(state);
+  if (result && typeof (result as Promise<void>).then === "function") {
+    void (result as Promise<void>).catch(() => {});
   }
-  return producer;
 }
 
-export function useScrollyBindingViz<TInstance, TSpec extends object>(
-  options: UseScrollyBindingVizOptions<TInstance, TSpec>,
-): UseScrollyBindingVizResult<TInstance, TSpec> {
-  const { adapter, lib, states, initialStepId = null } = options;
-  const entries = Object.entries(states);
+export function useScrollyBindingViz<S = unknown, Spec = unknown, Data = unknown>(
+  options: UseScrollyBindingVizOptions<S, Spec, Data>,
+): UseScrollyBindingVizResult<S> {
+  const {
+    steps,
+    initialStepId = null,
+    activeStepId,
+    subscribeActiveStep,
+    onEvent,
+    ...vizOptions
+  } = options;
 
-  if (entries.length === 0) {
-    throw new Error("useScrollyBindingViz requires at least one state definition");
-  }
-
-  const initialEntry = initialStepId
-    ? (entries.find(([key]) => key === initialStepId) ?? entries[0])
-    : entries[0];
-
-  const [initialKey, initialProducer] = initialEntry;
-
-  const { activeStepId: contextActiveStepId } = useScrollyContext();
-
-  const viz = useVizMount<TInstance, TSpec>({
-    adapter,
-    lib,
-    initialSpec: ({ discrete }) =>
-      resolveState(initialProducer, {
-        stepId: initialKey,
-        discrete,
-        previous: null,
-      }),
-  });
-
-  const { applyState: applyVizState, discrete } = viz;
-  const specRef = useRef(viz.currentSpec);
-  specRef.current = viz.currentSpec;
-
-  const [activeStepId, setActiveStepState] = useState<string | null>(initialKey ?? null);
-  const appliedStepRef = useRef<string | null>(initialKey ?? null);
-
-  const updateActiveStep = useCallback((next: string | null) => {
-    appliedStepRef.current = next;
-    setActiveStepState((prev) => {
-      if (prev === next) {
-        return prev;
-      }
-      return next;
-    });
-  }, []);
-
-  const applyStepState = useCallback(
-    (stepId: string, options: VizStepApplyOptions = {}) => {
-      const producer = states[stepId];
-      if (!producer) {
-        return;
-      }
-      if (!options.force && appliedStepRef.current === stepId) {
-        return;
-      }
-      const discreteValue = options.discrete ?? discrete;
-      const nextState = resolveState(producer, {
-        stepId,
-        discrete: discreteValue,
-        previous: specRef.current,
-      });
-      applyVizState(() => nextState, { stepId, reason: options.reason ?? "step" });
-      updateActiveStep(stepId);
-    },
-    [applyVizState, discrete, states, updateActiveStep],
-  );
-
-  const bindingMap = useMemo<ScrollyBindingStatesMap>(() => {
-    const map: ScrollyBindingStatesMap = {};
-    for (const stepId of Object.keys(states)) {
-      map[stepId] = ({ discrete: handlerDiscrete }) => {
-        applyStepState(stepId, { discrete: handlerDiscrete });
-      };
+  const stepMap = useMemo(() => {
+    const map = new Map<string | null, Partial<S>>();
+    for (const step of steps) {
+      map.set(step.id ?? null, step.state);
     }
     return map;
-  }, [applyStepState, states]);
+  }, [steps]);
 
-  useScrollyBinding(viz.elementRef, bindingMap);
+  const [currentStepId, setCurrentStepId] = useState<string | null>(
+    activeStepId ?? initialStepId ?? null,
+  );
 
   useEffect(() => {
-    if (contextActiveStepId === undefined) {
+    if (typeof activeStepId === "undefined") {
       return;
     }
-    if (contextActiveStepId === null) {
-      updateActiveStep(null);
+    setCurrentStepId(activeStepId ?? null);
+  }, [activeStepId]);
+
+  useEffect(() => {
+    if (!subscribeActiveStep) {
       return;
     }
-    if (appliedStepRef.current === contextActiveStepId) {
+
+    return subscribeActiveStep((stepId) => {
+      setCurrentStepId(stepId ?? null);
+    });
+  }, [subscribeActiveStep]);
+
+  const viz = useVizMount<S, Spec, Data>({
+    ...vizOptions,
+    onEvent,
+  });
+
+  useEffect(() => {
+    const instance = viz.instance;
+    if (!instance) {
       return;
     }
-    applyStepState(contextActiveStepId);
-  }, [applyStepState, contextActiveStepId, updateActiveStep]);
+
+    const state = stepMap.get(currentStepId ?? null);
+    if (!state) {
+      return;
+    }
+
+    applyStepState(instance, state);
+    const event: VizEvent = {
+      type: "viz_state",
+      ts: Date.now(),
+      meta: {
+        stepId: currentStepId ?? undefined,
+      },
+    };
+    onEvent?.(event);
+    const detail: VizEventDetail = {
+      motion: viz.discrete ? "discrete" : "animated",
+      ...(event.meta ?? {}),
+    } as VizEventDetail;
+    emitVizEvent(event.type as VizEventName, detail);
+    emitVizLifecycleEvent(event);
+  }, [currentStepId, onEvent, stepMap, viz.discrete, viz.instance]);
 
   return useMemo(
     () => ({
       ...viz,
-      applyStepState,
-      activeStepId,
+      activeStepId: currentStepId,
     }),
-    [activeStepId, applyStepState, viz],
+    [currentStepId, viz],
   );
 }

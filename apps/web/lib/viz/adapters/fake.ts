@@ -1,4 +1,4 @@
-import type { VizAdapter } from "../types";
+import type { LegacyVizAdapter } from "../types";
 
 export type FakeChartSpec = {
   readonly activeStepId: string | null;
@@ -22,7 +22,7 @@ function cloneSpec(spec: FakeChartSpec): FakeChartSpec {
   };
 }
 
-export const fakeChartAdapter: VizAdapter<FakeChartInstance, FakeChartSpec> = {
+export const fakeChartAdapter: LegacyVizAdapter<FakeChartInstance, FakeChartSpec> = {
   mount(_el, spec) {
     return { spec: cloneSpec(spec) };
   },
