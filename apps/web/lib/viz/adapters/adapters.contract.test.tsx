@@ -1,11 +1,68 @@
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const defaultEmbedResult = () => ({ view: { finalize: vi.fn() } });
-const embedMock = vi.fn(async () => defaultEmbedResult());
+type SignalHandler = (name: string, value: unknown) => void;
+
+let viewSignalMock: ReturnType<typeof vi.fn>;
+let viewRunAsyncMock: ReturnType<typeof vi.fn>;
+let viewResizeMock: ReturnType<typeof vi.fn>;
+let viewFinalizeMock: ReturnType<typeof vi.fn>;
+let viewAddSignalListenerMock: ReturnType<typeof vi.fn>;
+let viewRemoveSignalListenerMock: ReturnType<typeof vi.fn>;
+let triggerSignal: ((name: string, value: unknown) => void) | null = null;
+
+function createEmbedResult() {
+  const signalListeners = new Map<string, Set<SignalHandler>>();
+  const signalValues = new Map<string, unknown>();
+
+  viewRunAsyncMock = vi.fn(async () => {});
+  viewFinalizeMock = vi.fn();
+  viewAddSignalListenerMock = vi.fn((name: string, handler: SignalHandler) => {
+    const listeners = signalListeners.get(name) ?? new Set<SignalHandler>();
+    listeners.add(handler);
+    signalListeners.set(name, listeners);
+  });
+  viewRemoveSignalListenerMock = vi.fn((name: string, handler: SignalHandler) => {
+    const listeners = signalListeners.get(name);
+    listeners?.delete(handler);
+  });
+
+  viewSignalMock = vi.fn((name: string, value?: unknown) => {
+    if (arguments.length === 1) {
+      return signalValues.get(name);
+    }
+    signalValues.set(name, value);
+    return view;
+  });
+
+  viewResizeMock = vi.fn(() => view);
+
+  const view = {
+    signal: viewSignalMock,
+    runAsync: viewRunAsyncMock,
+    resize: viewResizeMock,
+    addSignalListener: viewAddSignalListenerMock,
+    removeSignalListener: viewRemoveSignalListenerMock,
+    finalize: viewFinalizeMock,
+  } as const;
+
+  triggerSignal = (name: string, value: unknown) => {
+    signalValues.set(name, value);
+    const listeners = signalListeners.get(name);
+    if (!listeners) {
+      return;
+    }
+    for (const handler of Array.from(listeners)) {
+      handler(name, value);
+    }
+  };
+
+  return { view };
+}
+
+const embedMock = vi.fn(async () => createEmbedResult());
 vi.mock("vega-embed", () => ({
   default: embedMock,
 }));
@@ -204,6 +261,7 @@ vi.mock("../webgl", () => ({
 }));
 
 import { emitVizEvent } from "../../analytics/send";
+import type { VegaLiteSpec } from "../spec-types";
 
 import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts.adapter";
@@ -217,7 +275,8 @@ afterEach(() => {
 
 describe("viz adapters contract", () => {
   beforeEach(() => {
-    embedMock.mockImplementation(async () => defaultEmbedResult());
+    triggerSignal = null;
+    embedMock.mockImplementation(async () => createEmbedResult());
     embedMock.mockClear();
     echartsSetOption.mockClear();
     echartsResize.mockClear();
@@ -239,18 +298,41 @@ describe("viz adapters contract", () => {
     mapRemoveControl.mockClear();
   });
 
-  it("vega-lite adapter mounts and re-renders", async () => {
+  it("vega-lite adapter mounts with themed config", async () => {
     const element = document.createElement("div");
-    const spec = { mark: "bar" } as Parameters<typeof embedMock>[0];
-    const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
+    const spec = {
+      mark: "bar",
+      data: { values: [{ category: "A", value: 1 }] },
+      params: [{ name: "selection" }],
+      config: {
+        axis: { labelColor: "#000" },
+      },
+    } as unknown as VegaLiteSpec;
+
+    const onEvent = vi.fn();
+
+    await vegaLiteAdapter.mount({
+      el: element,
+      spec,
+      discrete: false,
+      onEvent,
+    });
+
     const [target, preparedSpec, options] = embedMock.mock.calls[0] ?? [];
     expect(target).toBe(element);
     expect(preparedSpec).toEqual(
       expect.objectContaining({
         mark: "bar",
         config: expect.objectContaining({
-          axis: expect.objectContaining({ labelColor: tokens.color.fg.subtle }),
+          axis: expect.objectContaining({
+            labelFont: tokens.font.family.sans,
+            titleFont: tokens.font.family.sans,
+          }),
           legend: expect.objectContaining({ labelFont: tokens.font.family.sans }),
+          title: expect.objectContaining({ font: tokens.font.family.sans }),
+          range: expect.objectContaining({
+            category: expect.arrayContaining([expect.any(String)]),
+          }),
         }),
       }),
     );
@@ -261,64 +343,118 @@ describe("viz adapters contract", () => {
     if (expectedCategory) {
       expect(categoryRange?.[0]).toBe(expectedCategory);
     }
-    expect(options?.config?.animation?.easing).toBe(tokens.motion.easing.standard);
-
-    const nextSpec = {
-      mark: "line",
-      transition: { duration: 300 },
-      encode: {
-        update: { fill: { value: "red" } },
-        enter: { opacity: { value: 0.8 } },
+    expect(options).toMatchObject({
+      actions: false,
+      renderer: "canvas",
+      config: {
+        animation: expect.objectContaining({ easing: tokens.motion.easing.standard }),
       },
-    } as Parameters<typeof embedMock>[0];
-    vegaLiteAdapter.applyState(instance, nextSpec, { discrete: true });
-    const [, discreteSpec, discreteOptions] = embedMock.mock.calls[1] ?? [];
-    expect(discreteSpec).toEqual(expect.objectContaining({ mark: "line" }));
-    expect(discreteSpec).not.toHaveProperty("transition");
-    expect(discreteSpec?.encode?.enter).toBeDefined();
-    expect(discreteSpec?.encode).not.toHaveProperty("update");
-    expect(discreteOptions?.config?.animation).toEqual({ duration: 0, easing: "linear" });
-
-    vegaLiteAdapter.destroy(instance);
-    expect(instance.result).toBeNull();
+    });
+    expect(viewAddSignalListenerMock).toHaveBeenCalledWith("selection", expect.any(Function));
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "viz_init" }));
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "viz_ready" }));
   });
 
-  it("vega-lite adapter treats previous spec as immutable", async () => {
+  it("vega-lite adapter applies selection state and emits events", async () => {
     const element = document.createElement("div");
-    const spec = { mark: "bar", data: { values: [] } } as Parameters<typeof embedMock>[0];
-    const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
-    const previous = instance.spec;
+    const spec = {
+      mark: "bar",
+      params: [{ name: "selection" }],
+    } as unknown as VegaLiteSpec;
 
-    vegaLiteAdapter.applyState(
-      instance,
-      (prev) => {
-        expect(prev.mark).toBe("bar");
-        // @ts-expect-error intentional mutation attempt
-        prev.mark = "line";
-        return { ...prev, mark: "area" };
-      },
-      { discrete: true },
+    const onEvent = vi.fn();
+    const instance = await vegaLiteAdapter.mount({
+      el: element,
+      spec,
+      initialState: { selection: "alpha" },
+      discrete: false,
+      onEvent,
+    });
+
+    expect(viewSignalMock).toHaveBeenCalledWith("selection", "alpha");
+    expect(viewRunAsyncMock).toHaveBeenCalled();
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ selection: "alpha" }),
+      }),
     );
 
-    expect(previous.mark).toBe("bar");
+    onEvent.mockClear();
+    viewSignalMock.mockClear();
+    viewRunAsyncMock.mockClear();
+
+    await instance.applyState({ selection: "beta" });
+    expect(viewSignalMock).toHaveBeenCalledWith("selection", "beta");
+    expect(viewRunAsyncMock).toHaveBeenCalled();
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ selection: "beta" }),
+      }),
+    );
+
+    onEvent.mockClear();
+    triggerSignal?.("selection", "gamma");
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ selection: "gamma" }),
+      }),
+    );
   });
 
-  it("vega-lite adapter re-renders DOM when spec changes", async () => {
+  it("vega-lite adapter handles discrete mode and cleans up", async () => {
     const element = document.createElement("div");
-    embedMock.mockImplementation(async (el, spec) => {
-      el.textContent = (spec as { mark?: string }).mark ?? "";
-      return defaultEmbedResult();
+    const spec = {
+      mark: "bar",
+      transition: { duration: 300 },
+      encode: {
+        enter: { opacity: { value: 0.8 } },
+        update: { opacity: { value: 1 } },
+      },
+      params: [{ name: "selection" }],
+    } as unknown as VegaLiteSpec;
+
+    const onEvent = vi.fn();
+    const resizeCleanup = vi.fn();
+    let resizeCallback: ResizeObserverCallback | null = null;
+    const registerResizeObserver = vi.fn<(callback: ResizeObserverCallback) => () => void>(
+      (callback) => {
+        resizeCallback = callback;
+        return resizeCleanup;
+      },
+    );
+
+    const instance = await vegaLiteAdapter.mount({
+      el: element,
+      spec,
+      discrete: true,
+      onEvent,
+      registerResizeObserver,
     });
 
-    const instance = await vegaLiteAdapter.mount(element, { mark: "bar" } as never, {
-      discrete: false,
-    });
-    expect(element.textContent).toBe("bar");
+    const [, preparedSpec, options] = embedMock.mock.calls[0] ?? [];
+    expect(preparedSpec).not.toHaveProperty("transition");
+    expect(preparedSpec?.encode?.update).toBeUndefined();
+    expect(options?.config?.animation).toEqual({ duration: 0, easing: "linear" });
 
-    vegaLiteAdapter.applyState(instance, { mark: "line" } as never, { discrete: false });
+    expect(registerResizeObserver).toHaveBeenCalledTimes(1);
+    const callback = resizeCallback;
+    expect(callback).toBeTypeOf("function");
+    callback?.([], {} as ResizeObserver);
+    expect(viewResizeMock).toHaveBeenCalled();
+    expect(viewRunAsyncMock).toHaveBeenCalled();
 
-    await Promise.resolve();
-    expect(element.textContent).toBe("line");
+    await instance.destroy();
+    expect(viewFinalizeMock).toHaveBeenCalled();
+    expect(resizeCleanup).toHaveBeenCalled();
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ reason: "destroy" }),
+      }),
+    );
   });
 
   it("echarts adapter mounts and updates options", async () => {

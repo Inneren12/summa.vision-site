@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import VizDemoClient from "./_client/VizDemoClient";
@@ -19,6 +20,16 @@ export default async function VizDemoPage() {
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка визуализации…</p>}>
         <VizDemoClient initialSpec={INITIAL_SPEC} initialState={INITIAL_STATE} />
       </Suspense>
+      <p className="text-xs text-muted-foreground">
+        Хотите увидеть Vega-Lite в действии? Загляните в
+        <Link
+          href="/viz-demo/vega-lite"
+          className="ml-1 text-primary underline-offset-4 hover:underline"
+        >
+          демо адаптера Vega-Lite
+        </Link>
+        .
+      </p>
     </main>
   );
 }

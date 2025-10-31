@@ -2,20 +2,18 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { LegacyVizAdapter } from "../types";
+import type { VizAdapter, VizEvent } from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
 type VisualizationSpec = Parameters<VegaEmbedFn>[1];
 type EmbedOptions = NonNullable<Parameters<VegaEmbedFn>[2]>;
 type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
+type VegaView = NonNullable<VegaEmbedResult["view"]>;
+type VegaSignalListener = Parameters<VegaView["addSignalListener"]>[1];
 
-interface VegaLiteInstance {
-  element: HTMLElement | null;
-  embed: typeof import("vega-embed") | null;
-  result: VegaEmbedResult | null;
-  spec: VegaLiteSpec | null;
-}
+type VegaLiteState = { selection?: string };
+type EmitEvent = (event: VizEvent) => void;
 
 type PlainObject = Record<string, unknown>;
 
@@ -312,53 +310,283 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
   };
 }
 
-async function render(
-  instance: VegaLiteInstance,
-  spec: VegaLiteSpec,
-  discrete: boolean,
-): Promise<VegaEmbedResult | null> {
-  const embedModule = instance.embed;
-  const element = instance.element;
-  if (!embedModule || !element) {
-    instance.spec = spec;
-    return instance.result;
+function normalizeSelectionValue(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) {
+    return value;
   }
-  const embed = embedModule.default ?? embedModule;
-  const preparedSpec = prepareSpec(spec, { discrete });
-  const options = buildEmbedOptions(discrete);
-  const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
-  instance.result?.view?.finalize?.();
-  instance.result = result;
-  instance.spec = preparedSpec;
-  return result;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value == null) {
+    return undefined;
+  }
+  return undefined;
 }
 
-export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
-  async mount(el, spec, opts) {
-    const embed = await import("vega-embed");
-    const instance: VegaLiteInstance = {
-      element: el,
-      embed,
-      result: null,
-      spec: null,
-    };
-    await render(instance, spec, opts.discrete);
-    return instance;
-  },
-  applyState(instance, next, opts) {
-    const currentSpec = instance.spec;
-    if (!currentSpec) {
-      return;
+function resolveSelectionSignal(spec: VegaLiteSpec): string | null {
+  const usermeta = (spec as { usermeta?: unknown }).usermeta;
+  if (isPlainObject(usermeta)) {
+    const candidate = (usermeta as PlainObject).selectionSignal;
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
     }
-    const previous = cloneSpec(currentSpec);
-    const spec = typeof next === "function" ? next(previous) : next;
-    void render(instance, spec, opts.discrete);
-  },
-  destroy(instance) {
-    instance.result?.view?.finalize?.();
-    instance.result = null;
-    instance.element = null;
-    instance.embed = null;
-    instance.spec = null;
+  }
+
+  const params = (spec as { params?: unknown }).params;
+  if (Array.isArray(params)) {
+    for (const param of params) {
+      if (!isPlainObject(param)) {
+        continue;
+      }
+      const name = (param as PlainObject).name;
+      if (typeof name === "string" && name.trim()) {
+        return name.trim();
+      }
+    }
+  }
+
+  const selection = (spec as { selection?: unknown }).selection;
+  if (isPlainObject(selection)) {
+    for (const [name, definition] of Object.entries(selection)) {
+      if (!definition) {
+        continue;
+      }
+      if (typeof name === "string" && name.trim()) {
+        return name.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+function emitEvent(
+  onEvent: EmitEvent | undefined,
+  type: VizEvent["type"],
+  meta?: Record<string, unknown>,
+): void {
+  if (!onEvent) {
+    return;
+  }
+  onEvent({
+    type,
+    ts: Date.now(),
+    meta: { lib: "vega", ...(meta ?? {}) },
+  });
+}
+
+function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return new Error(value);
+  }
+  return new Error("Unknown Vega-Lite error");
+}
+
+function clearElement(element: HTMLElement): void {
+  if (typeof element.replaceChildren === "function") {
+    element.replaceChildren();
+    return;
+  }
+  while (element.firstChild) {
+    element.removeChild(element.firstChild);
+  }
+}
+
+export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
+  async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
+    if (!el) {
+      throw new Error("Vega-Lite adapter requires a mount element");
+    }
+    if (!spec) {
+      throw new Error("Vega-Lite adapter requires a specification");
+    }
+
+    emitEvent(onEvent, "viz_init", { discrete });
+
+    if (typeof window === "undefined") {
+      const error = new Error("Vega-Lite adapter is only available in the browser");
+      emitEvent(onEvent, "viz_error", { reason: "environment", message: error.message });
+      throw error;
+    }
+
+    let embedModule: typeof import("vega-embed");
+    try {
+      embedModule = await import("vega-embed");
+    } catch (error) {
+      emitEvent(onEvent, "viz_error", { reason: "import", message: toError(error).message });
+      throw error;
+    }
+
+    const preparedSpec = prepareSpec(spec, { discrete });
+    const options = buildEmbedOptions(discrete);
+
+    let result: VegaEmbedResult;
+    try {
+      const embed = embedModule.default ?? embedModule;
+      result = await embed(el, preparedSpec as unknown as VisualizationSpec, options);
+    } catch (error) {
+      emitEvent(onEvent, "viz_error", { reason: "mount", message: toError(error).message });
+      throw error;
+    }
+
+    const view = result.view ?? null;
+    const selectionSignal = resolveSelectionSignal(preparedSpec);
+    let supportsSignal = Boolean(
+      view &&
+        selectionSignal &&
+        typeof view.signal === "function" &&
+        typeof view.addSignalListener === "function" &&
+        typeof view.runAsync === "function",
+    );
+
+    const state: VegaLiteState = {};
+    const initialSelection = initialState?.selection;
+    let listenerTriggered = false;
+    let removeSignalListener: (() => void) | null = null;
+
+    const emitState = (meta?: Record<string, unknown>) => {
+      emitEvent(onEvent, "viz_state", {
+        selection: state.selection ?? null,
+        discrete,
+        ...(meta ?? {}),
+      });
+    };
+
+    const emitError = (reason: string, error: unknown) => {
+      emitEvent(onEvent, "viz_error", {
+        reason,
+        message: toError(error).message,
+        discrete,
+      });
+    };
+
+    if (supportsSignal && view && selectionSignal) {
+      const listener: VegaSignalListener = (_name, value) => {
+        listenerTriggered = true;
+        const next = normalizeSelectionValue(value);
+        if (state.selection === next) {
+          return;
+        }
+        state.selection = next;
+        emitState();
+      };
+      try {
+        view.addSignalListener(selectionSignal, listener);
+        removeSignalListener = () => {
+          try {
+            view.removeSignalListener(selectionSignal, listener);
+          } catch {
+            // ignore
+          }
+        };
+      } catch {
+        supportsSignal = false;
+        removeSignalListener = null;
+      }
+    } else {
+      supportsSignal = false;
+    }
+
+    const applySelection = async (value: string | undefined) => {
+      if (!supportsSignal || !view || !selectionSignal) {
+        if (state.selection !== value) {
+          state.selection = value;
+          emitState();
+        }
+        return;
+      }
+
+      const normalized = value ?? null;
+
+      try {
+        let current: unknown;
+        try {
+          current = view.signal(selectionSignal);
+        } catch {
+          current = undefined;
+        }
+        if (current === normalized) {
+          if (state.selection !== value) {
+            state.selection = value;
+            emitState();
+          }
+          return;
+        }
+        listenerTriggered = false;
+        view.signal(selectionSignal, normalized);
+        await view.runAsync();
+      } catch (error) {
+        supportsSignal = false;
+        emitError("signal", error);
+        state.selection = value;
+        emitState();
+        throw error;
+      } finally {
+        if (!listenerTriggered) {
+          if (state.selection !== value) {
+            state.selection = value;
+            emitState();
+          }
+        }
+      }
+    };
+
+    const cleanupResize = registerResizeObserver
+      ? registerResizeObserver(() => {
+          if (!view) {
+            return;
+          }
+          void view
+            .resize()
+            .runAsync()
+            .catch((error: unknown) => {
+              emitError("resize", error);
+            });
+        })
+      : null;
+
+    emitEvent(onEvent, "viz_ready", { discrete });
+
+    if (typeof initialSelection !== "undefined") {
+      try {
+        await applySelection(initialSelection);
+      } catch {
+        // already reported
+      }
+    }
+
+    const destroy = async () => {
+      removeSignalListener?.();
+      removeSignalListener = null;
+      cleanupResize?.();
+      if (view) {
+        try {
+          view.finalize?.();
+        } catch (error) {
+          emitError("finalize", error);
+        }
+      }
+      clearElement(el);
+      emitState({ reason: "destroy" });
+    };
+
+    return {
+      async applyState(next) {
+        if (!next) {
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(next, "selection")) {
+          try {
+            await applySelection(next.selection);
+          } catch {
+            // error already emitted
+          }
+        }
+      },
+      destroy,
+    };
   },
 };
