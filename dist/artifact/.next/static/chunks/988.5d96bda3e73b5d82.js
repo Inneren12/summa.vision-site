@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[988],{1988:function(r,e,t){t.r(e),t.d(e,{Map:function(){return u}});class u{remove(){}constructor(...r){throw Error("[viz-stub] maplibre-gl не установлен. Установите пакет, чтобы использовать MapLibre-адаптер.")}}e.default={Map:u}}}]);

@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[985],{7985:function(c,e,r){r.d(e,{Deck:function(){return s}});class s{constructor(...c){throw Error("[viz-stub] @deck.gl/core не установлен. Установите пакет, чтобы использовать DeckGL-адаптер.")}}}}]);

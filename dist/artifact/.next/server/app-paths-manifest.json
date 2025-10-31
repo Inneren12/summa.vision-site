@@ -1,0 +1,17 @@
+{
+  "/(dashboards)/[slug]/page": "app/(dashboards)/[slug]/page.js",
+  "/e2e/map/page": "app/e2e/map/page.js",
+  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/csp-report/route": "app/api/csp-report/route.js",
+  "/sitemap.xml/route": "app/sitemap.xml/route.js",
+  "/robots.txt/route": "app/robots.txt/route.js",
+  "/(visual)/atoms/page": "app/(visual)/atoms/page.js",
+  "/api/stories/route": "app/api/stories/route.js",
+  "/api/story-spec/route": "app/api/story-spec/route.js",
+  "/(visual)/story/page": "app/(visual)/story/page.js",
+  "/(system)/healthz/page": "app/(system)/healthz/page.js",
+  "/offline/page": "app/offline/page.js",
+  "/api/healthz/route": "app/api/healthz/route.js",
+  "/page": "app/page.js"
+}

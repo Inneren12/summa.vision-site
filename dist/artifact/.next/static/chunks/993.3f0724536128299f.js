@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[993],{4364:function(r,t,e){e.r(t),t.default={init:function(){for(var r=arguments.length,t=Array(r),e=0;e<r;e++)t[e]=arguments[e];throw Error("[viz-stub] echarts не установлен. Установите пакет, чтобы использовать ECharts-адаптер.")}}}}]);

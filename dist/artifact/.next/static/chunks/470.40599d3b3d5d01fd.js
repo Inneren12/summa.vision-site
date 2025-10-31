@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[470],{9470:function(t,n,e){e.d(n,{MapboxOverlay:function(){return s}});class s{setProps(t){this.props=t}onAdd(t){return(this.map=t,t&&"function"==typeof t.getCanvas)?t.getCanvas():document.createElement("div")}onRemove(){this.map=null}finalize(){this.map=null}constructor(t){this.map=null,this.props=t}}}}]);
