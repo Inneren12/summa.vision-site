@@ -8,9 +8,33 @@ import type { VizAdapter, VizEvent } from "../types";
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
 type VisualizationSpec = Parameters<VegaEmbedFn>[1];
 type EmbedOptions = NonNullable<Parameters<VegaEmbedFn>[2]>;
+// The ambient vega-embed stub exposes a minimal View (runAsync/finalize) without signal APIs.
+// Model a narrow runtime shape here and guard before using it, to avoid type coupling to the stub.
 type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
-type VegaView = NonNullable<VegaEmbedResult["view"]>;
-type VegaSignalListener = Parameters<VegaView["addSignalListener"]>[1];
+type VegaSignalListener = (name: string, value: unknown) => void;
+type SignalAccessor = {
+  (signal: string): unknown;
+  (signal: string, value: unknown): unknown;
+};
+type ViewBase = {
+  runAsync: () => Promise<void>;
+  finalize: () => void;
+  resize?: () => ViewBase;
+};
+type ViewWithSignals = ViewBase & {
+  addSignalListener: (signal: string, handler: VegaSignalListener) => void;
+  removeSignalListener: (signal: string, handler: VegaSignalListener) => void;
+  signal?: SignalAccessor;
+};
+type ViewWithSignalAccessor = ViewWithSignals & { signal: SignalAccessor };
+
+function asViewWithSignals(v: unknown): v is ViewWithSignals {
+  return (
+    !!v &&
+    typeof (v as { addSignalListener?: unknown }).addSignalListener === "function" &&
+    typeof (v as { removeSignalListener?: unknown }).removeSignalListener === "function"
+  );
+}
 
 type VegaLiteState = { selection?: string };
 type EmitEvent = (event: VizEvent) => void;
@@ -433,14 +457,14 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
     }
 
     const view = result.view ?? null;
+    const viewBase = view ? (view as unknown as ViewBase) : null;
     const selectionSignal = resolveSelectionSignal(preparedSpec);
-    let supportsSignal = Boolean(
-      view &&
-        selectionSignal &&
-        typeof view.signal === "function" &&
-        typeof view.addSignalListener === "function" &&
-        typeof view.runAsync === "function",
-    );
+    const viewWithSignals = view && asViewWithSignals(view) ? (view as ViewWithSignals) : null;
+    const signalCapableView =
+      viewWithSignals && typeof viewWithSignals.signal === "function"
+        ? (viewWithSignals as ViewWithSignalAccessor)
+        : null;
+    let supportsSignal = Boolean(signalCapableView && selectionSignal);
 
     const state: VegaLiteState = {};
     const initialSelection = initialState?.selection;
@@ -463,7 +487,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       });
     };
 
-    if (supportsSignal && view && selectionSignal) {
+    if (supportsSignal && signalCapableView && selectionSignal) {
       const listener: VegaSignalListener = (_name, value) => {
         listenerTriggered = true;
         const next = normalizeSelectionValue(value);
@@ -474,10 +498,10 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
         emitState();
       };
       try {
-        view.addSignalListener(selectionSignal, listener);
+        signalCapableView.addSignalListener(selectionSignal, listener);
         removeSignalListener = () => {
           try {
-            view.removeSignalListener(selectionSignal, listener);
+            signalCapableView.removeSignalListener(selectionSignal, listener);
           } catch {
             // ignore
           }
@@ -491,7 +515,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
     }
 
     const applySelection = async (value: string | undefined) => {
-      if (!supportsSignal || !view || !selectionSignal) {
+      if (!supportsSignal || !signalCapableView || !selectionSignal) {
         if (state.selection !== value) {
           state.selection = value;
           emitState();
@@ -504,7 +528,7 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       try {
         let current: unknown;
         try {
-          current = view.signal(selectionSignal);
+          current = signalCapableView.signal(selectionSignal);
         } catch {
           current = undefined;
         }
@@ -516,8 +540,8 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
           return;
         }
         listenerTriggered = false;
-        view.signal(selectionSignal, normalized);
-        await view.runAsync();
+        signalCapableView.signal(selectionSignal, normalized);
+        await signalCapableView.runAsync();
       } catch (error) {
         supportsSignal = false;
         emitError("signal", error);
@@ -536,15 +560,13 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
 
     const cleanupResize = registerResizeObserver
       ? registerResizeObserver(() => {
-          if (!view) {
+          if (!viewBase) {
             return;
           }
-          void view
-            .resize()
-            .runAsync()
-            .catch((error: unknown) => {
-              emitError("resize", error);
-            });
+          const resized = viewBase.resize ? viewBase.resize() : viewBase;
+          void resized.runAsync().catch((error: unknown) => {
+            emitError("resize", error);
+          });
         })
       : null;
 
@@ -562,9 +584,9 @@ export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
       removeSignalListener?.();
       removeSignalListener = null;
       cleanupResize?.();
-      if (view) {
+      if (viewBase) {
         try {
-          view.finalize?.();
+          viewBase.finalize?.();
         } catch (error) {
           emitError("finalize", error);
         }
