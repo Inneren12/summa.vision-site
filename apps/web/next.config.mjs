@@ -148,12 +148,22 @@ const nextConfig = {
       { source: "/api/:path*", headers },
     ];
   },
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.resolve.alias = {
       ...config.resolve.alias,
       "d3-array": require.resolve("d3-array"),
       "d3-scale": require.resolve("d3-scale"),
     };
+
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // Block node canvas in server bundle; Vega used client-side only
+        canvas: false,
+        "vega-canvas$": false,
+        "vega-canvas/build/vega-canvas.node.js": false,
+      };
+    }
 
     if (process.env.NEXT_VIZ_ENFORCE_BUDGETS !== "0") {
       config.plugins = config.plugins || [];
