@@ -4,7 +4,7 @@ import type * as MapLibre from "maplibre-gl";
 
 import { emitVizEvent } from "../../analytics/send";
 import type { MapLibreSpec, MapLibrePadding } from "../spec-types";
-import type { MotionMode, VizAdapter } from "../types";
+import type { MotionMode, LegacyVizAdapter } from "../types";
 import { renderWebglFallback, supportsWebGL } from "../webgl";
 
 let _maplibreP: Promise<typeof MapLibre> | null = null;
@@ -443,7 +443,7 @@ function resolveMapConstructor(mod: unknown): new (options: MapOptions) => MapLi
   throw new Error("MapLibre constructor not found");
 }
 
-export const mapLibreAdapter: VizAdapter<MapLibreInstance, MapLibreSpec> = {
+export const mapLibreAdapter: LegacyVizAdapter<MapLibreInstance, MapLibreSpec> = {
   async mount(el, spec, opts) {
     if (!supportsWebGL()) {
       const clone = cloneSpec(spec);

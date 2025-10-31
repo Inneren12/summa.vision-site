@@ -1,5 +1,5 @@
 import type { EChartsSpec } from "../spec-types";
-import type { VizAdapter } from "../types";
+import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
 
@@ -110,7 +110,7 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
   };
 }
 
-export const echartsAdapter: VizAdapter<EChartsInstance, EChartsSpec> = {
+export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsSpec> = {
   async mount(el, spec, opts) {
     void opts;
     const echarts = await import("echarts");

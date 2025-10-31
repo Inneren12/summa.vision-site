@@ -1,4 +1,4 @@
-import type { VizEventDetail, VizEventName } from "../viz/types";
+import type { VizEvent, VizEventDetail, VizEventName } from "../viz/types";
 
 type ConsentLevel = "all" | "necessary";
 
@@ -150,6 +150,50 @@ export function emitVizEvent(name: VizEventName, detail: VizEventDetail): boolea
       });
 
       window.dispatchEvent(event);
+      return true;
+    },
+  });
+}
+
+type VizLifecyclePayload = {
+  readonly type: VizEvent["type"];
+  readonly ts: number;
+  readonly meta?: Record<string, unknown>;
+  readonly timestamp: string;
+};
+
+const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent["type"]> = new Set([
+  "viz_init",
+  "viz_ready",
+  "viz_error",
+]);
+
+export function emitVizLifecycleEvent(event: VizEvent): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return sendAnalyticsEvent({
+    name: event.type,
+    detail: {
+      ...event.meta,
+      ts: event.ts,
+    },
+    isNecessary: NECESSARY_LIFECYCLE_EVENTS.has(event.type),
+    transport: ({ name, timestamp }) => {
+      const payload: VizLifecyclePayload = {
+        type: name as VizEvent["type"],
+        ts: event.ts,
+        meta: event.meta,
+        timestamp,
+      };
+
+      const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
+        detail: payload,
+        bubbles: false,
+      });
+
+      window.dispatchEvent(lifecycleEvent);
       return true;
     },
   });

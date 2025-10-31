@@ -1,21 +1,51 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+/* @vitest-environment jsdom */
 
-import type { VizAdapter } from "./types";
-import { useVizMount } from "./useVizMount";
+import { render, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { VizAdapter, VizEvent, VizInstance } from "./types";
+import { useVizMount, type UseVizMountResult } from "./useVizMount";
+
+vi.mock("../analytics/send", () => ({
+  emitVizLifecycleEvent: vi.fn(() => true),
+  emitVizEvent: vi.fn(() => true),
+}));
 
 declare global {
-  interface Window {
-    matchMedia: (query: string) => MediaQueryList;
-  }
+  // eslint-disable-next-line no-var
+  var ResizeObserver: typeof window.ResizeObserver | undefined;
+}
+
+type TestInstance = { value: number };
+
+type HarnessProps = {
+  adapter: VizAdapter<TestInstance, { value: number }>;
+  onEvent?: (event: VizEvent) => void;
+  onUpdate: (result: UseVizMountResult<TestInstance>) => void;
+};
+
+function Harness({ adapter, onEvent, onUpdate }: HarnessProps) {
+  const viz = useVizMount<TestInstance, { value: number }>({
+    adapter,
+    spec: { value: 1 },
+    initialState: { value: 1 },
+    onEvent,
+  });
+
+  useEffect(() => {
+    onUpdate(viz);
+  }, [onUpdate, viz]);
+
+  return <div ref={viz.ref} data-testid="viz-root" />;
 }
 
 describe("useVizMount", () => {
   beforeEach(() => {
     document.cookie = "sv_consent=all";
-    vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+    vi.spyOn(window, "matchMedia").mockImplementation(() => ({
       matches: false,
-      media: query,
+      media: "(prefers-reduced-motion: reduce)",
       onchange: null,
       addListener: vi.fn(),
       removeListener: vi.fn(),
@@ -23,195 +53,81 @@ describe("useVizMount", () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }));
+
+    class MockResizeObserver {
+      callback: ResizeObserverCallback;
+      observe = vi.fn();
+      disconnect = vi.fn();
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+    }
+
+    // @ts-expect-error: provide mock implementation for tests
+    global.ResizeObserver = MockResizeObserver;
+    // @ts-expect-error: provide mock implementation for tests
+    window.ResizeObserver = MockResizeObserver as unknown as typeof window.ResizeObserver;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    delete global.ResizeObserver;
+    delete window.ResizeObserver;
   });
 
-  it("mounts an adapter, applies queued state, and dispatches events", async () => {
-    const mount = vi.fn(() => ({ id: "instance", spec: { value: 1 } }));
-    const applyState = vi.fn();
+  it("mounts an adapter, forwards events, and cleans up on unmount", async () => {
     const destroy = vi.fn();
+    const applyState = vi.fn();
 
-    const adapter: VizAdapter<{ id: string; spec: { value: number } }, { value: number }> = {
-      mount,
-      applyState,
-      destroy,
+    let latest: UseVizMountResult<TestInstance> | null = null;
+    const onUpdate = vi.fn((value: UseVizMountResult<TestInstance>) => {
+      latest = value;
+    });
+
+    const adapter: VizAdapter<TestInstance, { value: number }> = {
+      mount: vi.fn().mockResolvedValue({
+        applyState,
+        destroy,
+      } satisfies VizInstance<TestInstance>),
     };
 
-    const element = document.createElement("div");
+    const onEvent = vi.fn();
 
-    const events: string[] = [];
-    const handler = (event: Event) => {
-      if (event instanceof CustomEvent) {
-        events.push((event.detail as { name?: string }).name ?? event.type);
-      }
-    };
-
-    window.addEventListener("viz_init", handler);
-    window.addEventListener("viz_ready", handler);
-    window.addEventListener("viz_state", handler);
-    window.addEventListener("viz_motion_mode", handler);
-
-    const { result, unmount } = renderHook(() =>
-      useVizMount({
-        adapter: async () => adapter,
-        lib: "fake",
-        initialSpec: { value: 1 },
-      }),
-    );
-
-    act(() => {
-      result.current.ref(element);
-    });
+    const { unmount } = render(<Harness adapter={adapter} onEvent={onEvent} onUpdate={onUpdate} />);
 
     await waitFor(() => {
-      expect(result.current.isReady).toBe(true);
+      expect(adapter.mount).toHaveBeenCalled();
+      expect(latest?.mounted).toBe(true);
+      expect(latest?.instance).not.toBeNull();
     });
 
-    expect(mount).toHaveBeenCalledTimes(1);
-    expect(mount).toHaveBeenCalledWith(element, { value: 1 }, { discrete: false });
-
-    act(() => {
-      result.current.applyState({ value: 2 }, { stepId: "alpha" });
-    });
-
-    await waitFor(() => {
-      expect(applyState).toHaveBeenCalledWith(
-        { id: "instance", spec: { value: 1 } },
-        { value: 2 },
-        {
-          discrete: false,
-        },
-      );
-    });
-
-    expect(events).toContain("viz_init");
-    expect(events).toContain("viz_ready");
-    expect(events).toContain("viz_state");
-    expect(events).toContain("viz_motion_mode");
+    expect(onUpdate).toHaveBeenCalled();
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "viz_ready" }));
+    expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: "viz_error" }));
 
     unmount();
 
-    expect(destroy).toHaveBeenCalledTimes(1);
-
-    window.removeEventListener("viz_init", handler);
-    window.removeEventListener("viz_ready", handler);
-    window.removeEventListener("viz_state", handler);
-    window.removeEventListener("viz_motion_mode", handler);
+    await waitFor(() => {
+      expect(destroy).toHaveBeenCalled();
+    });
   });
 
-  it("queues state updates until mount resolves", async () => {
-    const applyState = vi.fn();
-    const destroy = vi.fn();
-
-    const adapter: VizAdapter<{ apply: typeof applyState }, { value: number }> = {
-      mount: vi.fn().mockImplementation((_, spec) => ({ apply: applyState, spec })),
-      applyState,
-      destroy,
+  it("exposes error when adapter rejects", async () => {
+    const adapter: VizAdapter<TestInstance, { value: number }> = {
+      mount: vi.fn().mockImplementation(async () => {
+        throw new Error("failed to initialize");
+      }),
     };
 
-    const element = document.createElement("div");
+    let latest: UseVizMountResult<TestInstance> | null = null;
 
-    const { result } = renderHook(() =>
-      useVizMount<{ apply: typeof applyState }, { value: number }>({
-        adapter: async () => adapter,
-        lib: "fake",
-        initialSpec: { value: 1 },
-      }),
-    );
-
-    act(() => {
-      result.current.applyState({ value: 2 });
-      result.current.ref(element);
-    });
+    render(<Harness adapter={adapter} onUpdate={(viz) => (latest = viz)} />);
 
     await waitFor(() => {
-      expect(result.current.isReady).toBe(true);
+      expect(adapter.mount).toHaveBeenCalled();
+      expect(latest?.error).toBeInstanceOf(Error);
+      expect(latest?.mounted).toBe(false);
     });
-
-    expect(applyState).toHaveBeenCalledWith(
-      expect.objectContaining({ apply: applyState }),
-      { value: 2 },
-      {
-        discrete: false,
-      },
-    );
-  });
-
-  it("freezes previous spec when updater function is used", async () => {
-    const mount = vi.fn(() => ({ spec: { count: 1 } }));
-    const applyState = vi.fn();
-    const destroy = vi.fn();
-
-    const adapter: VizAdapter<{ spec: { count: number } }, { count: number }> = {
-      mount,
-      applyState,
-      destroy,
-    };
-
-    const { result } = renderHook(() =>
-      useVizMount<{ spec: { count: number } }, { count: number }>({
-        adapter: async () => adapter,
-        lib: "fake",
-        initialSpec: { count: 1 },
-      }),
-    );
-
-    await waitFor(() => {
-      expect(mount).toHaveBeenCalled();
-    });
-
-    const element = document.createElement("div");
-    act(() => {
-      result.current.ref(element);
-    });
-
-    await waitFor(() => {
-      expect(result.current.isReady).toBe(true);
-    });
-
-    expect(() => {
-      act(() => {
-        result.current.applyState((prev) => {
-          expect(Object.isFrozen(prev)).toBe(true);
-          expect(() => {
-            (prev as { count: number }).count += 1;
-          }).toThrow();
-          return { count: prev.count + 1 };
-        });
-      });
-    }).not.toThrow();
-  });
-
-  it("surfaces adapter mount failures", async () => {
-    const adapter: VizAdapter<unknown, { value: number }> = {
-      async mount() {
-        throw new Error("webgl disabled");
-      },
-      applyState: vi.fn(),
-      destroy: vi.fn(),
-    };
-
-    const element = document.createElement("div");
-
-    const { result } = renderHook(() =>
-      useVizMount({
-        adapter: async () => adapter,
-        lib: "maplibre",
-        initialSpec: { value: 1 },
-      }),
-    );
-
-    act(() => {
-      result.current.ref(element);
-    });
-
-    await waitFor(() => {
-      expect(result.current.error?.message).toBe("webgl disabled");
-    });
-
-    expect(result.current.isReady).toBe(false);
   });
 });

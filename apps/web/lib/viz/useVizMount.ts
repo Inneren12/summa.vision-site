@@ -3,415 +3,227 @@
 import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
-import { emitVizEvent } from "../analytics/send";
+import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
 
-import type {
-  MotionMode,
-  VizAdapter,
-  VizAdapterLoader,
-  VizAdapterModule,
-  VizLibraryTag,
-  VizStateMeta,
-} from "./types";
+import type { VizAdapter, VizEvent, VizEventDetail, VizEventName, VizInstance } from "./types";
 
+export type VizAdapterSource<S, Spec, Data> =
+  | VizAdapter<S, Spec, Data>
+  | (() => Promise<VizAdapter<S, Spec, Data>> | VizAdapter<S, Spec, Data>);
 
-type InitialSpecResolver<TSpec extends object> =
-  | TSpec
-  | ((context: { discrete: boolean }) => TSpec);
-
-type PendingState<TSpec extends object> = {
-  value: TSpec;
-  wasFunction: boolean;
-  meta?: VizStateMeta;
-};
-
-type AdapterSource<TInstance, TSpec extends object> =
-  | VizAdapter<TInstance, TSpec>
-  | VizAdapterLoader<TInstance, TSpec>;
-
-function toMotion(discrete: boolean): MotionMode {
-  return discrete ? "discrete" : "animated";
+function isLoader<S, Spec, Data>(
+  value: VizAdapterSource<S, Spec, Data>,
+): value is () => Promise<VizAdapter<S, Spec, Data>> | VizAdapter<S, Spec, Data> {
+  return typeof value === "function";
 }
 
-function isAdapterLoader<TInstance, TSpec extends object>(
-  source: AdapterSource<TInstance, TSpec>,
-): source is VizAdapterLoader<TInstance, TSpec> {
-  return typeof source === "function";
-}
-
-function hasDefaultExport<TInstance, TSpec extends object>(
-  module: VizAdapterModule<TInstance, TSpec>,
-): module is { default: VizAdapter<TInstance, TSpec> } {
-  return typeof (module as { default?: unknown }).default !== "undefined";
-}
-
-function normalizeAdapterModule<TInstance, TSpec extends object>(
-  module: VizAdapterModule<TInstance, TSpec>,
-): VizAdapter<TInstance, TSpec> {
-  if (hasDefaultExport(module)) {
-    return module.default;
-  }
-  return module as VizAdapter<TInstance, TSpec>;
-}
-
-function freezeSpec<TSpec extends object>(spec: TSpec): Readonly<TSpec> {
-  if (typeof Object.freeze === "function") {
-    return Object.freeze(spec);
-  }
-  return spec;
-}
-
-function cloneSpec<TSpec extends object>(spec: TSpec): TSpec {
-  if (typeof globalThis.structuredClone === "function") {
-    try {
-      return globalThis.structuredClone(spec);
-    } catch {
-      // fall through to shallow copy
-    }
+async function resolveAdapter<S, Spec, Data>(
+  source: VizAdapterSource<S, Spec, Data>,
+): Promise<VizAdapter<S, Spec, Data>> {
+  if (!isLoader(source)) {
+    return source;
   }
 
-  if (Array.isArray(spec)) {
-    return spec.slice() as unknown as TSpec;
-  }
-
-  return { ...(spec as Record<string, unknown>) } as TSpec;
+  const maybeAdapter = source();
+  return Promise.resolve(maybeAdapter);
 }
 
-function asError(error: unknown): Error {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  return new Error(typeof error === "string" ? error : "Unknown visualization error");
+export interface UseVizMountOptions<S, Spec, Data> {
+  readonly adapter: VizAdapterSource<S, Spec, Data>;
+  readonly spec?: Spec;
+  readonly data?: Data;
+  readonly initialState?: S;
+  readonly discrete?: boolean;
+  readonly enableResizeObserver?: boolean;
+  readonly onEvent?: (event: VizEvent) => void;
 }
 
-function buildErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message || error.name;
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-export interface UseVizMountOptions<TInstance, TSpec extends object> {
-  readonly adapter: AdapterSource<TInstance, TSpec>;
-  readonly lib: VizLibraryTag;
-  readonly initialSpec: InitialSpecResolver<TSpec>;
-}
-
-export interface UseVizMountResult<TInstance, TSpec extends object> {
+export interface UseVizMountResult<S> {
   readonly ref: (element: HTMLElement | null) => void;
   readonly elementRef: MutableRefObject<HTMLElement | null>;
-  readonly instance: TInstance | null;
-  readonly currentSpec: TSpec;
-  readonly isReady: boolean;
-  readonly discrete: boolean;
+  readonly instance: VizInstance<S> | null;
+  readonly mounted: boolean;
   readonly error: Error | null;
-  readonly applyState: (
-    next: TSpec | ((prev: Readonly<TSpec>) => TSpec),
-    meta?: VizStateMeta,
-  ) => void;
+  readonly discrete: boolean;
 }
 
-export function useVizMount<TInstance, TSpec extends object>(
-  options: UseVizMountOptions<TInstance, TSpec>,
-): UseVizMountResult<TInstance, TSpec> {
-  const { adapter: adapterSource, lib, initialSpec } = options;
-  const { isReducedMotion } = useReducedMotion();
-  const discreteRef = useRef(isReducedMotion);
-  discreteRef.current = isReducedMotion;
-
-  const adapterRef = useRef<VizAdapter<TInstance, TSpec> | null>(
-    isAdapterLoader(adapterSource) ? null : adapterSource,
-  );
-  const [adapterState, setAdapterState] = useState<VizAdapter<TInstance, TSpec> | null>(
-    adapterRef.current,
-  );
-
-  const elementStateRef = useRef<HTMLElement | null>(null);
-  const [element, setElement] = useState<HTMLElement | null>(null);
-
-  const resolveInitialSpec = useCallback((): TSpec => {
-    const resolver = initialSpec as InitialSpecResolver<TSpec>;
-    if (typeof resolver === "function") {
-      return (resolver as (context: { discrete: boolean }) => TSpec)({
-        discrete: discreteRef.current,
-      });
-    }
-    return resolver;
-  }, [initialSpec]);
-
-  const initialSpecRef = useRef<TSpec | null>(null);
-  if (initialSpecRef.current === null) {
-    initialSpecRef.current = resolveInitialSpec();
+function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
   }
 
-  const [currentSpec, setCurrentSpec] = useState<TSpec>(() => {
-    return initialSpecRef.current as TSpec;
-  });
+  if (typeof value === "string") {
+    return new Error(value);
+  }
 
-  const specRef = useRef<TSpec>(initialSpecRef.current as TSpec);
-  specRef.current = currentSpec;
+  return new Error("Unknown visualization error");
+}
 
-  const instanceRef = useRef<TInstance | null>(null);
-  const [isReady, setIsReady] = useState(false);
+export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
+  options: UseVizMountOptions<S, Spec, Data>,
+): UseVizMountResult<S> {
+  const {
+    adapter: adapterSource,
+    spec,
+    data,
+    initialState,
+    onEvent,
+    enableResizeObserver = true,
+  } = options;
+
+  const { isReducedMotion } = useReducedMotion();
+  const discrete = options.discrete ?? isReducedMotion;
+
+  const elementRef = useRef<HTMLElement | null>(null);
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const instanceRef = useRef<VizInstance<S> | null>(null);
+  const [instance, setInstance] = useState<VizInstance<S> | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const pendingStatesRef = useRef<PendingState<TSpec>[]>([]);
+  const observersRef = useRef<ResizeObserver[]>([]);
 
-  useEffect(() => {
-    if (!isAdapterLoader(adapterSource)) {
-      adapterRef.current = adapterSource;
-      setAdapterState(adapterSource);
-      setError(null);
-      return;
-    }
-
-    adapterRef.current = null;
-    setAdapterState(null);
-
-    let cancelled = false;
-    const loadAdapter = async () => {
-      try {
-        const loadedModule = await adapterSource();
-        if (cancelled) {
-          return;
-        }
-        const resolved = normalizeAdapterModule(loadedModule);
-        adapterRef.current = resolved;
-        setAdapterState(resolved);
-        setError(null);
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
-        const nextError = asError(err);
-        setError(nextError);
-        emitVizEvent("viz_error", {
-          lib,
-          motion: toMotion(discreteRef.current),
-          reason: "adapter-load",
-          error: buildErrorMessage(err),
-        });
-      }
-    };
-
-    loadAdapter();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [adapterSource, lib]);
-
-  const applyToInstance = useCallback(
-    (instance: TInstance, payload: PendingState<TSpec>) => {
-      const adapter = adapterRef.current;
-      if (!adapter) {
-        return;
-      }
-      try {
-        const discrete = discreteRef.current;
-        const motion = toMotion(discrete);
-        if (payload.wasFunction) {
-          const value = payload.value;
-          adapter.applyState(instance, () => value, { discrete });
-        } else {
-          adapter.applyState(instance, payload.value, { discrete });
-        }
-        emitVizEvent("viz_state", {
-          lib,
-          motion,
-          stepId: payload.meta?.stepId,
-          reason: payload.meta?.reason ?? "update",
-        });
-      } catch (err) {
-        const nextError = asError(err);
-        setError(nextError);
-        emitVizEvent("viz_error", {
-          lib,
-          motion: toMotion(discreteRef.current),
-          stepId: payload.meta?.stepId,
-          reason: payload.meta?.reason ?? "apply",
-          error: buildErrorMessage(err),
-        });
-      }
-    },
-    [lib],
-  );
-
-  const applyState = useCallback(
-    (next: TSpec | ((prev: Readonly<TSpec>) => TSpec), meta?: VizStateMeta) => {
-      const wasFunction = typeof next === "function";
-      const value = wasFunction
-        ? (next as (prev: Readonly<TSpec>) => TSpec)(freezeSpec(cloneSpec(specRef.current)))
-        : (next as TSpec);
-
-      specRef.current = value;
-      setCurrentSpec(value);
-
-      const payload: PendingState<TSpec> = {
-        value,
-        wasFunction,
-        meta,
-      };
-
-      const instance = instanceRef.current;
-      if (instance) {
-        applyToInstance(instance, payload);
-        return;
-      }
-
-      pendingStatesRef.current.push(payload);
-    },
-    [applyToInstance],
-  );
-
-  const flushPendingStates = useCallback(
-    (instance: TInstance) => {
-      if (pendingStatesRef.current.length === 0) {
-        return;
-      }
-
-      const states = pendingStatesRef.current.splice(0, pendingStatesRef.current.length);
-      for (const payload of states) {
-        applyToInstance(instance, payload);
-      }
-    },
-    [applyToInstance],
-  );
-
-  const mountRef = useCallback((node: HTMLElement | null) => {
-    elementStateRef.current = node;
+  const ref = useCallback((node: HTMLElement | null) => {
+    elementRef.current = node;
     setElement(node);
   }, []);
 
-  useEffect(() => {
-    const nextInitial = resolveInitialSpec();
-    if (!instanceRef.current) {
-      initialSpecRef.current = nextInitial;
-      specRef.current = nextInitial;
-      setCurrentSpec(nextInitial);
-    }
-  }, [resolveInitialSpec]);
+  const adapterMemo = useMemo(() => adapterSource, [adapterSource]);
 
   useEffect(() => {
-    const target = element;
-    const adapter = adapterRef.current;
-    if (!target || !adapter) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!element) {
       return;
     }
 
     let cancelled = false;
-    let mountedInstance: TInstance | null = null;
 
-    const destroySafely = (
-      instance: TInstance,
-      reason: "cancelled" | "destroy",
-      options: { clearPending?: boolean } = {},
-    ) => {
-      const motion = toMotion(discreteRef.current);
-      const { clearPending = true } = options;
-      try {
-        adapter.destroy(instance);
-      } catch (err) {
-        emitVizEvent("viz_error", {
-          lib,
-          motion,
-          reason: "destroy",
-          error: buildErrorMessage(err),
-        });
-      } finally {
-        emitVizEvent("viz_destroyed", { lib, motion, reason });
-        if (instanceRef.current === instance) {
-          instanceRef.current = null;
-        }
-        if (mountedInstance === instance) {
-          mountedInstance = null;
-        }
-        if (clearPending) {
-          pendingStatesRef.current = [];
-        }
-      }
+    const forwardEvent = (event: VizEvent) => {
+      onEvent?.(event);
+      const detail: VizEventDetail = {
+        motion: discrete ? "discrete" : "animated",
+        ...(event.meta ?? {}),
+      } as VizEventDetail;
+      emitVizEvent(event.type as VizEventName, detail);
+      emitVizLifecycleEvent(event);
     };
 
-    const discrete = discreteRef.current;
-    emitVizEvent("viz_init", { lib, motion: toMotion(discrete), reason: "mount" });
+    const registerResizeObserver = enableResizeObserver
+      ? (callback: ResizeObserverCallback) => {
+          if (typeof ResizeObserver === "undefined") {
+            return () => {};
+          }
 
-    const runMount = async () => {
-      try {
-        const result = await adapter.mount(target, specRef.current, { discrete });
+          const observer = new ResizeObserver(callback);
+          observersRef.current.push(observer);
+          observer.observe(element);
+          return () => {
+            observer.disconnect();
+            observersRef.current = observersRef.current.filter((entry) => entry !== observer);
+          };
+        }
+      : undefined;
+
+    const handleError = (reason: string, err: unknown) => {
+      const nextError = toError(err);
+      setError(nextError);
+      forwardEvent({
+        type: "viz_error",
+        ts: Date.now(),
+        meta: {
+          reason,
+          message: nextError.message,
+        },
+      });
+    };
+
+    forwardEvent({
+      type: "viz_init",
+      ts: Date.now(),
+      meta: {
+        discrete,
+      },
+    });
+
+    let currentInstance: VizInstance<S> | null = null;
+
+    void resolveAdapter(adapterMemo)
+      .then((adapter) => {
         if (cancelled) {
-          destroySafely(result, "cancelled", { clearPending: false });
           return;
         }
-        mountedInstance = result;
-        instanceRef.current = result;
-        setIsReady(true);
-        emitVizEvent("viz_ready", { lib, motion: toMotion(discreteRef.current) });
-        flushPendingStates(result);
-      } catch (err) {
-        const nextError = asError(err);
-        setError(nextError);
-        emitVizEvent("viz_error", {
-          lib,
-          motion: toMotion(discreteRef.current),
-          reason: "mount",
-          error: buildErrorMessage(err),
-        });
-      }
-    };
 
-    runMount();
+        return adapter.mount({
+          el: element,
+          spec,
+          data,
+          initialState,
+          discrete,
+          onEvent: forwardEvent,
+          registerResizeObserver,
+        });
+      })
+      .then((mountedInstance) => {
+        if (!mountedInstance || cancelled) {
+          return;
+        }
+
+        currentInstance = mountedInstance;
+        instanceRef.current = mountedInstance;
+        setInstance(mountedInstance);
+        setMounted(true);
+        setError(null);
+        forwardEvent({
+          type: "viz_ready",
+          ts: Date.now(),
+          meta: {
+            discrete,
+          },
+        });
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        handleError("mount", err);
+      });
 
     return () => {
       cancelled = true;
-      setIsReady(false);
-      const instance = mountedInstance ?? instanceRef.current;
-      if (instance) {
-        destroySafely(instance, "destroy");
+      observersRef.current.forEach((observer) => observer.disconnect());
+      observersRef.current = [];
+      setMounted(false);
+      setInstance(null);
+      const instanceToDestroy = currentInstance ?? instanceRef.current;
+      instanceRef.current = null;
+      if (instanceToDestroy) {
+        Promise.resolve(instanceToDestroy.destroy())
+          .catch((err) => {
+            handleError("destroy", err);
+          })
+          .finally(() => {
+            forwardEvent({
+              type: "viz_state",
+              ts: Date.now(),
+              meta: {
+                discrete,
+                reason: "destroy",
+              },
+            });
+          });
       }
     };
-  }, [element, flushPendingStates, lib, adapterState]);
+  }, [adapterMemo, data, discrete, element, enableResizeObserver, initialState, onEvent, spec]);
 
-  useEffect(() => {
-    emitVizEvent("viz_motion_mode", {
-      lib,
-      motion: toMotion(isReducedMotion),
-      reason: "preference",
-    });
-  }, [lib, isReducedMotion]);
-
-  useEffect(() => {
-    const instance = instanceRef.current;
-    if (!instance) {
-      return;
-    }
-    applyToInstance(instance, {
-      value: specRef.current,
-      wasFunction: false,
-      meta: { reason: "discrete-change" },
-    });
-  }, [applyToInstance, isReducedMotion]);
-
-  return useMemo(
-    () => ({
-      ref: mountRef,
-      elementRef: elementStateRef as MutableRefObject<HTMLElement | null>,
-      instance: instanceRef.current,
-      currentSpec,
-      isReady,
-      discrete: isReducedMotion,
-      error,
-      applyState,
-    }),
-    [applyState, currentSpec, error, isReady, mountRef, isReducedMotion],
-  );
+  return {
+    ref,
+    elementRef,
+    instance,
+    mounted,
+    error,
+    discrete,
+  };
 }

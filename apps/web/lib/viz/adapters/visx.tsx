@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import type { VisxSpec } from "../spec-types";
-import type { VizAdapter } from "../types";
+import type { LegacyVizAdapter } from "../types";
 
 export type { VisxRenderer, VisxSpec } from "../spec-types";
 
@@ -63,7 +63,7 @@ function render<TProps extends Record<string, unknown>>(
   instance.spec = spec;
 }
 
-export const visxAdapter: VizAdapter<VisxInstance, VisxSpec> = {
+export const visxAdapter: LegacyVizAdapter<VisxInstance, VisxSpec> = {
   mount(el, spec, opts) {
     const root = createRoot(el);
     instanceCounter += 1;

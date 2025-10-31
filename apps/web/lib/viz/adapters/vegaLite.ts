@@ -2,7 +2,7 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { VizAdapter } from "../types";
+import type { LegacyVizAdapter } from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
@@ -330,7 +330,7 @@ async function render(
   return result;
 }
 
-export const vegaLiteAdapter: VizAdapter<VegaLiteInstance, VegaLiteSpec> = {
+export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
   async mount(el, spec, opts) {
     const embed = await import("vega-embed");
     const instance: VegaLiteInstance = {
