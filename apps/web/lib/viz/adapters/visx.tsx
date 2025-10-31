@@ -21,6 +21,7 @@ function cloneSpec<TProps extends Record<string, unknown>>(
 ): VisxSpec<TProps> {
   const props = spec.props ? { ...spec.props } : undefined;
   return {
+    kind: "visx",
     component: spec.component,
     props: props as TProps | undefined,
     width: spec.width,

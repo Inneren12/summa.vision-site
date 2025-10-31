@@ -1,14 +1,24 @@
 // Минимальная заглушка для echarts
-export type ECharts = { dispose: () => void; resize: () => void } & Record<string, unknown>;
 export type EChartsOption = Record<string, unknown>;
 
-const echarts = {
-  init: (..._args: unknown[]): ECharts => {
-    void _args;
-    throw new Error(
-      "[viz-stub] echarts не установлен. Установите пакет, чтобы использовать ECharts-адаптер.",
-    );
-  },
+export interface ECharts {
+  setOption(option: EChartsOption, opts?: Record<string, unknown>): void;
+  resize(): void;
+  dispose(): void;
+}
+
+function throwMissingLibrary(): never {
+  throw new Error(
+    "[viz-stub] echarts не установлен. Установите пакет, чтобы использовать ECharts-адаптер.",
+  );
+}
+
+export const init = (
+  ..._args: [element: HTMLElement, theme?: string | object, opts?: { renderer?: "canvas" | "svg" }]
+): ECharts => {
+  void _args;
+  throwMissingLibrary();
 };
 
+const echarts = { init };
 export default echarts;

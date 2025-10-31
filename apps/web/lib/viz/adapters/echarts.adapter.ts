@@ -1,4 +1,4 @@
-import type { EChartsSpec } from "../spec-types";
+import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
@@ -6,7 +6,7 @@ type ECharts = import("echarts").ECharts;
 interface EChartsInstance {
   element: HTMLElement | null;
   chart: ECharts | null;
-  spec: EChartsSpec | null;
+  spec: EChartsOption | null;
   cleanupResizeObserver: (() => void) | null;
 }
 
@@ -64,7 +64,7 @@ function throttle<TArgs extends unknown[]>(
   return throttled;
 }
 
-function cloneSpec(spec: EChartsSpec): EChartsSpec {
+function cloneSpec(spec: EChartsOption): EChartsOption {
   if (typeof globalThis.structuredClone === "function") {
     try {
       return globalThis.structuredClone(spec);
@@ -73,16 +73,16 @@ function cloneSpec(spec: EChartsSpec): EChartsSpec {
     }
   }
   if (Array.isArray(spec)) {
-    return spec.slice() as unknown as EChartsSpec;
+    return spec.slice() as unknown as EChartsOption;
   }
-  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
+  return { ...(spec as Record<string, unknown>) } as EChartsOption;
 }
 
-function setInitialOption(chart: ECharts, option: EChartsSpec) {
+function setInitialOption(chart: ECharts, option: EChartsOption) {
   chart.setOption(option, { lazyUpdate: true } as never);
 }
 
-function setNextOption(chart: ECharts, option: EChartsSpec, discrete: boolean) {
+function setNextOption(chart: ECharts, option: EChartsOption, discrete: boolean) {
   chart.setOption(option, {
     notMerge: true,
     lazyUpdate: true,
@@ -110,7 +110,7 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
   };
 }
 
-export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsSpec> = {
+export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
   async mount(el, spec, opts) {
     void opts;
     const echarts = await import("echarts");

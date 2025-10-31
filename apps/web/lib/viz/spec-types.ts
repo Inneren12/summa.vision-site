@@ -1,7 +1,15 @@
 import type { JSX } from "react";
 
+/**
+ * Canonical visualization specification types used across the viz adapters.
+ *
+ * - Vega-Lite v6.4.1: {@link https://vega.github.io/vega-lite/docs/spec.html TopLevelSpec}
+ * - Apache ECharts v5.6.0: {@link https://echarts.apache.org/en/option.html EChartsOption}
+ * - MapLibre GL JS v5.10.0: {@link https://maplibre.org/maplibre-gl-js/docs/style-spec/ StyleSpecification}
+ */
 export type VegaLiteSpec = import("vega-lite").TopLevelSpec;
-export type EChartsSpec = import("echarts").EChartsOption;
+export type EChartsOption = import("echarts").EChartsOption;
+export type MapLibreStyle = import("maplibre-gl").StyleSpecification;
 
 export type MapLibrePadding = Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 
@@ -12,7 +20,7 @@ export interface MapLibreLayerInstruction {
 }
 
 export interface MapLibreSpec {
-  readonly style: string | object;
+  readonly style: string | MapLibreStyle;
   readonly camera?: {
     readonly center?: [number, number];
     readonly zoom?: number;
@@ -63,7 +71,12 @@ export type VisxRenderer<TProps extends Record<string, unknown> = Record<string,
   },
 ) => JSX.Element;
 
+/**
+ * Minimal spec shape for visx-backed charts. This is a temporary structure until
+ * we formalise a full schema for declarative visx specs.
+ */
 export interface VisxSpec<TProps extends Record<string, unknown> = Record<string, unknown>> {
+  readonly kind: "visx";
   readonly width?: number;
   readonly height?: number;
   readonly component: VisxRenderer<TProps>;

@@ -7,6 +7,12 @@ declare module "@deck.gl/core" {
   export interface DeckProps {
     [key: string]: unknown;
   }
+
+  export class Deck {
+    constructor(props: DeckProps);
+    setProps(props: DeckProps): void;
+    finalize(): void;
+  }
 }
 
 declare module "@deck.gl/mapbox" {
