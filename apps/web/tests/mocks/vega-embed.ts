@@ -3,7 +3,13 @@ const embed = async (el: HTMLElement, spec: unknown, opts?: unknown) => {
   void spec;
   void opts;
   return {
-    view: { runAsync: async () => {}, finalize: () => {} },
+    view: {
+      runAsync: async () => {},
+      finalize: () => {},
+      resize() {
+        return this;
+      },
+    },
   };
 };
 

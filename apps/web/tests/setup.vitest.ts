@@ -79,7 +79,17 @@ if (typeof (globalThis as any).IntersectionObserver === "undefined" && hasWindow
 // Перестраховка: мок vega-embed, если где-то импортируется напрямую
 vi.mock(
   "vega-embed",
-  () => ({ default: async () => ({ view: { runAsync: async () => {}, finalize: () => {} } }) }),
+  () => ({
+    default: async () => ({
+      view: {
+        runAsync: async () => {},
+        finalize: () => {},
+        resize() {
+          return this;
+        },
+      },
+    }),
+  }),
   { virtual: true },
 );
 

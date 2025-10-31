@@ -15,6 +15,7 @@ interface VegaLiteInstance {
   embed: typeof import("vega-embed") | null;
   result: VegaEmbedResult | null;
   spec: VegaLiteSpec | null;
+  resizeListener: ((event: Event) => void) | null;
 }
 
 type PlainObject = Record<string, unknown>;
@@ -288,6 +289,67 @@ function prepareSpec(spec: VegaLiteSpec, opts: { discrete: boolean }): VegaLiteS
   return clone;
 }
 
+function withAutosize(spec: VegaLiteSpec): VegaLiteSpec {
+  const baseAutosize = {
+    type: "fit" as const,
+    contains: "padding" as const,
+    resize: true,
+  };
+
+  const nextAutosize =
+    spec.autosize && typeof spec.autosize === "object"
+      ? { ...baseAutosize, ...spec.autosize }
+      : baseAutosize;
+
+  return {
+    ...spec,
+    autosize: nextAutosize,
+  };
+}
+
+async function waitForAnimationFrame(): Promise<void> {
+  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+async function settleLayout(): Promise<void> {
+  await waitForAnimationFrame();
+  await waitForAnimationFrame();
+}
+
+async function runViewResize(view: VegaEmbedResult["view"] | undefined | null): Promise<void> {
+  if (!view || typeof view.resize !== "function") {
+    return;
+  }
+
+  try {
+    const resized = view.resize();
+    if (resized && typeof resized.runAsync === "function") {
+      await resized.runAsync();
+      return;
+    }
+    if (typeof view.runAsync === "function") {
+      await view.runAsync();
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[vega-lite] Failed to run resize", error);
+    }
+  }
+}
+
+function createResizeListener(instance: VegaLiteInstance) {
+  return () => {
+    const view = instance.result?.view;
+    void runViewResize(view);
+  };
+}
+
 function animationConfig(discrete: boolean) {
   if (discrete) {
     return { duration: 0, easing: "linear" };
@@ -306,6 +368,7 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
   return {
     actions: false,
     renderer: "canvas",
+    mode: "vega-lite",
     config: {
       animation: animationConfig(discrete),
     },
@@ -324,12 +387,14 @@ async function render(
     return instance.result;
   }
   const embed = embedModule.default ?? embedModule;
-  const preparedSpec = prepareSpec(spec, { discrete });
+  const preparedSpec = withAutosize(prepareSpec(spec, { discrete }));
   const options = buildEmbedOptions(discrete);
   const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
   instance.result?.view?.finalize?.();
   instance.result = result;
   instance.spec = preparedSpec;
+  await settleLayout();
+  await runViewResize(result.view);
   return result;
 }
 
@@ -341,8 +406,14 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
       embed,
       result: null,
       spec: null,
+      resizeListener: null,
     };
     await render(instance, spec, opts.discrete);
+    if (!instance.resizeListener) {
+      const listener = createResizeListener(instance);
+      el.addEventListener("viz_resized", listener as EventListener);
+      instance.resizeListener = listener;
+    }
     return instance;
   },
   applyState(instance, next, opts) {
@@ -357,8 +428,12 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
   destroy(instance) {
     instance.result?.view?.finalize?.();
     instance.result = null;
+    if (instance.element && instance.resizeListener) {
+      instance.element.removeEventListener("viz_resized", instance.resizeListener as EventListener);
+    }
     instance.element = null;
     instance.embed = null;
     instance.spec = null;
+    instance.resizeListener = null;
   },
 };
