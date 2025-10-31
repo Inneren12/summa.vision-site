@@ -1,6 +1,6 @@
 "use client";
 
-import useSWR, { type SWRResponse } from "swr";
+import useSWR from "swr";
 
 import type { Filters, FilterValue } from "./url";
 
@@ -52,12 +52,11 @@ export function datasetUrl(slug: string, filters?: Filters): string {
   return search ? `/api/stories?${search}` : "/api/stories";
 }
 
-const datasetFetcher = async (url: string): Promise<DashDatasetResponse> => {
+async function fetchDataset(url: string): Promise<DashDatasetResponse> {
   const response = await fetch(url, {
     method: "GET",
     headers: {
       Accept: "application/json",
-      "Cache-Control": "no-cache, stale-while-revalidate=60",
     },
   });
 
@@ -65,46 +64,21 @@ const datasetFetcher = async (url: string): Promise<DashDatasetResponse> => {
     throw new Error(`Failed to load dashboard dataset (${response.status})`);
   }
 
-  const payload = (await response.json()) as Partial<DashDatasetResponse>;
-
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Invalid dashboard dataset response");
-  }
-
-  const items = Array.isArray(payload.items) ? payload.items : [];
-  const updatedAt = typeof payload.updatedAt === "string" ? payload.updatedAt : "";
-
-  return {
-    items,
-    updatedAt,
-  } satisfies DashDatasetResponse;
-};
-
-export interface UseDashDatasetResult {
-  dataset?: DashDatasetResponse;
-  isLoading: boolean;
-  error?: Error;
-  empty: boolean;
-  mutate: SWRResponse<DashDatasetResponse, Error>["mutate"];
+  return (await response.json()) as DashDatasetResponse;
 }
 
-export function useDashDataset(slug: string | undefined, filters?: Filters): UseDashDatasetResult {
+export function useDashDataset(slug: string | undefined, filters?: Filters) {
   const key = slug ? datasetUrl(slug, filters) : null;
-  const swr = useSWR<DashDatasetResponse, Error>(key, datasetFetcher, {
+  const swr = useSWR<DashDatasetResponse>(key, fetchDataset, {
     keepPreviousData: true,
     revalidateOnFocus: false,
     revalidateIfStale: true,
   });
 
-  const isLoading = Boolean(slug) && !swr.error && !swr.data;
-  const items = swr.data?.items;
-  const empty = Array.isArray(items) && items.length === 0;
-
   return {
     dataset: swr.data,
-    isLoading,
+    isLoading: !swr.error && !swr.data,
     error: swr.error,
-    empty,
     mutate: swr.mutate,
-  };
+  } as const;
 }
