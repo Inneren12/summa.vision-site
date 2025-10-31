@@ -29,7 +29,13 @@ const NEED_LOADERS: Record<StoryVisualizationNeed, () => Promise<void>> = {
     ]);
   },
   vega: async () => {
-    await Promise.all([import("@/lib/viz/adapters/vegaLite"), import("vega-embed")]);
+    await Promise.all([
+      import("@/lib/viz/adapters/vegaLite"),
+      import("vega"),
+      import("vega-lite"),
+      import("react-vega"),
+      import("vega-embed"),
+    ]);
   },
   visx: async () => {
     await import("@/lib/viz/adapters/visx");

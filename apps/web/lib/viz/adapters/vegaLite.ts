@@ -2,7 +2,7 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { LegacyVizAdapter } from "../types";
+import type { VizAdapter, VizEvent, VizInstance } from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
@@ -12,11 +12,16 @@ type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
 
 interface VegaLiteInstance {
   element: HTMLElement | null;
-  embed: typeof import("vega-embed") | null;
+  embed: VegaEmbedFn | null;
   result: VegaEmbedResult | null;
   spec: VegaLiteSpec | null;
+  discrete: boolean;
+  selection?: string;
   resizeListener: ((event: Event) => void) | null;
+  cleanupResizeObserver: (() => void) | null;
 }
+
+type VegaLiteState = { selection?: string };
 
 type PlainObject = Record<string, unknown>;
 
@@ -375,20 +380,87 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
   };
 }
 
+function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return new Error(value);
+  }
+  return new Error("Unknown Vega-Lite error");
+}
+
+type EventDispatcher = {
+  init(meta?: Record<string, unknown>): void;
+  ready(meta?: Record<string, unknown>): void;
+  state(meta?: Record<string, unknown>): void;
+  error(reason: string, error: unknown, meta?: Record<string, unknown>): void;
+};
+
+function createEventDispatcher(
+  onEvent: ((event: VizEvent) => void) | undefined,
+  baseMeta: Record<string, unknown> = {},
+): EventDispatcher {
+  const emit = (type: VizEvent["type"], meta?: Record<string, unknown>) => {
+    if (!onEvent) {
+      return;
+    }
+    const mergedMeta = { ...baseMeta, ...(meta ?? {}) };
+    onEvent({
+      type,
+      ts: Date.now(),
+      meta: mergedMeta,
+    });
+  };
+
+  return {
+    init(meta) {
+      emit("viz_init", meta);
+    },
+    ready(meta) {
+      emit("viz_ready", meta);
+    },
+    state(meta) {
+      emit("viz_state", meta);
+    },
+    error(reason, error, meta) {
+      const err = toError(error);
+      emit("viz_error", {
+        reason,
+        message: err.message,
+        stack: err.stack,
+        ...(meta ?? {}),
+      });
+    },
+  };
+}
+
+let embedLoader: Promise<VegaEmbedFn> | null = null;
+
+async function loadVegaEmbed(): Promise<VegaEmbedFn> {
+  if (!embedLoader) {
+    embedLoader = (async () => {
+      const embedModule = await import("vega-embed");
+      await Promise.all([import("vega"), import("vega-lite"), import("react-vega")]);
+      return embedModule.default ?? embedModule;
+    })();
+  }
+  return embedLoader;
+}
+
 async function render(
   instance: VegaLiteInstance,
+  embed: VegaEmbedFn,
   spec: VegaLiteSpec,
-  discrete: boolean,
 ): Promise<VegaEmbedResult | null> {
-  const embedModule = instance.embed;
   const element = instance.element;
-  if (!embedModule || !element) {
+  if (!element) {
     instance.spec = spec;
     return instance.result;
   }
-  const embed = embedModule.default ?? embedModule;
-  const preparedSpec = withAutosize(prepareSpec(spec, { discrete }));
-  const options = buildEmbedOptions(discrete);
+
+  const preparedSpec = withAutosize(prepareSpec(spec, { discrete: instance.discrete }));
+  const options = buildEmbedOptions(instance.discrete);
   const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
   instance.result?.view?.finalize?.();
   instance.result = result;
@@ -398,42 +470,128 @@ async function render(
   return result;
 }
 
-export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
-  async mount(el, spec, opts) {
-    const embed = await import("vega-embed");
+function setupResizeHandling(
+  instance: VegaLiteInstance,
+  registerResizeObserver?: (callback: ResizeObserverCallback) => () => void,
+): (() => void) | null {
+  const element = instance.element;
+  if (!element) {
+    return null;
+  }
+
+  if (registerResizeObserver) {
+    instance.resizeListener = null;
+    return registerResizeObserver(() => {
+      void runViewResize(instance.result?.view);
+    });
+  }
+
+  const listener = createResizeListener(instance);
+  element.addEventListener("viz_resized", listener as EventListener);
+  instance.resizeListener = listener;
+  return () => {
+    element.removeEventListener("viz_resized", listener as EventListener);
+  };
+}
+
+async function applySelection(
+  instance: VegaLiteInstance,
+  selection: string | undefined,
+  events: EventDispatcher,
+): Promise<void> {
+  const previous = instance.selection;
+  instance.selection = selection;
+  if (selection === previous) {
+    return;
+  }
+
+  const view = instance.result?.view;
+  if (!view || typeof view.signal !== "function") {
+    return;
+  }
+
+  try {
+    view.signal("selection", selection ?? null);
+    if (typeof view.runAsync === "function") {
+      await view.runAsync();
+    } else if (typeof view.run === "function") {
+      view.run();
+    }
+    events.state({ reason: "selection", selection: selection ?? null });
+  } catch (error) {
+    events.error("selection", error, { selection: selection ?? null });
+  }
+}
+
+export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
+  async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
+    if (!el) {
+      throw new Error("Vega-Lite adapter requires a host element");
+    }
+    if (!spec) {
+      throw new Error("Vega-Lite adapter requires a specification");
+    }
+
+    const initialSelection = initialState?.selection;
+
     const instance: VegaLiteInstance = {
       element: el,
-      embed,
+      embed: null,
       result: null,
       spec: null,
+      discrete,
+      selection: undefined,
       resizeListener: null,
+      cleanupResizeObserver: null,
     };
-    await render(instance, spec, opts.discrete);
-    if (!instance.resizeListener) {
-      const listener = createResizeListener(instance);
-      el.addEventListener("viz_resized", listener as EventListener);
-      instance.resizeListener = listener;
+
+    const events = createEventDispatcher(onEvent, { discrete });
+    events.init({ discrete });
+
+    try {
+      const embed = await loadVegaEmbed();
+      instance.embed = embed;
+      await render(instance, embed, spec);
+
+      if (initialSelection !== undefined) {
+        await applySelection(instance, initialSelection, events);
+      }
+
+      instance.cleanupResizeObserver = setupResizeHandling(instance, registerResizeObserver);
+      events.ready({ discrete });
+    } catch (error) {
+      events.error("mount", error);
+      throw error;
     }
-    return instance;
-  },
-  applyState(instance, next, opts) {
-    const currentSpec = instance.spec;
-    if (!currentSpec) {
-      return;
-    }
-    const previous = cloneSpec(currentSpec);
-    const spec = typeof next === "function" ? next(previous) : next;
-    void render(instance, spec, opts.discrete);
-  },
-  destroy(instance) {
-    instance.result?.view?.finalize?.();
-    instance.result = null;
-    if (instance.element && instance.resizeListener) {
-      instance.element.removeEventListener("viz_resized", instance.resizeListener as EventListener);
-    }
-    instance.element = null;
-    instance.embed = null;
-    instance.spec = null;
-    instance.resizeListener = null;
+
+    return {
+      applyState(next) {
+        if (!instance.element || !instance.embed) {
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(next, "selection")) {
+          return applySelection(instance, next.selection, events);
+        }
+        return;
+      },
+      destroy() {
+        instance.cleanupResizeObserver?.();
+        instance.cleanupResizeObserver = null;
+        if (instance.element && instance.resizeListener) {
+          instance.element.removeEventListener(
+            "viz_resized",
+            instance.resizeListener as EventListener,
+          );
+        }
+        instance.resizeListener = null;
+        instance.result?.view?.finalize?.();
+        instance.result = null;
+        instance.embed = null;
+        instance.element = null;
+        instance.spec = null;
+        instance.selection = undefined;
+        events.state({ reason: "destroy" });
+      },
+    } satisfies VizInstance<VegaLiteState>;
   },
 };

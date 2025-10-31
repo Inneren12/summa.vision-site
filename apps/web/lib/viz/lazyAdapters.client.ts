@@ -10,4 +10,5 @@ export const lazyAdapters = {
   echarts: () => import("./adapters/echarts.adapter"),
   deck: () => import("./adapters/deck"),
   map: () => import("./adapters/maplibre.adapter"),
+  vega: () => import("./adapters/vegaLite"),
 } satisfies Record<string, AdapterLoader>;

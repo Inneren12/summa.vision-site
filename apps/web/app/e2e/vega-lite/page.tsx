@@ -44,9 +44,13 @@ export default function VegaLiteE2EPage() {
 
     (async () => {
       try {
-        const instance = await vegaLiteAdapter.mount(container, SAMPLE_SPEC, { discrete: false });
+        const instance = await vegaLiteAdapter.mount({
+          el: container,
+          spec: SAMPLE_SPEC,
+          discrete: false,
+        });
         if (cancelled) {
-          vegaLiteAdapter.destroy(instance);
+          instance.destroy();
           return;
         }
         instanceRef.current = instance;
@@ -59,7 +63,7 @@ export default function VegaLiteE2EPage() {
       cancelled = true;
       const instance = instanceRef.current;
       if (instance) {
-        vegaLiteAdapter.destroy(instance);
+        instance.destroy();
         instanceRef.current = null;
       }
     };
