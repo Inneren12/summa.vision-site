@@ -40,6 +40,7 @@ describe("visxAdapter", () => {
     document.body.appendChild(container);
 
     const spec: VisxSpec<{ readonly label: string }> = {
+      kind: "visx",
       component: TestChart,
       props: { label: "Initial" },
       title: "Initial chart",
@@ -61,6 +62,7 @@ describe("visxAdapter", () => {
           (prev.props as { label: string }).label = "mutated";
         }
         return {
+          kind: "visx",
           ...spec,
           props: { label: "Updated" },
         } satisfies VisxSpec<{ readonly label: string }>;
@@ -81,6 +83,7 @@ describe("visxAdapter", () => {
     document.body.appendChild(container);
 
     const spec: VisxSpec<{ readonly label: string }> = {
+      kind: "visx",
       component: TestChart,
       props: { label: "Accessible" },
       title: "Accessible demo",

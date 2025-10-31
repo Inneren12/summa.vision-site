@@ -200,7 +200,7 @@ function cloneDatasets(
 }
 
 function cloneSpec(spec: VegaLiteSpec): VegaLiteSpec {
-  const clone = { ...(spec as PlainObject) } as VegaLiteSpec;
+  const clone = { ...(spec as unknown as PlainObject) } as unknown as VegaLiteSpec;
   if ("data" in spec && spec.data !== undefined) {
     clone.data = cloneData(spec.data);
   }
@@ -236,7 +236,10 @@ function mergeConfigs(
     return result;
   };
 
-  return mergeObject(theme as PlainObject, override as PlainObject) as VegaLiteSpec["config"];
+  return mergeObject(
+    theme as unknown as PlainObject,
+    override as unknown as PlainObject,
+  ) as VegaLiteSpec["config"];
 }
 
 function removeTransitions<TValue>(value: TValue): TValue {
@@ -323,7 +326,7 @@ async function render(
   const embed = embedModule.default ?? embedModule;
   const preparedSpec = prepareSpec(spec, { discrete });
   const options = buildEmbedOptions(discrete);
-  const result = await embed(element, preparedSpec as VisualizationSpec, options);
+  const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
   instance.result?.view?.finalize?.();
   instance.result = result;
   instance.spec = preparedSpec;

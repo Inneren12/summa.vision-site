@@ -24,7 +24,8 @@ export async function createMap(container: HTMLElement, opts: MapLibre.MapOption
   // CSS лучше импортировать в клиентском компоненте страницы/виджета,
   // чтобы не тянуть его глобально. Если у вас отдельный Map-компонент —
   // импортируйте "maplibre-gl/dist/maplibre-gl.css" именно там.
-  return new maplibre.Map({ container, ...opts });
+  const options = { ...opts, container } as MapLibre.MapOptions;
+  return new maplibre.Map(options);
 }
 
 // Лёгкие локальные типы: не завязываемся на версию maplibre-gl

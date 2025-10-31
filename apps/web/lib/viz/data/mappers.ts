@@ -1,7 +1,11 @@
 import { createElement, type ReactNode } from "react";
 
 import { emitVizEvent } from "../../analytics/send";
-import type { EChartsSpec, VegaLiteSpec, VisxRenderer, VisxSpec } from "../spec-types";
+import type { EChartsOption, VegaLiteSpec, VisxRenderer, VisxSpec } from "../spec-types";
+type VegaEncoding =
+  Extract<VegaLiteSpec, { encoding?: object }> extends { encoding?: infer T }
+    ? NonNullable<T>
+    : never;
 import type { VizLibraryTag } from "../types";
 
 import type { CanonicalData, CanonicalDatum, CanonicalView, CanonicalViewType } from "./types";
@@ -76,20 +80,20 @@ export function toVegaLite(data: CanonicalData, view: CanonicalView): VegaLiteSp
   const xChannel = { ...buildVegaChannel(context, view.x), axis: { title: view.x } };
   const yChannel = { ...buildVegaChannel(context, view.y), axis: { title: view.y } };
 
-  const encoding: VegaLiteSpec["encoding"] = {
+  const encoding: VegaEncoding = {
     x: xChannel,
     y: yChannel,
     tooltip: context.order.map((field) => ({
       field,
       type: vegaFieldType(context.meta[field]?.type ?? "nominal"),
     })),
-  };
+  } as VegaEncoding;
 
   if (view.color) {
     encoding.color = buildVegaChannel(context, view.color);
   }
 
-  const spec: VegaLiteSpec = {
+  const spec = {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     data: { values: context.normalizedData },
     mark: view.type,
@@ -100,7 +104,7 @@ export function toVegaLite(data: CanonicalData, view: CanonicalView): VegaLiteSp
         titleColor: CARTESIAN_AXIS_COLOR,
       },
     },
-  };
+  } as unknown as VegaLiteSpec;
 
   emitMappingEvent("vega", context);
   return spec;
@@ -108,7 +112,7 @@ export function toVegaLite(data: CanonicalData, view: CanonicalView): VegaLiteSp
 
 type AxisType = "value" | "category" | "time";
 
-export function toECharts(data: CanonicalData, view: CanonicalView): EChartsSpec {
+export function toECharts(data: CanonicalData, view: CanonicalView): EChartsOption {
   const context = createMappingContext(data, view);
   const xMeta = context.meta[view.x];
   const yMeta = context.meta[view.y];
@@ -193,18 +197,18 @@ export function toECharts(data: CanonicalData, view: CanonicalView): EChartsSpec
     type: echartsAxisType(yMeta.type),
   };
 
-  const spec: EChartsSpec = {
-    dataset: dataset as unknown as EChartsSpec["dataset"],
-    series: [series] as unknown as EChartsSpec["series"],
-    xAxis: xAxis as unknown as EChartsSpec["xAxis"],
-    yAxis: yAxis as unknown as EChartsSpec["yAxis"],
-    tooltip: tooltip as unknown as EChartsSpec["tooltip"],
+  const spec: EChartsOption = {
+    dataset: dataset as unknown as EChartsOption["dataset"],
+    series: [series] as unknown as EChartsOption["series"],
+    xAxis: xAxis as unknown as EChartsOption["xAxis"],
+    yAxis: yAxis as unknown as EChartsOption["yAxis"],
+    tooltip: tooltip as unknown as EChartsOption["tooltip"],
   };
 
   if (visualMaps.length === 1) {
-    spec.visualMap = visualMaps[0] as unknown as EChartsSpec["visualMap"];
+    spec.visualMap = visualMaps[0] as unknown as EChartsOption["visualMap"];
   } else if (visualMaps.length > 1) {
-    spec.visualMap = visualMaps as unknown as EChartsSpec["visualMap"];
+    spec.visualMap = visualMaps as unknown as EChartsOption["visualMap"];
   }
 
   emitMappingEvent("echarts", context);
@@ -434,6 +438,7 @@ export function toVisx(data: CanonicalData, view: CanonicalView): VisxSpec<VisxC
   const context = createMappingContext(data, view);
 
   const spec: VisxSpec<VisxCartesianProps> = {
+    kind: "visx",
     width: DEFAULT_VISX_WIDTH,
     height: DEFAULT_VISX_HEIGHT,
     component: CartesianChart,

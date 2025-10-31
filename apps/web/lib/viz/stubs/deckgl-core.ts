@@ -1,11 +1,30 @@
 // Минимальная заглушка для @deck.gl/core
-export type DeckProps = Record<string, unknown>;
+export interface DeckProps {
+  layers?: unknown[];
+  viewState?: unknown;
+  controller?: unknown;
+  parent?: HTMLElement;
+  [key: string]: unknown;
+}
+
+function throwMissingLibrary(): never {
+  throw new Error(
+    "[viz-stub] @deck.gl/core не установлен. Установите пакет, чтобы использовать DeckGL-адаптер.",
+  );
+}
+
 export class Deck {
-  constructor(..._args: unknown[]) {
-    void _args;
-    throw new Error(
-      "[viz-stub] @deck.gl/core не установлен. Установите пакет, чтобы использовать DeckGL-адаптер.",
-    );
+  constructor(_props: DeckProps) {
+    void _props;
+    throwMissingLibrary();
+  }
+  setProps(_props: DeckProps): void {
+    void _props;
+    throwMissingLibrary();
+  }
+  finalize(): void {
+    throwMissingLibrary();
   }
 }
-export const _stub = true;
+
+export default Deck;
