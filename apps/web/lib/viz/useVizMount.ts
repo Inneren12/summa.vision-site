@@ -1,5 +1,7 @@
 "use client";
 
+// Client-only: this hook touches browser APIs and must stay out of server components.
+
 import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
@@ -73,6 +75,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
   const { isReducedMotion } = useReducedMotion();
   const discrete = options.discrete ?? isReducedMotion;
+  const isBrowser = typeof window !== "undefined";
 
   const elementRef = useRef<HTMLElement | null>(null);
   const [element, setElement] = useState<HTMLElement | null>(null);
@@ -91,11 +94,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
   const adapterMemo = useMemo(() => adapterSource, [adapterSource]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!element) {
+    if (!isBrowser || !element) {
       return;
     }
 
@@ -216,7 +215,17 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
           });
       }
     };
-  }, [adapterMemo, data, discrete, element, enableResizeObserver, initialState, onEvent, spec]);
+  }, [
+    adapterMemo,
+    data,
+    discrete,
+    element,
+    enableResizeObserver,
+    initialState,
+    isBrowser,
+    onEvent,
+    spec,
+  ]);
 
   return {
     ref,
