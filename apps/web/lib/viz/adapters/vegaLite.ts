@@ -4,7 +4,7 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { LegacyVizAdapter } from "../types";
+import type { VizAdapter, VizInstance } from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
@@ -12,12 +12,48 @@ type VisualizationSpec = Parameters<VegaEmbedFn>[1];
 type EmbedOptions = NonNullable<Parameters<VegaEmbedFn>[2]>;
 type VegaEmbedResult = Awaited<ReturnType<VegaEmbedFn>>;
 
-interface VegaLiteInstance {
-  element: HTMLElement | null;
-  embed: typeof import("vega-embed") | null;
-  result: VegaEmbedResult | null;
-  spec: VegaLiteSpec | null;
-  resizeListener: ((event: Event) => void) | null;
+type VegaModule = typeof import("vega");
+type VegaLiteModule = typeof import("vega-lite");
+
+type VegaSignalListener = import("vega").SignalListener;
+
+interface VegaRuntime {
+  readonly embed: VegaEmbedFn;
+  readonly vega: VegaModule;
+  readonly vegaLite: VegaLiteModule;
+}
+
+export interface VegaLiteState {
+  readonly selection?: string;
+}
+
+let runtimePromise: Promise<VegaRuntime> | null = null;
+
+async function loadRuntime(): Promise<VegaRuntime> {
+  if (runtimePromise) {
+    return runtimePromise;
+  }
+
+  runtimePromise = (async () => {
+    const [embedModule, vegaModule, vegaLiteModule] = await Promise.all([
+      import("vega-embed"),
+      import("vega"),
+      import("vega-lite"),
+    ]);
+
+    await import("react-vega");
+
+    const embedExport = embedModule as { default?: VegaEmbedFn };
+    const embed = (embedExport.default ?? (embedModule as unknown)) as VegaEmbedFn;
+
+    return {
+      embed,
+      vega: vegaModule,
+      vegaLite: vegaLiteModule,
+    } satisfies VegaRuntime;
+  })();
+
+  return runtimePromise;
 }
 
 type PlainObject = Record<string, unknown>;
@@ -345,13 +381,6 @@ async function runViewResize(view: VegaEmbedResult["view"] | undefined | null): 
   }
 }
 
-function createResizeListener(instance: VegaLiteInstance) {
-  return () => {
-    const view = instance.result?.view;
-    void runViewResize(view);
-  };
-}
-
 function animationConfig(discrete: boolean) {
   if (discrete) {
     return { duration: 0, easing: "linear" };
@@ -366,7 +395,7 @@ function animationConfig(discrete: boolean) {
   return config;
 }
 
-function buildEmbedOptions(discrete: boolean): EmbedOptions {
+function buildEmbedOptions(discrete: boolean, runtime: VegaRuntime): EmbedOptions {
   return {
     actions: false,
     renderer: "canvas",
@@ -374,68 +403,322 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
     config: {
       animation: animationConfig(discrete),
     },
+    vega: runtime.vega,
+    vegaLite: runtime.vegaLite,
   };
 }
 
-async function render(
-  instance: VegaLiteInstance,
-  spec: VegaLiteSpec,
-  discrete: boolean,
-): Promise<VegaEmbedResult | null> {
-  const embedModule = instance.embed;
-  const element = instance.element;
-  if (!embedModule || !element) {
-    instance.spec = spec;
-    return instance.result;
+function attachHarnessResize(
+  element: HTMLElement,
+  view: VegaEmbedResult["view"] | undefined | null,
+) {
+  if (!element || !view) {
+    return null;
   }
-  const embed = embedModule.default ?? embedModule;
-  const preparedSpec = withAutosize(prepareSpec(spec, { discrete }));
-  const options = buildEmbedOptions(discrete);
-  const result = await embed(element, preparedSpec as unknown as VisualizationSpec, options);
-  instance.result?.view?.finalize?.();
-  instance.result = result;
-  instance.spec = preparedSpec;
-  await settleLayout();
-  await runViewResize(result.view);
-  return result;
+
+  const listener = () => {
+    void runViewResize(view);
+  };
+
+  element.addEventListener("viz_resized", listener as EventListener);
+
+  return () => {
+    element.removeEventListener("viz_resized", listener as EventListener);
+  };
 }
 
-export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
-  async mount(el, spec, opts) {
-    const embed = await import("vega-embed");
-    const instance: VegaLiteInstance = {
-      element: el,
-      embed,
-      result: null,
-      spec: null,
-      resizeListener: null,
+function readSelectionSignalPreference(spec: VegaLiteSpec): string | null {
+  if (!spec || typeof spec !== "object") {
+    return null;
+  }
+
+  const meta = (spec as unknown as PlainObject).usermeta;
+  if (!isPlainObject(meta)) {
+    return null;
+  }
+
+  const candidates = [
+    meta.selectionSignal,
+    meta.selection_signal,
+    meta.selection,
+    meta.vizSelectionSignal,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+const SELECTION_SIGNAL_CANDIDATES = [
+  "selection",
+  "select",
+  "param_selection",
+  "point",
+  "highlight",
+] as const;
+
+function findSelectionSignal(
+  view: VegaEmbedResult["view"] | undefined | null,
+  spec: VegaLiteSpec,
+): string | null {
+  if (!view || typeof view.signalNames !== "function") {
+    return null;
+  }
+
+  const available = view.signalNames();
+  if (!Array.isArray(available) || available.length === 0) {
+    return null;
+  }
+
+  const preferred = readSelectionSignalPreference(spec);
+  const candidates = preferred
+    ? [preferred, ...SELECTION_SIGNAL_CANDIDATES]
+    : [...SELECTION_SIGNAL_CANDIDATES];
+
+  for (const candidate of candidates) {
+    if (available.includes(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function toSelectionString(value: unknown): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((entry) => toSelectionString(entry))
+      .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+    if (!normalized.length) {
+      return undefined;
+    }
+    return normalized.join(",");
+  }
+  if (isPlainObject(value)) {
+    if (typeof (value as PlainObject).value === "string") {
+      return (value as PlainObject).value as string;
+    }
+    for (const nested of Object.values(value as PlainObject)) {
+      const candidate = toSelectionString(nested);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
+}
+
+async function applySelection(
+  view: VegaEmbedResult["view"] | undefined | null,
+  signalName: string,
+  selection: string | undefined,
+): Promise<void> {
+  if (!view || typeof view.signal !== "function") {
+    return;
+  }
+
+  view.signal(signalName, selection ?? null);
+
+  if (typeof view.runAsync === "function") {
+    await view.runAsync();
+  }
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown Vega-Lite error";
+  }
+}
+
+function hasSelectionValue(state: Partial<VegaLiteState> | null | undefined): boolean {
+  if (!state) {
+    return false;
+  }
+  return Object.prototype.hasOwnProperty.call(state, "selection");
+}
+
+export const vegaLiteAdapter: VizAdapter<VegaLiteState, VegaLiteSpec> = {
+  async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
+    if (!el) {
+      throw new Error("Vega-Lite adapter requires a host element");
+    }
+    if (!spec) {
+      throw new Error("Vega-Lite adapter requires a specification");
+    }
+    if (typeof window === "undefined") {
+      throw new Error("Vega-Lite adapter can only mount in the browser");
+    }
+
+    const runtime = await loadRuntime();
+    const preparedSpec = withAutosize(prepareSpec(spec, { discrete }));
+    const options = buildEmbedOptions(discrete, runtime);
+
+    let result: VegaEmbedResult;
+    try {
+      result = await runtime.embed(el, preparedSpec as unknown as VisualizationSpec, options);
+    } catch (error) {
+      onEvent?.({
+        type: "viz_error",
+        ts: Date.now(),
+        meta: {
+          reason: "mount.embed",
+          message: normalizeErrorMessage(error),
+        },
+      });
+      throw error;
+    }
+
+    await settleLayout();
+    await runViewResize(result.view);
+
+    let currentResult: VegaEmbedResult | null = result;
+    let currentView: VegaEmbedResult["view"] | null = result.view ?? null;
+    let destroyed = false;
+    let selectionSignal = findSelectionSignal(currentView, preparedSpec);
+    let selectionListener: VegaSignalListener | null = null;
+
+    const state: VegaLiteState = { selection: initialState?.selection };
+
+    const dispatchState = (reason: string, selection: string | undefined, extra?: PlainObject) => {
+      if (!onEvent) {
+        return;
+      }
+      const meta: PlainObject = {
+        reason,
+        selection,
+        signal: selectionSignal ?? undefined,
+        discrete,
+      };
+      if (extra && Object.keys(extra).length > 0) {
+        Object.assign(meta, extra);
+      }
+      onEvent({
+        type: "viz_state",
+        ts: Date.now(),
+        meta,
+      });
     };
-    await render(instance, spec, opts.discrete);
-    if (!instance.resizeListener) {
-      const listener = createResizeListener(instance);
-      el.addEventListener("viz_resized", listener as EventListener);
-      instance.resizeListener = listener;
+
+    if (currentView && selectionSignal && typeof currentView.addSignalListener === "function") {
+      selectionListener = (name, value) => {
+        const selectionValue = toSelectionString(value);
+        state.selection = selectionValue;
+        dispatchState("signal", selectionValue, { signal: name });
+      };
+      currentView.addSignalListener(selectionSignal, selectionListener);
     }
-    return instance;
-  },
-  applyState(instance, next, opts) {
-    const currentSpec = instance.spec;
-    if (!currentSpec) {
-      return;
+
+    if (currentView && selectionSignal && hasSelectionValue(initialState)) {
+      try {
+        await applySelection(currentView, selectionSignal, initialState?.selection);
+        state.selection = initialState?.selection;
+        dispatchState("initial", state.selection);
+        await runViewResize(currentView);
+      } catch (error) {
+        onEvent?.({
+          type: "viz_error",
+          ts: Date.now(),
+          meta: {
+            reason: "mount.selection",
+            message: normalizeErrorMessage(error),
+          },
+        });
+      }
     }
-    const previous = cloneSpec(currentSpec);
-    const spec = typeof next === "function" ? next(previous) : next;
-    void render(instance, spec, opts.discrete);
-  },
-  destroy(instance) {
-    instance.result?.view?.finalize?.();
-    instance.result = null;
-    if (instance.element && instance.resizeListener) {
-      instance.element.removeEventListener("viz_resized", instance.resizeListener as EventListener);
-    }
-    instance.element = null;
-    instance.embed = null;
-    instance.spec = null;
-    instance.resizeListener = null;
+
+    const cleanupHarnessResize = attachHarnessResize(el, currentView);
+    const cleanupObserver = registerResizeObserver
+      ? registerResizeObserver(() => {
+          if (currentView) {
+            void runViewResize(currentView);
+          }
+        })
+      : null;
+
+    return {
+      async applyState(next) {
+        if (destroyed) {
+          return;
+        }
+        if (!currentView || !selectionSignal) {
+          return;
+        }
+        if (!hasSelectionValue(next)) {
+          return;
+        }
+
+        const nextSelection = next?.selection;
+        if (state.selection === nextSelection) {
+          return;
+        }
+
+        try {
+          await applySelection(currentView, selectionSignal, nextSelection);
+          state.selection = nextSelection;
+          dispatchState("applyState", state.selection);
+          await runViewResize(currentView);
+        } catch (error) {
+          onEvent?.({
+            type: "viz_error",
+            ts: Date.now(),
+            meta: {
+              reason: "applyState.selection",
+              message: normalizeErrorMessage(error),
+            },
+          });
+        }
+      },
+      async destroy() {
+        if (destroyed) {
+          return;
+        }
+        destroyed = true;
+
+        cleanupObserver?.();
+        cleanupHarnessResize?.();
+
+        if (
+          currentView &&
+          selectionSignal &&
+          selectionListener &&
+          typeof currentView.removeSignalListener === "function"
+        ) {
+          currentView.removeSignalListener(selectionSignal, selectionListener);
+        }
+
+        currentResult?.view?.finalize?.();
+
+        currentResult = null;
+        currentView = null;
+        selectionSignal = null;
+        selectionListener = null;
+      },
+    } satisfies VizInstance<VegaLiteState>;
   },
 };

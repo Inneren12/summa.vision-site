@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
 import { VizHarness } from "@/lib/viz/VizHarness";
-import { vegaLiteAdapter } from "@/lib/viz/adapters/vegaLite";
+import { vegaLiteAdapter, type VegaLiteState } from "@/lib/viz/adapters/vegaLite";
 import type { VegaLiteSpec } from "@/lib/viz/spec-types";
+import { useVizMount } from "@/lib/viz/useVizMount";
 
 const SAMPLE_SPEC: VegaLiteSpec = {
   data: {
@@ -29,41 +28,12 @@ const SAMPLE_SPEC: VegaLiteSpec = {
   },
 };
 
-type VegaLiteInstance = Awaited<ReturnType<typeof vegaLiteAdapter.mount>>;
-
 export default function VegaLiteClient() {
-  const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const instanceRef = useRef<VegaLiteInstance | null>(null);
-
-  useEffect(() => {
-    if (!container) {
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const instance = await vegaLiteAdapter.mount(container, SAMPLE_SPEC, { discrete: false });
-        if (cancelled) {
-          vegaLiteAdapter.destroy(instance);
-          return;
-        }
-        instanceRef.current = instance;
-      } catch (error) {
-        console.error("[e2e] Failed to mount Vega-Lite demo", error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      const instance = instanceRef.current;
-      if (instance) {
-        vegaLiteAdapter.destroy(instance);
-        instanceRef.current = null;
-      }
-    };
-  }, [container]);
+  const viz = useVizMount<VegaLiteState, VegaLiteSpec>({
+    adapter: vegaLiteAdapter,
+    spec: SAMPLE_SPEC,
+    discrete: false,
+  });
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-10">
@@ -79,7 +49,7 @@ export default function VegaLiteClient() {
       <VizHarness
         testId="vega-lite-chart"
         defaultHeight={420}
-        onContainerChange={setContainer}
+        onContainerChange={viz.ref}
         className="rounded-xl border border-muted/20 bg-bg"
         aria-label="Vega-Lite demo chart"
         role="figure"

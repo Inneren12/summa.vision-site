@@ -15,6 +15,8 @@ declare module "vega" {
   export interface View {
     addSignalListener(signalName: string, handler: SignalListener): this;
     removeSignalListener(signalName: string, handler: SignalListener): this;
+    signal(signalName: string, value: unknown): this;
+    signalNames(): string[];
     runAsync(): Promise<this>;
     finalize(): this;
   }
