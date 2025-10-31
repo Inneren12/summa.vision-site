@@ -55,6 +55,20 @@ jobs:
       - name: Build web (standalone)
         run: npm run web:build
 
+      - name: Scan for stray Playwright webServer declarations
+        run: |
+          echo '--- Scanning for invalid Playwright webServer blocks ---'
+          matches=$(git grep -nE 'webServer\\s*:\\s*{\\s*}' || true)
+          matches_array=$(git grep -nE 'webServer\\s*:\\s*\\[\\s*\\]' || true)
+          if [ -n "$matches" ] || [ -n "$matches_array" ]; then
+            echo "$matches"
+            echo "$matches_array"
+            echo '::error::Found empty/invalid webServer config. Please use the shared builder.'
+            exit 1
+          fi
+          echo 'Playwright config files:'
+          git ls-files "*playwright*.config.*" | sed 's/^/ - /'
+
       - name: Debug Playwright config path
         run: node -e "console.log('PW config path:', require.resolve('./playwright.config.ts'))"
       # ОТЛАДКА: проверяем что создалось после сборки

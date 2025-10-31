@@ -1,18 +1,20 @@
-import { defineConfig } from "@playwright/test";
+/**
+ * Local-only Playwright config for updating visual baselines.
+ * Not used in CI – start the Next.js server manually before running tests.
+ */
+import { defineConfig, devices } from "@playwright/test";
+
+const PORT = Number(process.env.E2E_PORT ?? process.env.PORT ?? 3000);
+const HOST = process.env.E2E_HOST ?? "127.0.0.1";
+const BASE_URL = `http://${HOST}:${PORT}`;
+
 export default defineConfig({
   testDir: "./e2e/visual",
-  webServer: {
-    command: "npm --workspace apps/web run start",
-
-    env: { PORT: "3010" },
-    url: "http://localhost:3010",
-    reuseExistingServer: false,
-    timeout: 120000,
-  },
   use: {
-    baseURL: "http://localhost:3010",
-    headless: true,
+    baseURL: BASE_URL,
+    screenshot: "on",
     trace: "retain-on-failure",
   },
-  retries: 0,
+  projects: [{ name: "visual-local", use: { ...devices["Desktop Chrome"] } }],
+  webServer: undefined,
 });
