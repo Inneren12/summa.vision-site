@@ -62,7 +62,8 @@ PW_CHANNEL=chrome PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
 
 If the run still fails, it means some configuration tries to launch the default
 `chromium` build (without a channel). In that case prefer Option A, which guarantees the
-binary exists.
+binary exists. Alternatively, point Playwright directly to your Chrome binary via
+`CHROME_PATH` (or `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`) to help tooling locate it.
 
 ## Option C — one-off “ephemeral” installation
 
