@@ -5,6 +5,7 @@
 import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useMemo, useState } from "react";
 
+import { VizHarness } from "@/lib/viz/VizHarness";
 import type { VizAdapter, VizEvent, VizInstance } from "@/lib/viz/types";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
@@ -122,11 +123,12 @@ export default function VizDemoClient({ initialSpec, initialState, discrete }: V
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <div
-          ref={viz.ref}
+        <VizHarness
+          onContainerChange={viz.ref}
           data-active-step={activeStep ?? ""}
           aria-label="Демо визуализации"
           role="group"
+          defaultHeight={360}
         />
         <div className="flex flex-wrap gap-3 text-sm">
           {steps.map((step) => (

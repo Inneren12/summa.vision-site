@@ -4,7 +4,18 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const defaultEmbedResult = () => ({ view: { finalize: vi.fn() } });
+import { emitVizEvent } from "../../analytics/send";
+import type { VizHarnessEventDetail } from "../VizHarness";
+
+const defaultEmbedResult = () => ({
+  view: {
+    finalize: vi.fn(),
+    runAsync: vi.fn().mockResolvedValue(undefined),
+    resize: vi.fn(function thisFn() {
+      return this;
+    }),
+  },
+});
 const embedMock = vi.fn(async () => defaultEmbedResult());
 vi.mock("vega-embed", () => ({
   default: embedMock,
@@ -203,8 +214,6 @@ vi.mock("../webgl", () => ({
   renderWebglFallback,
 }));
 
-import { emitVizEvent } from "../../analytics/send";
-
 import { deckAdapter } from "./deck";
 import { echartsAdapter } from "./echarts.adapter";
 import { mapLibreAdapter } from "./maplibre.adapter";
@@ -254,6 +263,9 @@ describe("viz adapters contract", () => {
         }),
       }),
     );
+    expect(preparedSpec?.autosize).toEqual(
+      expect.objectContaining({ type: "fit", resize: true, contains: "padding" }),
+    );
     const categoryRange = preparedSpec?.config?.range?.category;
     expect(Array.isArray(categoryRange)).toBe(true);
     expect(categoryRange?.length ?? 0).toBeGreaterThan(0);
@@ -262,6 +274,20 @@ describe("viz adapters contract", () => {
       expect(categoryRange?.[0]).toBe(expectedCategory);
     }
     expect(options?.config?.animation?.easing).toBe(tokens.motion.easing.standard);
+    expect(options?.mode).toBe("vega-lite");
+
+    const view = instance.result?.view;
+    expect(view?.resize).toHaveBeenCalledTimes(1);
+    expect(view?.runAsync).toHaveBeenCalledTimes(1);
+
+    const resizeEvent = new CustomEvent<VizHarnessEventDetail>("viz_resized", {
+      detail: { width: 320, height: 240 },
+    });
+    element.dispatchEvent(resizeEvent);
+
+    await Promise.resolve();
+    expect(view?.resize).toHaveBeenCalledTimes(2);
+    expect(view?.runAsync).toHaveBeenCalledTimes(2);
 
     const nextSpec = {
       mark: "line",
