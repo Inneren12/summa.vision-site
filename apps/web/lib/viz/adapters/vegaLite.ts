@@ -27,6 +27,7 @@ interface VegaLiteInstance {
   selectionSignal: string | null;
   emitState: StateEmitter | null;
   stateCache: VegaLiteSelectionState;
+  selectionHandler: ((name: string, value: unknown) => void) | null;
 }
 
 interface VegaLiteMountOptions {
@@ -43,10 +44,15 @@ type ViewWithSignals = VegaEmbedResult["view"] & {
   removeSignalListener?: (signal: string, handler: (name: string, value: unknown) => void) => void;
 };
 
-let selectionHandlerRef: ((name: string, value: unknown) => void) | null = null;
-let currentSignalName: string | null = null;
-let currentViewRef: ViewWithSignals | null = null;
-let currentInstanceRef: VegaLiteInstance | null = null;
+type SelectionState = {
+  view: ViewWithSignals | null;
+  signal: string | null;
+  handler: ((name: string, value: unknown) => void) | null;
+};
+
+const SELECTION = new WeakMap<VegaLiteInstance, SelectionState>();
+
+const NOOP_SELECTION_HANDLER: (name: string, value: unknown) => void = () => {};
 
 function isPlainObject(value: unknown): value is PlainObject {
   if (!value || typeof value !== "object") {
@@ -349,7 +355,7 @@ function cloneSelectionState(
   return clone;
 }
 
-function coerceSelectionValue(value: unknown): string | undefined {
+function toSelectionString(value: unknown): string | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
@@ -379,101 +385,76 @@ function isSelectionStateUpdate(value: unknown): value is Partial<VegaLiteSelect
   );
 }
 
-function detachSelectionListener(view?: ViewWithSignals | null): void {
-  const handler = selectionHandlerRef;
-  const signal = currentSignalName;
-  const targetView = view ?? currentViewRef;
-  if (!handler || !signal || !targetView || typeof targetView.removeSignalListener !== "function") {
-    selectionHandlerRef = null;
-    currentSignalName = null;
-    if (!view || view === currentViewRef) {
-      currentViewRef = null;
-    }
-    currentInstanceRef = null;
-    return;
-  }
-  try {
-    targetView.removeSignalListener(signal, handler);
-  } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[vega-lite] Failed to detach selection listener", error);
+function detachSelectionListener(inst: VegaLiteInstance): void {
+  const state = SELECTION.get(inst);
+  if (state?.view && state.signal && state.handler && state.view.removeSignalListener) {
+    try {
+      state.view.removeSignalListener(state.signal, state.handler);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[vega-lite] Failed to detach selection listener", error);
+      }
     }
   }
-  if (!view || view === currentViewRef) {
-    currentViewRef = null;
-  }
-  selectionHandlerRef = null;
-  currentSignalName = null;
-  currentInstanceRef = null;
+  SELECTION.set(inst, { view: state?.view ?? null, signal: null, handler: null });
 }
 
 function attachSelectionListener(
-  instance: VegaLiteInstance,
+  inst: VegaLiteInstance,
   view: ViewWithSignals,
   signal: string,
+  onSelection: (name: string, value: unknown) => void,
 ): void {
-  if (!view || typeof view.addSignalListener !== "function") {
-    return;
-  }
-
-  if (selectionHandlerRef) {
-    detachSelectionListener();
-  }
-
-  const listener = (name: string, value: unknown) => {
-    const targetInstance = currentInstanceRef;
-    if (!targetInstance) {
-      return;
+  detachSelectionListener(inst);
+  if (view.addSignalListener) {
+    try {
+      view.addSignalListener(signal, onSelection);
+      SELECTION.set(inst, { view, signal, handler: onSelection });
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[vega-lite] Failed to attach selection listener", error);
+      }
+      SELECTION.set(inst, { view, signal: null, handler: null });
     }
-    const selectionValue = coerceSelectionValue(value);
-    const nextState: VegaLiteSelectionState = { ...targetInstance.stateCache };
-    if (selectionValue === undefined) {
-      delete nextState.selection;
-    } else {
-      nextState.selection = selectionValue;
-    }
-    targetInstance.stateCache = nextState;
-    targetInstance.emitState?.("state", selectionValue, { signal: name });
-  };
-
-  currentInstanceRef = instance;
-  currentViewRef = view;
-  currentSignalName = signal;
-
-  try {
-    view.addSignalListener(signal, listener);
-    selectionHandlerRef = listener;
-  } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[vega-lite] Failed to attach selection listener", error);
-    }
-    selectionHandlerRef = null;
-    currentSignalName = null;
-    currentViewRef = null;
-    currentInstanceRef = null;
+  } else {
+    SELECTION.set(inst, { view, signal: null, handler: null });
   }
 }
 
 function ensureSelectionListener(
-  instance: VegaLiteInstance,
-  view: ViewWithSignals | undefined | null,
-  nextSignal?: string | null,
-  nextEmit?: StateEmitter | null,
+  inst: VegaLiteInstance,
+  view: ViewWithSignals | null,
+  nextSignal: string | null | undefined,
+  nextEmit: StateEmitter | null | undefined,
+  onSelection: (name: string, value: unknown) => void,
 ): void {
-  const wantListener = Boolean(nextEmit) && Boolean(nextSignal);
-  const hasListener = Boolean(selectionHandlerRef) && Boolean(currentSignalName);
+  const state = SELECTION.get(inst) ?? { view: null, signal: null, handler: null };
+  const want = Boolean(nextEmit) && Boolean(nextSignal);
+  const have = Boolean(state.view) && Boolean(state.signal) && Boolean(state.handler);
+
   if (!view) {
+    if (have) {
+      detachSelectionListener(inst);
+    }
+    SELECTION.set(inst, { view: null, signal: null, handler: null });
     return;
   }
-  if (!wantListener && hasListener) {
-    detachSelectionListener(view);
+
+  if (!want) {
+    if (have) {
+      detachSelectionListener(inst);
+    }
+    SELECTION.set(inst, { view, signal: null, handler: null });
     return;
   }
-  if (
-    wantListener &&
-    (!hasListener || currentSignalName !== nextSignal || currentViewRef !== view)
-  ) {
-    attachSelectionListener(instance, view, nextSignal!);
+
+  if (!have || state.signal !== nextSignal || state.view !== view) {
+    attachSelectionListener(inst, view, nextSignal!, onSelection);
+    return;
+  }
+
+  if (state.view !== view) {
+    SELECTION.set(inst, { view, signal: state.signal, handler: state.handler });
   }
 }
 
@@ -587,7 +568,7 @@ async function render(
   const embed = embedModule.default ?? embedModule;
   const preparedSpec = withAutosize(prepareSpec(spec, { discrete: options.discrete }));
   const embedOptions = buildEmbedOptions(options.discrete);
-  detachSelectionListener(instance.result?.view ?? null);
+  detachSelectionListener(instance);
   const result = await embed(element, preparedSpec as unknown as VisualizationSpec, embedOptions);
   instance.result?.view?.finalize?.();
   instance.result = result;
@@ -603,7 +584,6 @@ async function render(
   }
   await settleLayout();
   await runViewResize(result.view);
-  ensureSelectionListener(instance, result.view, instance.selectionSignal, instance.emitState);
   await applySelectionStateToView(instance);
   return result;
 }
@@ -620,13 +600,38 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
       selectionSignal: opts.selectionSignal ?? null,
       emitState: opts.emit ?? null,
       stateCache: cloneSelectionState(opts.state),
+      selectionHandler: null,
     };
-    await render(instance, spec, {
+    SELECTION.set(instance, { view: null, signal: null, handler: null });
+    const onSelection = (name: string, value: unknown) => {
+      const selectionValue = toSelectionString(value);
+      const nextState: VegaLiteSelectionState = { ...instance.stateCache };
+      if (selectionValue === undefined) {
+        delete nextState.selection;
+      } else {
+        nextState.selection = selectionValue;
+      }
+      instance.stateCache = nextState;
+      instance.emitState?.("state", selectionValue, { signal: name });
+    };
+    instance.selectionHandler = onSelection;
+    const embedResult = await render(instance, spec, {
       discrete: opts.discrete,
       state: instance.stateCache,
       selectionSignal: instance.selectionSignal,
       emit: instance.emitState,
     });
+    const view = embedResult?.view ?? instance.result?.view ?? null;
+    SELECTION.set(instance, { view, signal: null, handler: null });
+    const hasSelectionHandler = instance.selectionHandler !== null;
+    const emitForEnsure = hasSelectionHandler ? instance.emitState : null;
+    ensureSelectionListener(
+      instance,
+      view,
+      instance.selectionSignal,
+      emitForEnsure,
+      instance.selectionHandler ?? NOOP_SELECTION_HANDLER,
+    );
     if (!instance.resizeListener) {
       const listener = createResizeListener(instance);
       el.addEventListener("viz_resized", listener as EventListener);
@@ -641,9 +646,7 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
         : instance.selectionSignal;
     const nextEmitState = opts.emit !== undefined ? (opts.emit ?? null) : instance.emitState;
     if (nextSelectionSignal && isSelectionStateUpdate(next)) {
-      const selectionValue = coerceSelectionValue(
-        (next as Partial<VegaLiteSelectionState>).selection,
-      );
+      const selectionValue = toSelectionString((next as Partial<VegaLiteSelectionState>).selection);
       const updated: VegaLiteSelectionState = { ...instance.stateCache };
       if (selectionValue === undefined) {
         delete updated.selection;
@@ -651,11 +654,18 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
         updated.selection = selectionValue;
       }
       instance.stateCache = updated;
+      const view = instance.result?.view ?? null;
+      const current = SELECTION.get(instance) ?? { view: null, signal: null, handler: null };
+      SELECTION.set(instance, { ...current, view });
+      const handler = instance.selectionHandler;
+      const hasSelectionHandler = handler !== null;
+      const emitForEnsure = hasSelectionHandler ? nextEmitState : null;
       ensureSelectionListener(
         instance,
-        instance.result?.view ?? null,
+        view,
         nextSelectionSignal,
-        nextEmitState,
+        emitForEnsure,
+        handler ?? NOOP_SELECTION_HANDLER,
       );
       instance.selectionSignal = nextSelectionSignal;
       instance.emitState = nextEmitState;
@@ -674,10 +684,25 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
       state: instance.stateCache,
       selectionSignal: nextSelectionSignal,
       emit: nextEmitState,
+    }).then((result) => {
+      const view = result?.view ?? instance.result?.view ?? null;
+      const handler = instance.selectionHandler;
+      const current = SELECTION.get(instance) ?? { view: null, signal: null, handler: null };
+      SELECTION.set(instance, { ...current, view });
+      const hasSelectionHandler = handler !== null;
+      const emitForEnsure = hasSelectionHandler ? instance.emitState : null;
+      ensureSelectionListener(
+        instance,
+        view,
+        instance.selectionSignal,
+        emitForEnsure,
+        handler ?? NOOP_SELECTION_HANDLER,
+      );
     });
   },
   destroy(instance) {
-    detachSelectionListener(instance.result?.view ?? null);
+    detachSelectionListener(instance);
+    SELECTION.delete(instance);
     instance.result?.view?.finalize?.();
     instance.result = null;
     if (instance.element && instance.resizeListener) {
@@ -690,5 +715,6 @@ export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> =
     instance.selectionSignal = null;
     instance.emitState = null;
     instance.stateCache = {};
+    instance.selectionHandler = null;
   },
 };
