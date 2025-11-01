@@ -1,7 +1,23 @@
 import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
-type ECharts = import("echarts").ECharts;
+type ECharts = import("echarts/core").ECharts;
+type EChartsCoreModule = typeof import("echarts/core");
+type EChartsChartsModule = typeof import("echarts/charts");
+type EChartsComponentsModule = typeof import("echarts/components");
+type EChartsRenderersModule = typeof import("echarts/renderers");
+type EChartsFeaturesModule = typeof import("echarts/features");
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any;
+
+function resolveFn<T extends AnyFn = AnyFn>(
+  mod: Record<string, unknown> | undefined,
+  key: string,
+): T | null {
+  const v = (mod as { [k: string]: unknown } | undefined)?.[key];
+  return typeof v === "function" ? (v as T) : null;
+}
 
 interface EChartsInstance {
   element: HTMLElement | null;
@@ -113,8 +129,79 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
 export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
   async mount(el, spec, opts) {
     void opts;
-    const echarts = await import("echarts");
-    const chart = echarts.init(el, undefined, { renderer: "canvas" });
+    const [coreModule, chartsModule, componentsModule, renderersModule, featuresModule] =
+      await Promise.all([
+        import("echarts/core"),
+        import("echarts/charts"),
+        import("echarts/components"),
+        import("echarts/renderers"),
+        import("echarts/features"),
+      ]);
+
+    const core = coreModule as EChartsCoreModule;
+    const moduleRecord =
+      (coreModule as { default?: Record<string, unknown> | undefined }).default ??
+      (coreModule as Record<string, unknown> | undefined) ??
+      undefined;
+    const initFn = resolveFn<EChartsCoreModule["init"]>(moduleRecord, "init") ?? core.init;
+    const useFn = resolveFn<EChartsCoreModule["use"]>(moduleRecord, "use") ?? core.use;
+
+    const charts = chartsModule as Partial<EChartsChartsModule> | undefined;
+    const components = componentsModule as Partial<EChartsComponentsModule> | undefined;
+    const renderers = renderersModule as Partial<EChartsRenderersModule> | undefined;
+    const features = featuresModule as Partial<EChartsFeaturesModule> | undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const registrables: any[] = [
+      charts?.LineChart,
+      charts?.BarChart,
+      charts?.ScatterChart,
+      charts?.PieChart,
+      charts?.RadarChart,
+      charts?.HeatmapChart,
+      charts?.MapChart,
+      charts?.CandlestickChart,
+      charts?.SunburstChart,
+      charts?.TreeChart,
+      charts?.TreemapChart,
+      charts?.FunnelChart,
+      charts?.GaugeChart,
+      charts?.GraphChart,
+      charts?.LinesChart,
+      charts?.BoxplotChart,
+      charts?.PictorialBarChart,
+      charts?.ParallelChart,
+      charts?.SankeyChart,
+      charts?.ThemeRiverChart,
+      charts?.CustomChart,
+      charts?.EffectScatterChart,
+      components?.GridComponent,
+      components?.DatasetComponent,
+      components?.TooltipComponent,
+      components?.LegendComponent,
+      components?.TitleComponent,
+      components?.VisualMapComponent,
+      components?.ToolboxComponent,
+      components?.DataZoomComponent,
+      components?.TransformComponent,
+      components?.MarkPointComponent,
+      components?.MarkLineComponent,
+      components?.TimelineComponent,
+      components?.GraphicComponent,
+      components?.AxisPointerComponent,
+      components?.AriaComponent,
+      renderers?.CanvasRenderer,
+      renderers?.SVGRenderer,
+      features?.LabelLayout,
+      features?.UniversalTransition,
+    ].filter(Boolean);
+
+    if (registrables.length > 0) {
+      // eslint-disable-next-line react-hooks/rules-of-hooks, @typescript-eslint/no-explicit-any
+      useFn(registrables as any[]);
+    }
+
+    const chart = initFn(el, undefined, { renderer: "canvas" });
     const clone = cloneSpec(spec);
     setInitialOption(chart, clone);
     const cleanupResizeObserver = setupResizeObserver(el, chart);
