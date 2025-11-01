@@ -2,7 +2,12 @@
 'use client';
 
 import type { EChartsSpec } from "../spec-types";
-import type { LegacyVizAdapter } from "../types";
+import type {
+  LegacyVizAdapter,
+  VizAdapterWithConfig,
+  VizInstance,
+  VizLifecycleEvent,
+} from "../types";
 
 type ECharts = import("echarts").ECharts;
 
@@ -198,5 +203,59 @@ export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsSpec> = {
     instance.chart = null;
     instance.element = null;
     instance.spec = null;
+  },
+};
+
+interface WrappedEChartsInstance extends VizInstance<EChartsSpec> {
+  readonly chart: ECharts | null;
+}
+
+function emitLifecycle(
+  onEvent: ((event: VizLifecycleEvent) => void) | undefined,
+  event: VizLifecycleEvent,
+) {
+  onEvent?.(event);
+}
+
+export const echartsVizAdapter: VizAdapterWithConfig<EChartsSpec, EChartsSpec> = {
+  async mount({ el, spec, discrete = false, onEvent, registerResizeObserver }) {
+    if (!spec) {
+      throw new Error("ECharts adapter requires a specification.");
+    }
+
+    const runtime = await echartsAdapter.mount(el, spec, { discrete });
+
+    let resizeCleanup: (() => void) | null = null;
+    if (registerResizeObserver) {
+      runtime.cleanupResizeObserver?.();
+      runtime.cleanupResizeObserver = null;
+      resizeCleanup = registerResizeObserver(el, () => {
+        runtime.chart?.resize();
+        emitLifecycle(onEvent, {
+          type: "viz_resized",
+          ts: Date.now(),
+          meta: { reason: "resize" },
+        });
+      });
+    } else if (runtime.cleanupResizeObserver) {
+      resizeCleanup = runtime.cleanupResizeObserver;
+      runtime.cleanupResizeObserver = null;
+    }
+
+    const instance: WrappedEChartsInstance = {
+      applyState(next) {
+        echartsAdapter.applyState(runtime, next, { discrete });
+      },
+      destroy() {
+        resizeCleanup?.();
+        resizeCleanup = null;
+        echartsAdapter.destroy(runtime);
+      },
+      get chart() {
+        return runtime.chart;
+      },
+    };
+
+    return instance;
   },
 };

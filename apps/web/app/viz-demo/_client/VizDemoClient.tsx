@@ -5,7 +5,7 @@
 import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useMemo, useState } from "react";
 
-import { VizHarness } from "@/lib/viz/VizHarness";
+import { LegacyVizHarness } from "@/lib/viz/VizHarness";
 import type { VizAdapterWithConfig, VizInstance, VizLifecycleEvent } from "@/lib/viz/types";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
@@ -70,10 +70,9 @@ const demoAdapter: VizAdapterWithConfig<DemoState, DemoSpec> = {
     render();
 
     const cleanupResize = registerResizeObserver
-      ? registerResizeObserver(([entry]) => {
-          if (!entry) return;
-          const { width, height } = entry.contentRect;
-          sizeLabel.textContent = `Размер: ${Math.round(width)}×${Math.round(height)}px`;
+      ? registerResizeObserver(el, () => {
+          const rect = el.getBoundingClientRect();
+          sizeLabel.textContent = `Размер: ${Math.round(rect.width)}×${Math.round(rect.height)}px`;
         })
       : undefined;
 
@@ -123,7 +122,7 @@ export default function VizDemoClient({ initialSpec, initialState, discrete }: V
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <VizHarness
+        <LegacyVizHarness
           onContainerChange={viz.ref}
           data-active-step={activeStep ?? ""}
           aria-label="Демо визуализации"

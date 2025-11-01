@@ -28,7 +28,7 @@ export type VizAdapter<S = unknown> = {
   ) => VizInstance<S> | Promise<VizInstance<S>>;
 };
 
-export type RegisterResizeObserver = (callback: ResizeObserverCallback) => () => void;
+export type RegisterResizeObserver = (element: HTMLElement, callback: () => void) => () => void;
 
 export type VizMountArgs<S, Spec, Data> = {
   readonly el: HTMLElement;

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { VizHarness } from "@/lib/viz/VizHarness";
+import { LegacyVizHarness } from "@/lib/viz/VizHarness";
 import { vegaLiteAdapter } from "@/lib/viz/adapters/vegaLite";
 import type { VegaLiteSpec } from "@/lib/viz/spec-types";
 
@@ -80,7 +80,7 @@ export default function VegaLiteClient() {
           Контейнер фиксирует размеры и гарантирует стабильное отображение Canvas.
         </p>
       </header>
-      <VizHarness
+      <LegacyVizHarness
         testId="vega-lite-chart"
         defaultHeight={420}
         onContainerChange={setContainer}
