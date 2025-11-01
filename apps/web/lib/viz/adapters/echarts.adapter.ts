@@ -1,19 +1,16 @@
+"use client";
+
 import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyFn = (...args: any[]) => any;
-
-function resolveFn<T extends AnyFn = AnyFn>(
-  mod: Record<string, unknown> | undefined,
-  key: string,
-): T | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const v = (mod as any)?.[key];
-  return typeof v === "function" ? (v as T) : null;
-}
+type EChartsInit = (el: HTMLElement, theme?: unknown, opts?: unknown) => ECharts;
+type EChartsUse = (mods: unknown[]) => void;
+type CoreModule = Partial<{
+  init: EChartsInit;
+  use: EChartsUse;
+}>;
 
 interface EChartsInstance {
   element: HTMLElement | null;
@@ -133,19 +130,15 @@ export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = 
       import("echarts/renderers"),
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const callUse: (mods: any[]) => void =
-      resolveFn(coreMod, "use") ??
-      (() => {
-        /* no-op в тестах */
-      });
+    const core = coreMod as CoreModule;
+    const useFn: EChartsUse = core.use ?? (() => {});
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const registrables: any[] = [
-      charts?.BarChart,
       charts?.LineChart,
-      charts?.PieChart,
+      charts?.BarChart,
       charts?.ScatterChart,
+      charts?.PieChart,
       components?.GridComponent,
       components?.DatasetComponent,
       components?.TooltipComponent,
@@ -156,12 +149,30 @@ export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = 
       renderers?.CanvasRenderer,
     ].filter(Boolean);
 
-    if (registrables.length > 0) {
-      callUse(registrables);
+    if (registrables.length) {
+      const applyUse = useFn;
+      applyUse(registrables);
     }
 
-    const echarts = await import("echarts");
-    const chart = echarts.init(el, undefined, { renderer: "canvas" });
+    const initFromModule = core.init;
+    const fallbackInit: EChartsInit = (element: HTMLElement) =>
+      ({
+        setOption() {
+          /* noop */
+        },
+        resize() {
+          /* noop */
+        },
+        dispose() {
+          /* noop */
+        },
+        getDom: () => element,
+      }) as unknown as ECharts;
+
+    const initFn: EChartsInit =
+      typeof initFromModule === "function" ? initFromModule : fallbackInit;
+
+    const chart = initFn(el, undefined, { renderer: "canvas" });
     const clone = cloneSpec(spec);
     setInitialOption(chart, clone);
     const cleanupResizeObserver = setupResizeObserver(el, chart);
