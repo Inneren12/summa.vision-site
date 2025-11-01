@@ -48,6 +48,11 @@ export default defineConfig({
     ],
   },
   test: {
+    include: [
+      "lib/viz/**/*.test.{ts,tsx}",
+      "lib/viz/**/*.spec.{ts,tsx}",
+      "tests/viz.*.spec.{ts,tsx}",
+    ],
     // По умолчанию Node; jsdom подключаем только там, где он нужен
     environment: "node",
     environmentMatchGlobs: [

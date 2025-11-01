@@ -32,6 +32,7 @@
     "test": "npm run web:test:quick",
     "web:test:cov": "npm run copy:tokens && npm --workspace apps/web run test:cov",
     "web:test:quick": "npm run copy:tokens && npm --workspace apps/web run test:quick",
+    "web:test:viz": "npm --workspace apps/web run test:proj:viz",
     "ff:codegen": "node ./scripts/ff-codegen.mjs",
     "ff:types": "node ./scripts/ff-generate-types.mjs",
     "ff:docs:check": "node ./scripts/ff-docs-verify.mjs",
