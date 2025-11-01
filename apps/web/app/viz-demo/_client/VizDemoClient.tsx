@@ -6,7 +6,7 @@ import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useMemo, useState } from "react";
 
 import { VizHarness } from "@/lib/viz/VizHarness";
-import type { VizAdapter, VizEvent, VizInstance } from "@/lib/viz/types";
+import type { VizAdapterWithConfig, VizInstance, VizLifecycleEvent } from "@/lib/viz/types";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
 interface DemoState {
@@ -27,9 +27,9 @@ interface VizDemoClientProps {
 const DEFAULT_STATE: DemoState = { step: null, clicks: 0 };
 const DEFAULT_SPEC: DemoSpec = { title: "Состояние визуализации" };
 
-type DemoMountArgs = Parameters<VizAdapter<DemoState, DemoSpec>["mount"]>[0];
+type DemoMountArgs = Parameters<VizAdapterWithConfig<DemoState, DemoSpec>["mount"]>[0];
 
-const demoAdapter: VizAdapter<DemoState, DemoSpec> = {
+const demoAdapter: VizAdapterWithConfig<DemoState, DemoSpec> = {
   async mount({
     el,
     spec,
@@ -98,7 +98,7 @@ export default function VizDemoClient({ initialSpec, initialState, discrete }: V
   const [activeStep, setActiveStep] = useState<string | null>(
     initialState?.step ?? DEFAULT_STATE.step,
   );
-  const [events, setEvents] = useState<VizEvent[]>([]);
+  const [events, setEvents] = useState<VizLifecycleEvent[]>([]);
 
   const { isReducedMotion } = useReducedMotion();
   const resolvedDiscrete = discrete ?? isReducedMotion;
@@ -117,7 +117,7 @@ export default function VizDemoClient({ initialSpec, initialState, discrete }: V
     const nextClicks = clicks + 1;
     setClicks(nextClicks);
     setActiveStep(step);
-    viz.instance?.applyState({ step, clicks: nextClicks });
+    viz.instance?.applyState?.({ step, clicks: nextClicks });
   };
 
   return (

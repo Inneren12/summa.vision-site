@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
 
-import type { VizEvent, VizEventDetail, VizEventName, VizInstance } from "./types";
+import type { VizEventDetail, VizInstance, VizLifecycleEvent } from "./types";
 import { type UseVizMountOptions, type UseVizMountResult, useVizMount } from "./useVizMount";
 
 export interface VizStepState<S> {
@@ -20,7 +20,7 @@ export interface UseScrollyBindingVizOptions<S, Spec, Data>
   readonly initialStepId?: string | null;
   readonly activeStepId?: string | null;
   readonly subscribeActiveStep?: SubscribeActiveStep;
-  readonly onEvent?: (event: VizEvent) => void;
+  readonly onEvent?: (event: VizLifecycleEvent) => void;
 }
 
 export interface UseScrollyBindingVizResult<S> extends UseVizMountResult<S> {
@@ -28,7 +28,12 @@ export interface UseScrollyBindingVizResult<S> extends UseVizMountResult<S> {
 }
 
 function applyStepState<S>(instance: VizInstance<S>, state: Partial<S>): void {
-  const result = instance.applyState(state);
+  const applyState = instance.applyState;
+  if (!applyState) {
+    return;
+  }
+
+  const result = applyState(state);
   if (result && typeof (result as Promise<void>).then === "function") {
     void (result as Promise<void>).catch(() => {});
   }
@@ -92,7 +97,7 @@ export function useScrollyBindingViz<S = unknown, Spec = unknown, Data = unknown
     }
 
     applyStepState(instance, state);
-    const event: VizEvent = {
+    const event: VizLifecycleEvent = {
       type: "viz_state",
       ts: Date.now(),
       meta: {
@@ -104,7 +109,7 @@ export function useScrollyBindingViz<S = unknown, Spec = unknown, Data = unknown
       motion: viz.discrete ? "discrete" : "animated",
       ...(event.meta ?? {}),
     } as VizEventDetail;
-    emitVizEvent(event.type as VizEventName, detail);
+    emitVizEvent(event.type, detail);
     emitVizLifecycleEvent(event);
   }, [currentStepId, onEvent, stepMap, viz.discrete, viz.instance]);
 
