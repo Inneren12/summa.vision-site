@@ -15,6 +15,13 @@ import type {
   VizLifecycleEvent,
 } from "./types";
 
+const NECESSARY_LIFECYCLE: ReadonlySet<VizLifecycleEvent["type"]> = new Set([
+  "viz_init",
+  "viz_ready",
+  "viz_error",
+  "viz_resized",
+]);
+
 const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);
 
 const isBrowser = () => typeof window !== "undefined";
@@ -191,15 +198,15 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
     const forwardEvent = (event: VizLifecycleEvent) => {
       onEvent?.(event);
-      if (!shouldEmit()) {
-        return;
-      }
+      emitVizLifecycleEvent(event);
       const detail: VizEventDetail = {
         motion: discrete ? "discrete" : "animated",
         ...(event.meta ?? {}),
       } as VizEventDetail;
-      emitVizEvent(event.type, detail);
-      emitVizLifecycleEvent(event);
+      const allowAnalytics = shouldEmit() || NECESSARY_LIFECYCLE.has(event.type);
+      if (allowAnalytics) {
+        emitVizEvent(event.type, detail);
+      }
     };
 
     const registerResizeObserver = enableResizeObserver
