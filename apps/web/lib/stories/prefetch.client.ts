@@ -13,7 +13,13 @@ const specCache = new Map<string, StoryVisualizationSpec>();
 
 const NEED_LOADERS: Record<StoryVisualizationNeed, () => Promise<void>> = {
   echarts: async () => {
-    await Promise.all([import("@/lib/viz/adapters/echarts.adapter"), import("echarts")]);
+    await Promise.all([
+      import("@/lib/viz/adapters/echarts.adapter"),
+      import("echarts/core"),
+      import("echarts/charts"),
+      import("echarts/components"),
+      import("echarts/renderers"),
+    ]);
   },
   maplibre: async () => {
     const adapterModule = await import("@/lib/viz/adapters/maplibre.adapter");

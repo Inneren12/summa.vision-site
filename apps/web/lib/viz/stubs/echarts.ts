@@ -20,5 +20,22 @@ export const init = (
   throwMissingLibrary();
 };
 
-const echarts = { init };
+export const use = (..._args: unknown[]): void => {
+  void _args;
+  throwMissingLibrary();
+};
+
+export class BarChart {}
+export class LineChart {}
+export class ScatterChart {}
+
+export class GridComponent {}
+export class DatasetComponent {}
+export class TooltipComponent {}
+export class VisualMapComponent {}
+export class LegendComponent {}
+
+export class CanvasRenderer {}
+
+const echarts = { init, use };
 export default echarts;

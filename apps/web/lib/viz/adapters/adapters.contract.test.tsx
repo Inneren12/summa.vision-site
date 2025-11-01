@@ -28,13 +28,30 @@ vi.mock("vega-embed", () => ({
 const echartsSetOption = vi.fn();
 const echartsResize = vi.fn();
 const echartsDispose = vi.fn();
+const echartsUse = vi.fn();
 const echartsInit = vi.fn(() => ({
   setOption: echartsSetOption,
   resize: echartsResize,
   dispose: echartsDispose,
 }));
-vi.mock("echarts", () => ({
+vi.mock("echarts/core", () => ({
   init: echartsInit,
+  use: echartsUse,
+}));
+vi.mock("echarts/charts", () => ({
+  BarChart: Symbol("BarChart"),
+  LineChart: Symbol("LineChart"),
+  ScatterChart: Symbol("ScatterChart"),
+}));
+vi.mock("echarts/components", () => ({
+  GridComponent: Symbol("GridComponent"),
+  DatasetComponent: Symbol("DatasetComponent"),
+  TooltipComponent: Symbol("TooltipComponent"),
+  VisualMapComponent: Symbol("VisualMapComponent"),
+  LegendComponent: Symbol("LegendComponent"),
+}));
+vi.mock("echarts/renderers", () => ({
+  CanvasRenderer: Symbol("CanvasRenderer"),
 }));
 
 const mapSetStyle = vi.fn();
@@ -236,6 +253,7 @@ describe("viz adapters contract", () => {
     echartsResize.mockClear();
     echartsDispose.mockClear();
     echartsInit.mockClear();
+    echartsUse.mockClear();
     supportsWebGL.mockReturnValue(true);
     supportsWebGL2.mockReturnValue(true);
     renderWebglFallback.mockReset();
@@ -372,15 +390,23 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
+    expect(echartsUse).toHaveBeenCalledTimes(1);
+    expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, {
+      notMerge: true,
+      lazyUpdate: false,
+    });
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, {
-      notMerge: true,
-      lazyUpdate: true,
-      animation: false,
-    });
+    expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, { notMerge: true });
+    expect(echartsSetOption).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        animation: false,
+        transitionDuration: 0,
+      }),
+      { notMerge: true },
+    );
 
     echartsAdapter.destroy(instance);
     expect(echartsDispose).toHaveBeenCalled();
@@ -425,7 +451,7 @@ describe("viz adapters contract", () => {
       observer?.trigger();
       expect(echartsResize).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(150);
       expect(echartsResize).toHaveBeenCalledTimes(1);
 
       echartsAdapter.destroy(instance);
@@ -453,6 +479,53 @@ describe("viz adapters contract", () => {
     );
 
     expect(previous.series).toEqual([]);
+  });
+
+  it("echarts adapter emits viz events with motion metadata", async () => {
+    const element = document.createElement("div");
+    const spec = { series: [] };
+    const onEvent = vi.fn();
+
+    const instance = await echartsAdapter.mount(element, spec, {
+      discrete: true,
+      onEvent,
+    });
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ lib: "echarts", motion: "discrete", reason: "mount" }),
+      }),
+    );
+
+    onEvent.mockClear();
+
+    echartsAdapter.applyState(
+      instance,
+      { series: [{ type: "bar" }] },
+      {
+        discrete: false,
+        onEvent,
+      },
+    );
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ lib: "echarts", motion: "animated", reason: "spec" }),
+      }),
+    );
+
+    onEvent.mockClear();
+
+    echartsAdapter.destroy(instance);
+
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "viz_state",
+        meta: expect.objectContaining({ lib: "echarts", motion: "animated", reason: "destroy" }),
+      }),
+    );
   });
 
   it("maplibre adapter mounts and applies view state", async () => {
