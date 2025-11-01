@@ -78,24 +78,67 @@ function throttle<TArgs extends unknown[]>(
   return throttled;
 }
 
-function deepClone<T>(value: T): T {
-  if (value === undefined || value === null) {
-    return value;
+function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknown>()): T {
+  if (input === null || typeof input !== "object") {
+    return input;
+  }
+  const objectInput = input as unknown as object;
+  if (seen.has(objectInput)) {
+    return seen.get(objectInput) as T;
   }
 
-  if (typeof globalThis.structuredClone === "function") {
-    try {
-      return globalThis.structuredClone(value);
-    } catch {
-      // ignore
+  if (input instanceof Date) {
+    return new Date(input.getTime()) as unknown as T;
+  }
+  if (input instanceof RegExp) {
+    return new RegExp(input.source, input.flags) as unknown as T;
+  }
+
+  if (input instanceof Map) {
+    const m = new Map();
+    seen.set(objectInput, m);
+    for (const [key, value] of input.entries()) {
+      m.set(key, deepClonePreservingFuncs(value, seen));
     }
+    return m as unknown as T;
   }
 
-  return JSON.parse(JSON.stringify(value)) as T;
+  if (input instanceof Set) {
+    const s = new Set();
+    seen.set(objectInput, s);
+    for (const value of input.values()) {
+      s.add(deepClonePreservingFuncs(value, seen));
+    }
+    return s as unknown as T;
+  }
+
+  if (Array.isArray(input)) {
+    const arr: unknown[] = [];
+    seen.set(objectInput, arr);
+    for (const item of input) {
+      arr.push(deepClonePreservingFuncs(item, seen));
+    }
+    return arr as unknown as T;
+  }
+
+  const out: Record<string, unknown> = Object.create(Object.getPrototypeOf(input));
+  seen.set(objectInput, out);
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    out[key] = typeof value === "function" ? value : deepClonePreservingFuncs(value, seen);
+  }
+  return out as unknown as T;
 }
 
-function setInitialOption(chart: ECharts, option: EChartsSpec) {
-  chart.setOption(option, { lazyUpdate: true } as never);
+function cloneSpec<T>(spec: T): T {
+  try {
+    if (typeof globalThis.structuredClone === "function") {
+      // structuredClone throws when the value contains functions
+      return globalThis.structuredClone(spec);
+    }
+  } catch {
+    // ignore structuredClone failures
+  }
+  return deepClonePreservingFuncs(spec);
 }
 
 function setupResizeObserver(element: HTMLElement, onResize: () => void): (() => void) | null {
@@ -185,8 +228,16 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   const initFn: EChartsInit = typeof initFromModule === "function" ? initFromModule : fallbackInit;
 
   const chart = initFn(el, undefined, { renderer: "canvas" });
-  const initialSpec = deepClone(specFromState);
-  setInitialOption(chart, deepClone(initialSpec));
+  const initialSpec = cloneSpec(specFromState);
+  const internal: { spec?: EChartsSpec } = {
+    spec: initialSpec,
+  };
+
+  chart.setOption(cloneSpec(internal.spec!), {
+    notMerge: false,
+    lazyUpdate: true,
+    silent: true,
+  } as never);
 
   const emitFn: VizEmit = emit ?? (() => {});
   let cleanup: (() => void) | null = null;
@@ -212,10 +263,6 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
     cleanup = setupResizeObserver(el, handleResize);
   }
 
-  const internal: { spec?: EChartsSpec } = {
-    spec: initialSpec,
-  };
-
   let destroyed = false;
 
   const instance: EChartsInstance = {
@@ -231,7 +278,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
 
       internal.spec = updatedSpec;
 
-      chart.setOption(deepClone(updatedSpec), {
+      chart.setOption(cloneSpec(internal.spec!), {
         notMerge: false,
         lazyUpdate: true,
         silent: true,
@@ -269,7 +316,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       return destroyed ? null : chart;
     },
     get spec() {
-      return internal.spec ? deepClone(internal.spec) : undefined;
+      return internal.spec ? cloneSpec(internal.spec) : undefined;
     },
   };
 
@@ -287,7 +334,7 @@ function applyState(
     return;
   }
 
-  const current = instance.spec ? deepClone(instance.spec) : ({} as EChartsSpec);
+  const current = instance.spec ? cloneSpec(instance.spec) : ({} as EChartsSpec);
   const resolved = typeof next === "function" ? next(current) : next;
   instance.applyState({ spec: resolved });
 }
