@@ -12,6 +12,25 @@ if (typeof (globalScope as Record<string, unknown>).self === "undefined") {
 globalScope.__WB_DISABLE_DEV_LOGS = true;
 
 import "@testing-library/jest-dom";
+try {
+  const boundExpect = (
+    globalThis as typeof globalThis & { expect?: typeof import("vitest").expect }
+  ).expect;
+  const originalSetState = boundExpect?.setState?.bind(boundExpect);
+  if (boundExpect && originalSetState) {
+    boundExpect.setState = ((next) => {
+      const update =
+        next && typeof next === "object" && !Array.isArray(next)
+          ? Object.fromEntries(
+              Object.entries(next as Record<string, unknown>).filter(([key]) => key !== "testPath"),
+            )
+          : next;
+      return originalSetState(update);
+    }) as typeof boundExpect.setState;
+  }
+} catch (error) {
+  void error;
+}
 
 process.env.NEXT_PUBLIC_APP_NAME ??= "Summa Vision";
 process.env.NEXT_PUBLIC_API_BASE_URL ??= "http://localhost:3000";

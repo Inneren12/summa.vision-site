@@ -6,125 +6,130 @@ import { defineWorkspace } from "vitest/config";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const resolveFromWorkspace = (p: string) => path.resolve(__dirname, p);
 
-export default defineWorkspace([
-  {
-    extends: "./vitest.config.ts",
-    test: {
-      name: "node-core",
-      environment: "node",
-      include: [
-        "lib/**/*.test.ts",
-        "lib/**/*.spec.ts",
-        "security/**/*.spec.ts",
-        "config*.spec.ts",
-        "app/**/*.spec.ts",
-        "app/**/route*.spec.ts",
-      ],
-      exclude: ["lib/scrolly/**", "lib/viz/**"],
-    },
-  },
-  {
-    extends: "./vitest.config.ts",
-    test: {
-      name: "scrolly",
-      environment: "jsdom",
-      include: [
-        "lib/scrolly/**/*.test.tsx",
-        "tests/scrolly.story.spec.tsx",
-        "tests/story/**/*.spec.tsx",
-      ],
-    },
-  },
-  {
-    name: "viz",
-    extends: "./vitest.config.ts",
-    test: {
-      name: "viz",
-      include: ["lib/viz/**/*.test.{ts,tsx}", "tests/viz.*.spec.{ts,tsx}"],
-      environment: "jsdom",
-      pool: "forks",
-      maxWorkers: 1,
-      isolate: false,
-      setupFiles: ["tests/viz.setup.ts"],
-      poolOptions: {
-        forks: {
-          minForks: 1,
-          maxForks: 1,
-          execArgv: ["--max-old-space-size=8192", "--expose-gc"],
+const disableWorkspace = process.argv.includes("-c") || process.argv.includes("--config");
+const shouldProvideWorkspace = !disableWorkspace;
+
+export default shouldProvideWorkspace
+  ? defineWorkspace([
+      {
+        extends: "./vitest.config.ts",
+        test: {
+          name: "node-core",
+          environment: "node",
+          include: [
+            "lib/**/*.test.ts",
+            "lib/**/*.spec.ts",
+            "security/**/*.spec.ts",
+            "config*.spec.ts",
+            "app/**/*.spec.ts",
+            "app/**/route*.spec.ts",
+          ],
+          exclude: ["lib/scrolly/**", "lib/viz/**"],
         },
       },
-      server: {
-        deps: {
-          external: [
-            /^@deck\.gl\/.*/,
-            /^echarts(?:\/.*)?$/,
-            /^maplibre-gl(?:\/.*)?$/,
-            /^vega-embed(?:\/.*)?$/,
-            /^vega(?:-lite)?(?:\/.*)?$/,
-            /^zrender(?:\/.*)?$/,
+      {
+        extends: "./vitest.config.ts",
+        test: {
+          name: "scrolly",
+          environment: "jsdom",
+          include: [
+            "lib/scrolly/**/*.test.tsx",
+            "tests/scrolly.story.spec.tsx",
+            "tests/story/**/*.spec.tsx",
           ],
         },
       },
-      coverage: { enabled: false },
-    },
-    resolve: {
-      alias: [
-        {
-          find: /^@deck\.gl\/mapbox(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-mapbox.ts"),
+      {
+        name: "viz",
+        extends: "./vitest.config.ts",
+        test: {
+          name: "viz",
+          include: ["lib/viz/**/*.test.{ts,tsx}", "tests/viz.*.spec.{ts,tsx}"],
+          environment: "jsdom",
+          pool: "forks",
+          maxWorkers: 1,
+          isolate: false,
+          setupFiles: ["tests/viz.setup.ts"],
+          poolOptions: {
+            forks: {
+              minForks: 1,
+              maxForks: 1,
+              execArgv: ["--max-old-space-size=8192", "--expose-gc"],
+            },
+          },
+          server: {
+            deps: {
+              external: [
+                /^@deck\.gl\/.*/,
+                /^echarts(?:\/.*)?$/,
+                /^maplibre-gl(?:\/.*)?$/,
+                /^vega-embed(?:\/.*)?$/,
+                /^vega(?:-lite)?(?:\/.*)?$/,
+                /^zrender(?:\/.*)?$/,
+              ],
+            },
+          },
+          coverage: { enabled: false },
         },
-        {
-          find: /^@deck\.gl\/.*$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
+        resolve: {
+          alias: [
+            {
+              find: /^@deck\.gl\/mapbox(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-mapbox.ts"),
+            },
+            {
+              find: /^@deck\.gl\/.*$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
+            },
+            {
+              find: /^echarts(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
+            },
+            {
+              find: /^maplibre-gl(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
+            },
+            {
+              find: /^vega-embed(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
+            },
+            {
+              find: /^vega(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/vega.ts"),
+            },
+            {
+              find: /^vega-lite(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/vega-lite.ts"),
+            },
+            {
+              find: /^react-vega(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/react-vega.ts"),
+            },
+            {
+              find: /^zrender(?:\/.*)?$/,
+              replacement: resolveFromWorkspace("./lib/viz/stubs/zrender.ts"),
+            },
+          ],
+          dedupe: [
+            "@deck.gl/core",
+            "@deck.gl/mapbox",
+            "echarts",
+            "maplibre-gl",
+            "vega-embed",
+            "vega",
+            "vega-lite",
+            "react-vega",
+            "zrender",
+          ],
         },
-        {
-          find: /^echarts(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
+      },
+      {
+        extends: "./vitest.config.ts",
+        test: {
+          name: "ui",
+          environment: "jsdom",
+          include: ["components/**/*.{spec,test}.tsx", "app/**/*.{spec,test}.tsx"],
         },
-        {
-          find: /^maplibre-gl(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),
-        },
-        {
-          find: /^vega-embed(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-embed.ts"),
-        },
-        {
-          find: /^vega(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/vega.ts"),
-        },
-        {
-          find: /^vega-lite(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/vega-lite.ts"),
-        },
-        {
-          find: /^react-vega(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/react-vega.ts"),
-        },
-        {
-          find: /^zrender(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/zrender.ts"),
-        },
-      ],
-      dedupe: [
-        "@deck.gl/core",
-        "@deck.gl/mapbox",
-        "echarts",
-        "maplibre-gl",
-        "vega-embed",
-        "vega",
-        "vega-lite",
-        "react-vega",
-        "zrender",
-      ],
-    },
-  },
-  {
-    extends: "./vitest.config.ts",
-    test: {
-      name: "ui",
-      environment: "jsdom",
-      include: ["components/**/*.{spec,test}.tsx", "app/**/*.{spec,test}.tsx"],
-    },
-  },
-]);
+      },
+    ])
+  : [];

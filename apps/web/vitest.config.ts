@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const r = (p: string) => path.resolve(__dirname, p);
 
 export default defineConfig({
+  root: __dirname,
   esbuild: { sourcemap: false },
   plugins: [react()],
   resolve: {
@@ -48,6 +49,12 @@ export default defineConfig({
     ],
   },
   test: {
+    deps: { inline: [/echarts/] },
+    include: [
+      "lib/viz/**/*.test.{ts,tsx}",
+      "lib/viz/adapters/__tests__/**/*.test.{ts,tsx}",
+      "tests/viz.*.spec.{ts,tsx}",
+    ],
     // По умолчанию Node; jsdom подключаем только там, где он нужен
     environment: "node",
     environmentMatchGlobs: [

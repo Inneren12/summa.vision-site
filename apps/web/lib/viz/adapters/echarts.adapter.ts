@@ -2,6 +2,9 @@ import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
+type EChartsCoreModule = typeof import("echarts/core") & {
+  init: (typeof import("echarts"))["init"];
+};
 
 interface EChartsInstance {
   element: HTMLElement | null;
@@ -113,8 +116,32 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
 export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
   async mount(el, spec, opts) {
     void opts;
-    const echarts = await import("echarts");
-    const chart = echarts.init(el, undefined, { renderer: "canvas" });
+    const core = (await import("echarts/core")) as EChartsCoreModule;
+    const charts = await import("echarts/charts");
+    const components = await import("echarts/components");
+    const features = await import("echarts/features");
+    const renderers = await import("echarts/renderers");
+
+    const registrables: unknown[] = [
+      charts?.BarChart,
+      charts?.LineChart,
+      charts?.PieChart,
+      charts?.ScatterChart,
+      components?.GridComponent,
+      components?.DatasetComponent,
+      components?.TooltipComponent,
+      components?.LegendComponent,
+      components?.TitleComponent,
+      features?.LabelLayout,
+      features?.UniversalTransition,
+      renderers?.CanvasRenderer,
+    ].filter(Boolean);
+
+    if (typeof core.use === "function") {
+      core.use(registrables as unknown[]);
+    }
+
+    const chart = core.init(el, undefined, { renderer: "canvas" });
     const clone = cloneSpec(spec);
     setInitialOption(chart, clone);
     const cleanupResizeObserver = setupResizeObserver(el, chart);

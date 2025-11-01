@@ -1,12 +1,22 @@
+/* eslint-disable import/order */
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 import * as echarts from "echarts";
+import { __used as echartsRegistrations } from "echarts/core";
+import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
+import {
+  DatasetComponent,
+  GridComponent,
+  LegendComponent,
+  TitleComponent,
+  TooltipComponent,
+} from "echarts/components";
+import { LabelLayout, UniversalTransition } from "echarts/features";
+import { CanvasRenderer } from "echarts/renderers";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { emitVizEvent } from "../../analytics/send";
-import type { VizHarnessEventDetail } from "../VizHarness";
-
+import { emitVizEvent } from "../../../analytics/send";
+// eslint-disable-next-line import/order
 const defaultEmbedResult = () => {
   const view = {
     finalize: vi.fn(),
@@ -162,7 +172,7 @@ vi.mock("maplibre-gl", () => ({
   Map: MapMock,
 }));
 
-vi.mock("../../analytics/send", () => ({
+vi.mock("../../../analytics/send", () => ({
   emitVizEvent: vi.fn(),
 }));
 
@@ -214,17 +224,17 @@ const { supportsWebGL, supportsWebGL2, renderWebglFallback } = vi.hoisted(() => 
   return { supportsWebGL, supportsWebGL2, renderWebglFallback };
 });
 
-vi.mock("../webgl", () => ({
+vi.mock("../../webgl", () => ({
   supportsWebGL,
   supportsWebGL2,
   renderWebglFallback,
 }));
 
-import { deckAdapter } from "./deck";
-import { echartsAdapter } from "./echarts.adapter";
-import { mapLibreAdapter } from "./maplibre.adapter";
-import { vegaLiteAdapter } from "./vegaLite";
-import { visxAdapter } from "./visx";
+import { deckAdapter } from "../deck";
+import { echartsAdapter } from "../echarts.adapter";
+import { mapLibreAdapter } from "../maplibre.adapter";
+import { vegaLiteAdapter } from "../vegaLite";
+import { visxAdapter } from "../visx";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -239,6 +249,7 @@ describe("viz adapters contract", () => {
     echartsResize.mockClear();
     echartsDispose.mockClear();
     echartsInit.mockClear();
+    echartsRegistrations.length = 0;
     vi.spyOn(echarts, "init").mockImplementation(echartsInit);
     supportsWebGL.mockReturnValue(true);
     supportsWebGL2.mockReturnValue(true);
@@ -288,6 +299,7 @@ describe("viz adapters contract", () => {
     expect(view?.resize).toHaveBeenCalledTimes(1);
     expect(view?.runAsync).toHaveBeenCalledTimes(1);
 
+    type VizHarnessEventDetail = import("../../VizHarness").VizHarnessEventDetail;
     const resizeEvent = new CustomEvent<VizHarnessEventDetail>("viz_resized", {
       detail: { width: 320, height: 240 },
     });
@@ -377,6 +389,23 @@ describe("viz adapters contract", () => {
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
     expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
+    expect(echartsRegistrations).toHaveLength(12);
+    expect(echartsRegistrations).toEqual(
+      expect.arrayContaining([
+        BarChart,
+        LineChart,
+        PieChart,
+        ScatterChart,
+        GridComponent,
+        DatasetComponent,
+        TooltipComponent,
+        LegendComponent,
+        TitleComponent,
+        LabelLayout,
+        UniversalTransition,
+        CanvasRenderer,
+      ]),
+    );
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
