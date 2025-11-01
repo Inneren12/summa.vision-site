@@ -77,10 +77,24 @@ export default defineWorkspace([
           find: /^@deck\.gl\/.*$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/deckgl-core.ts"),
         },
+        { find: "echarts/core", replacement: resolveFromWorkspace("./test/mocks/echarts/core.ts") },
         {
-          find: /^echarts(?:\/.*)?$/,
-          replacement: resolveFromWorkspace("./lib/viz/stubs/echarts.ts"),
+          find: "echarts/charts",
+          replacement: resolveFromWorkspace("./test/mocks/echarts/charts.ts"),
         },
+        {
+          find: "echarts/components",
+          replacement: resolveFromWorkspace("./test/mocks/echarts/components.ts"),
+        },
+        {
+          find: "echarts/features",
+          replacement: resolveFromWorkspace("./test/mocks/echarts/features.ts"),
+        },
+        {
+          find: "echarts/renderers",
+          replacement: resolveFromWorkspace("./test/mocks/echarts/renderers.ts"),
+        },
+        { find: "echarts", replacement: resolveFromWorkspace("./test/mocks/echarts/core.ts") },
         {
           find: /^maplibre-gl(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/maplibre-gl.ts"),

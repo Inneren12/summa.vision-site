@@ -2,6 +2,7 @@ import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
+type EChartsCoreModule = typeof import("echarts/core");
 
 interface EChartsInstance {
   element: HTMLElement | null;
@@ -64,6 +65,51 @@ function throttle<TArgs extends unknown[]>(
   return throttled;
 }
 
+let loadCorePromise: Promise<EChartsCoreModule> | null = null;
+
+async function loadEchartsCore(): Promise<EChartsCoreModule> {
+  if (!loadCorePromise) {
+    loadCorePromise = (async () => {
+      const core = await import("echarts/core");
+      const [chartsModule, componentsModule, featuresModule, renderersModule] = await Promise.all([
+        import("echarts/charts").catch(() => null),
+        import("echarts/components").catch(() => null),
+        import("echarts/features").catch(() => null),
+        import("echarts/renderers").catch(() => null),
+      ]);
+
+      const registrables: unknown[] = [];
+      const collectRegistrables = (mod: unknown) => {
+        if (!mod || typeof mod !== "object") {
+          return;
+        }
+        for (const value of Object.values(mod as Record<string, unknown>)) {
+          if (!value) {
+            continue;
+          }
+          const valueType = typeof value;
+          if (valueType === "function" || valueType === "object") {
+            registrables.push(value);
+          }
+        }
+      };
+
+      collectRegistrables(chartsModule);
+      collectRegistrables(componentsModule);
+      collectRegistrables(featuresModule);
+      collectRegistrables(renderersModule);
+
+      if (typeof core.use === "function" && registrables.length > 0) {
+        core.use(registrables as unknown[]);
+      }
+
+      return core;
+    })();
+  }
+
+  return loadCorePromise;
+}
+
 function cloneSpec(spec: EChartsOption): EChartsOption {
   if (typeof globalThis.structuredClone === "function") {
     try {
@@ -113,8 +159,8 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
 export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
   async mount(el, spec, opts) {
     void opts;
-    const echarts = await import("echarts");
-    const chart = echarts.init(el, undefined, { renderer: "canvas" });
+    const core = await loadEchartsCore();
+    const chart = core.init(el, undefined, { renderer: "canvas" }) as unknown as ECharts;
     const clone = cloneSpec(spec);
     setInitialOption(chart, clone);
     const cleanupResizeObserver = setupResizeObserver(el, chart);

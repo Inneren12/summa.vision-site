@@ -75,9 +75,11 @@ export default defineConfig({
     restoreMocks: true,
     mockReset: true,
 
+    deps: {
+      inline: [/echarts/],
+    },
     server: {
       deps: {
-        inline: [/echarts/],
         external: [
           /^@deck\.gl\/.*/,
           /^maplibre-gl(?:\/.*)?$/,
