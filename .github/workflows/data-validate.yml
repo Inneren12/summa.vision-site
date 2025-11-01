@@ -25,17 +25,16 @@ jobs:
           node-version: "20"
           cache: npm
 
-      - name: Print lockfile presence
+      - name: Install dependencies (ci if lockfile, fallback otherwise)
+        id: install_deps
         run: |
           if [ -f package-lock.json ]; then
-            echo "Lockfile present — proceeding with npm ci."
+            echo "Lockfile present — running npm ci."
+            npm ci --ignore-scripts --no-audit --no-fund
           else
-            echo "No root package-lock.json — skipping npm ci."
+            echo "No lockfile — running ephemeral npm install (no lock write)."
+            npm i --ignore-scripts --no-audit --no-fund --no-save --package-lock=false --include=dev
           fi
-
-      - name: Install dependencies (root; only if lockfile exists)
-        if: ${{ hashFiles('package-lock.json') != '' }}
-        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run data freshness checks
         run: |
