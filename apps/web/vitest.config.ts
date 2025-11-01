@@ -19,7 +19,12 @@ export default defineConfig({
       // Жёстко подменяем тяжёлые визуальные зависимости на стабы
       { find: /^@deck\.gl\/mapbox(?:\/.*)?$/, replacement: r("lib/viz/stubs/deckgl-mapbox.ts") },
       { find: /^@deck\.gl\/.*$/, replacement: r("lib/viz/stubs/deckgl-core.ts") },
-      { find: /^echarts(?:\/.*)?$/, replacement: r("lib/viz/stubs/echarts.ts") },
+      { find: "echarts/core", replacement: r("test/mocks/echarts/core.ts") },
+      { find: "echarts/charts", replacement: r("test/mocks/echarts/charts.ts") },
+      { find: "echarts/components", replacement: r("test/mocks/echarts/components.ts") },
+      { find: "echarts/features", replacement: r("test/mocks/echarts/features.ts") },
+      { find: "echarts/renderers", replacement: r("test/mocks/echarts/renderers.ts") },
+      { find: "echarts", replacement: r("test/mocks/echarts/core.ts") },
       { find: /^maplibre-gl(?:\/.*)?$/, replacement: r("lib/viz/stubs/maplibre-gl.ts") },
       { find: /^vega-embed(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega-embed.ts") },
       { find: /^vega(?:\/.*)?$/, replacement: r("lib/viz/stubs/vega.ts") },
@@ -34,7 +39,6 @@ export default defineConfig({
       "@deck.gl/mapbox",
       "@deck.gl/layers",
       "@deck.gl/react",
-      "echarts",
       "maplibre-gl",
       "vega",
       "vega-lite",
@@ -73,9 +77,9 @@ export default defineConfig({
 
     server: {
       deps: {
+        inline: [/echarts/],
         external: [
           /^@deck\.gl\/.*/,
-          /^echarts(?:\/.*)?$/,
           /^maplibre-gl(?:\/.*)?$/,
           /^vega-embed(?:\/.*)?$/,
           /^vega(?:-lite)?(?:\/.*)?$/,
