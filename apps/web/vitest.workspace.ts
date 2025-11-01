@@ -98,6 +98,10 @@ export default defineWorkspace([
           replacement: resolveFromWorkspace("./lib/viz/stubs/vega-lite.ts"),
         },
         {
+          find: /^react-vega(?:\/.*)?$/,
+          replacement: resolveFromWorkspace("./lib/viz/stubs/react-vega.ts"),
+        },
+        {
           find: /^zrender(?:\/.*)?$/,
           replacement: resolveFromWorkspace("./lib/viz/stubs/zrender.ts"),
         },
@@ -110,6 +114,7 @@ export default defineWorkspace([
         "vega-embed",
         "vega",
         "vega-lite",
+        "react-vega",
         "zrender",
       ],
     },

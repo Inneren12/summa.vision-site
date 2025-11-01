@@ -44,9 +44,13 @@ export default function VegaLiteClient() {
 
     (async () => {
       try {
-        const instance = await vegaLiteAdapter.mount(container, SAMPLE_SPEC, { discrete: false });
+        const instance = await vegaLiteAdapter.mount({
+          el: container,
+          spec: SAMPLE_SPEC,
+          discrete: false,
+        });
         if (cancelled) {
-          vegaLiteAdapter.destroy(instance);
+          await instance.destroy();
           return;
         }
         instanceRef.current = instance;
@@ -59,7 +63,7 @@ export default function VegaLiteClient() {
       cancelled = true;
       const instance = instanceRef.current;
       if (instance) {
-        vegaLiteAdapter.destroy(instance);
+        void instance.destroy();
         instanceRef.current = null;
       }
     };
