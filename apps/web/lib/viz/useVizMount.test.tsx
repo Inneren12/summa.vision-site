@@ -4,7 +4,7 @@ import { render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { VizAdapter, VizEvent, VizInstance } from "./types";
+import type { VizAdapterWithConfig, VizInstance, VizLifecycleEvent } from "./types";
 import { useVizMount, type UseVizMountResult } from "./useVizMount";
 
 vi.mock("../analytics/send", () => ({
@@ -20,8 +20,8 @@ declare global {
 type TestInstance = { value: number };
 
 type HarnessProps = {
-  adapter: VizAdapter<TestInstance, { value: number }>;
-  onEvent?: (event: VizEvent) => void;
+  adapter: VizAdapterWithConfig<TestInstance, { value: number }>;
+  onEvent?: (event: VizLifecycleEvent) => void;
   onUpdate: (result: UseVizMountResult<TestInstance>) => void;
 };
 
@@ -85,7 +85,7 @@ describe("useVizMount", () => {
       latest = value;
     });
 
-    const adapter: VizAdapter<TestInstance, { value: number }> = {
+    const adapter: VizAdapterWithConfig<TestInstance, { value: number }> = {
       mount: vi.fn().mockResolvedValue({
         applyState,
         destroy,
@@ -114,7 +114,7 @@ describe("useVizMount", () => {
   });
 
   it("exposes error when adapter rejects", async () => {
-    const adapter: VizAdapter<TestInstance, { value: number }> = {
+    const adapter: VizAdapterWithConfig<TestInstance, { value: number }> = {
       mount: vi.fn().mockImplementation(async () => {
         throw new Error("failed to initialize");
       }),

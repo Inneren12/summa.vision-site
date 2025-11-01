@@ -1,4 +1,4 @@
-import type { VizEvent, VizEventDetail, VizEventName } from "../viz/types";
+import type { VizEvent, VizEventDetail, VizEventName, VizLifecycleEvent } from "../viz/types";
 
 type ConsentLevel = "all" | "necessary";
 
@@ -156,19 +156,19 @@ export function emitVizEvent(name: VizEventName, detail: VizEventDetail): boolea
 }
 
 type VizLifecyclePayload = {
-  readonly type: VizEvent["type"];
+  readonly type: VizEvent;
   readonly ts: number;
   readonly meta?: Record<string, unknown>;
   readonly timestamp: string;
 };
 
-const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent["type"]> = new Set([
+const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
 ]);
 
-export function emitVizLifecycleEvent(event: VizEvent): boolean {
+export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
   if (typeof window === "undefined") {
     return false;
   }
@@ -182,7 +182,7 @@ export function emitVizLifecycleEvent(event: VizEvent): boolean {
     isNecessary: NECESSARY_LIFECYCLE_EVENTS.has(event.type),
     transport: ({ name, timestamp }) => {
       const payload: VizLifecyclePayload = {
-        type: name as VizEvent["type"],
+        type: name,
         ts: event.ts,
         meta: event.meta,
         timestamp,

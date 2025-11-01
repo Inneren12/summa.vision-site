@@ -7,21 +7,27 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 
 import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
 
-import type { VizAdapter, VizEvent, VizEventDetail, VizEventName, VizInstance } from "./types";
+import type {
+  VizAdapterLoader,
+  VizAdapterWithConfig,
+  VizEventDetail,
+  VizInstance,
+  VizLifecycleEvent,
+} from "./types";
 
 export type VizAdapterSource<S, Spec, Data> =
-  | VizAdapter<S, Spec, Data>
-  | (() => Promise<VizAdapter<S, Spec, Data>> | VizAdapter<S, Spec, Data>);
+  | VizAdapterWithConfig<S, Spec, Data>
+  | VizAdapterLoader<S, Spec, Data>;
 
 function isLoader<S, Spec, Data>(
   value: VizAdapterSource<S, Spec, Data>,
-): value is () => Promise<VizAdapter<S, Spec, Data>> | VizAdapter<S, Spec, Data> {
+): value is VizAdapterLoader<S, Spec, Data> {
   return typeof value === "function";
 }
 
 async function resolveAdapter<S, Spec, Data>(
   source: VizAdapterSource<S, Spec, Data>,
-): Promise<VizAdapter<S, Spec, Data>> {
+): Promise<VizAdapterWithConfig<S, Spec, Data>> {
   if (!isLoader(source)) {
     return source;
   }
@@ -37,7 +43,7 @@ export interface UseVizMountOptions<S, Spec, Data> {
   readonly initialState?: S;
   readonly discrete?: boolean;
   readonly enableResizeObserver?: boolean;
-  readonly onEvent?: (event: VizEvent) => void;
+  readonly onEvent?: (event: VizLifecycleEvent) => void;
 }
 
 export interface UseVizMountResult<S> {
@@ -100,13 +106,13 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
     let cancelled = false;
 
-    const forwardEvent = (event: VizEvent) => {
+    const forwardEvent = (event: VizLifecycleEvent) => {
       onEvent?.(event);
       const detail: VizEventDetail = {
         motion: discrete ? "discrete" : "animated",
         ...(event.meta ?? {}),
       } as VizEventDetail;
-      emitVizEvent(event.type as VizEventName, detail);
+      emitVizEvent(event.type, detail);
       emitVizLifecycleEvent(event);
     };
 

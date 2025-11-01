@@ -3,7 +3,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { VizAdapter, VizInstance } from "./types";
+import type { VizAdapterWithConfig, VizInstance } from "./types";
 import { useScrollyBindingViz } from "./useScrollyBindingViz";
 
 vi.mock("../analytics/send", () => ({
@@ -56,7 +56,7 @@ describe("useScrollyBindingViz", () => {
     const destroy = vi.fn();
     const applyState = vi.fn();
 
-    const adapter: VizAdapter<{ count: number }, { count: number }> = {
+    const adapter: VizAdapterWithConfig<{ count: number }, { count: number }> = {
       mount: vi.fn().mockResolvedValue({
         applyState,
         destroy,

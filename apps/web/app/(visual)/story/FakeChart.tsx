@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { VizAdapter, VizInstance } from "@/lib/viz/types";
+import type { VizAdapterWithConfig, VizInstance } from "@/lib/viz/types";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
 export type FakeChartProps = {
@@ -45,7 +45,7 @@ function resetHandle(handle: FakeChartHandle): void {
   };
 }
 
-const fakeChartAdapter: VizAdapter<FakeChartSpec, FakeChartSpec> = {
+const fakeChartAdapter: VizAdapterWithConfig<FakeChartSpec, FakeChartSpec> = {
   async mount({ el, initialState, onEvent }) {
     const state: FakeChartSpec = {
       activeStepId: initialState?.activeStepId ?? null,
@@ -132,7 +132,7 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
         history,
         ready: true,
       };
-      viz.instance?.applyState(nextState);
+      viz.instance?.applyState?.(nextState);
       return nextState;
     });
   }, [activeStepId, viz.instance]);

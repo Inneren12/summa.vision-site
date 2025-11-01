@@ -4,7 +4,13 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { RegisterResizeObserver, VizAdapter, VizEvent, VizInstance } from "../types";
+import type {
+  RegisterResizeObserver,
+  VizAdapterWithConfig,
+  VizEvent,
+  VizInstance,
+  VizLifecycleEvent,
+} from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
@@ -16,7 +22,7 @@ type VegaLiteSelectionState = {
   selection?: string;
 };
 
-type EventSink = (event: VizEvent) => void;
+type EventSink = (event: VizLifecycleEvent) => void;
 
 interface VegaLiteRuntime {
   element: HTMLElement | null;
@@ -79,7 +85,7 @@ function toErrorMessage(error: unknown): string {
 
 function emitEvent(
   instance: VegaLiteRuntime,
-  type: VizEvent["type"],
+  type: VizEvent,
   meta?: Record<string, unknown>,
 ): void {
   if (!instance.onEvent) {
@@ -89,11 +95,12 @@ function emitEvent(
     lib: "vega",
     motion: instance.discrete ? "discrete" : "animated",
   };
-  instance.onEvent({
+  const event: VizLifecycleEvent = {
     type,
     ts: Date.now(),
     meta: meta ? { ...base, ...meta } : base,
-  });
+  };
+  instance.onEvent(event);
 }
 
 function isPlainObject(value: unknown): value is PlainObject {
@@ -685,7 +692,7 @@ async function render(
   return result;
 }
 
-export const vegaLiteAdapter: VizAdapter<VegaLiteSelectionState, VegaLiteSpec> = {
+export const vegaLiteAdapter: VizAdapterWithConfig<VegaLiteSelectionState, VegaLiteSpec> = {
   async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
     if (!spec) {
       throw new Error("Vega-Lite adapter requires a specification.");

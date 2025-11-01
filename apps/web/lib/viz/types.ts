@@ -1,15 +1,32 @@
-export type VizEventType = "viz_init" | "viz_ready" | "viz_state" | "viz_error";
+export type VizEvent = "viz_init" | "viz_ready" | "viz_state" | "viz_error" | "viz_resized";
 
-export type VizEvent = {
-  readonly type: VizEventType;
+export type VizEmit = (event: VizEvent, payload?: unknown, meta?: Record<string, unknown>) => void;
+
+export type VizInstance<S = unknown> = {
+  applyState?: (next: Partial<S>) => void | Promise<void>;
+  destroy: () => void | Promise<void>;
+  /** Optional fields supported by current adapters */
+  selectionSignal?: string | null;
+  emitState?: () => void;
+};
+
+export type VizLifecycleEvent = {
+  readonly type: VizEvent;
   readonly ts: number;
   readonly meta?: Record<string, unknown>;
 };
 
-export interface VizInstance<S = unknown> {
-  applyState(next: Partial<S>): Promise<void> | void;
-  destroy(): Promise<void> | void;
-}
+export type VizAdapter<S = unknown> = {
+  mount: (
+    el: HTMLElement,
+    opts: {
+      state: Readonly<S>;
+      emit: VizEmit;
+      onEvent?: (name: string, payload?: unknown) => void;
+      registerResizeObserver?: (el: HTMLElement, cb: () => void) => () => void;
+    },
+  ) => VizInstance<S> | Promise<VizInstance<S>>;
+};
 
 export type RegisterResizeObserver = (callback: ResizeObserverCallback) => () => void;
 
@@ -19,22 +36,26 @@ export type VizMountArgs<S, Spec, Data> = {
   readonly data?: Data;
   readonly initialState?: S;
   readonly discrete?: boolean;
-  readonly onEvent?: (event: VizEvent) => void;
+  readonly onEvent?: (event: VizLifecycleEvent) => void;
   readonly registerResizeObserver?: RegisterResizeObserver;
 };
 
-export interface VizAdapter<S = unknown, Spec = unknown, Data = unknown> {
+export interface VizAdapterWithConfig<S = unknown, Spec = unknown, Data = unknown> {
   mount(args: VizMountArgs<S, Spec, Data>): Promise<VizInstance<S>> | VizInstance<S>;
 }
 
-export type InferVizState<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
-  TAdapter extends VizAdapter<infer State, unknown, unknown> ? State : never;
+export type VizAdapterLoader<S, Spec, Data> = () =>
+  | VizAdapterWithConfig<S, Spec, Data>
+  | Promise<VizAdapterWithConfig<S, Spec, Data>>;
 
-export type InferVizSpec<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
-  TAdapter extends VizAdapter<unknown, infer Spec, unknown> ? Spec : never;
+export type InferVizState<TAdapter extends VizAdapterWithConfig<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapterWithConfig<infer State, unknown, unknown> ? State : never;
 
-export type InferVizData<TAdapter extends VizAdapter<unknown, unknown, unknown>> =
-  TAdapter extends VizAdapter<unknown, unknown, infer Data> ? Data : never;
+export type InferVizSpec<TAdapter extends VizAdapterWithConfig<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapterWithConfig<unknown, infer Spec, unknown> ? Spec : never;
+
+export type InferVizData<TAdapter extends VizAdapterWithConfig<unknown, unknown, unknown>> =
+  TAdapter extends VizAdapterWithConfig<unknown, unknown, infer Data> ? Data : never;
 
 export type MotionMode = "animated" | "discrete";
 
@@ -63,6 +84,7 @@ export type VizEventName =
   | "viz_ready"
   | "viz_state"
   | "viz_error"
+  | "viz_resized"
   | "viz_lazy_mount"
   | "viz_prefetch"
   | "viz_destroyed"
