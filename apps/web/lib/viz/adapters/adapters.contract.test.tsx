@@ -7,15 +7,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emitVizEvent } from "../../analytics/send";
 import type { VizHarnessEventDetail } from "../VizHarness";
 
-const defaultEmbedResult = () => ({
-  view: {
+const defaultEmbedResult = () => {
+  const view = {
     finalize: vi.fn(),
     runAsync: vi.fn().mockResolvedValue(undefined),
-    resize: vi.fn(function thisFn() {
+    resize: vi.fn(function thisFn(this: typeof view) {
       return this;
     }),
-  },
-});
+    signal: vi.fn(function thisFn(this: typeof view) {
+      return this;
+    }),
+  };
+  return { view };
+};
 const embedMock = vi.fn(async () => defaultEmbedResult());
 vi.mock("vega-embed", () => ({
   default: embedMock,
@@ -251,7 +255,7 @@ describe("viz adapters contract", () => {
   it("vega-lite adapter mounts and re-renders", async () => {
     const element = document.createElement("div");
     const spec = { mark: "bar" } as Parameters<typeof embedMock>[0];
-    const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
+    const instance = await vegaLiteAdapter.mount({ el: element, spec, discrete: false });
     const [target, preparedSpec, options] = embedMock.mock.calls[0] ?? [];
     expect(target).toBe(element);
     expect(preparedSpec).toEqual(
@@ -297,7 +301,7 @@ describe("viz adapters contract", () => {
         enter: { opacity: { value: 0.8 } },
       },
     } as Parameters<typeof embedMock>[0];
-    vegaLiteAdapter.applyState(instance, nextSpec, { discrete: true });
+    await instance.setSpec(nextSpec, { discrete: true });
     const [, discreteSpec, discreteOptions] = embedMock.mock.calls[1] ?? [];
     expect(discreteSpec).toEqual(expect.objectContaining({ mark: "line" }));
     expect(discreteSpec).not.toHaveProperty("transition");
@@ -305,28 +309,25 @@ describe("viz adapters contract", () => {
     expect(discreteSpec?.encode).not.toHaveProperty("update");
     expect(discreteOptions?.config?.animation).toEqual({ duration: 0, easing: "linear" });
 
-    vegaLiteAdapter.destroy(instance);
+    await instance.destroy();
     expect(instance.result).toBeNull();
   });
 
   it("vega-lite adapter treats previous spec as immutable", async () => {
     const element = document.createElement("div");
     const spec = { mark: "bar", data: { values: [] } } as Parameters<typeof embedMock>[0];
-    const instance = await vegaLiteAdapter.mount(element, spec, { discrete: false });
+    const instance = await vegaLiteAdapter.mount({ el: element, spec, discrete: false });
     const previous = instance.spec;
 
-    vegaLiteAdapter.applyState(
-      instance,
-      (prev) => {
-        expect(prev.mark).toBe("bar");
-        // @ts-expect-error intentional mutation attempt
-        prev.mark = "line";
-        return { ...prev, mark: "area" };
-      },
-      { discrete: true },
-    );
+    await instance.setSpec((prev) => {
+      expect(prev.mark).toBe("bar");
+      // @ts-expect-error intentional mutation attempt
+      prev.mark = "line";
+      return { ...prev, mark: "area" };
+    });
 
-    expect(previous.mark).toBe("bar");
+    expect(previous?.mark).toBe("bar");
+    await instance.destroy();
   });
 
   it("vega-lite adapter re-renders DOM when spec changes", async () => {
@@ -336,15 +337,34 @@ describe("viz adapters contract", () => {
       return defaultEmbedResult();
     });
 
-    const instance = await vegaLiteAdapter.mount(element, { mark: "bar" } as never, {
+    const instance = await vegaLiteAdapter.mount({
+      el: element,
+      spec: { mark: "bar" } as never,
       discrete: false,
     });
     expect(element.textContent).toBe("bar");
 
-    vegaLiteAdapter.applyState(instance, { mark: "line" } as never, { discrete: false });
+    await instance.setSpec({ mark: "line" } as never, { discrete: false });
 
     await Promise.resolve();
     expect(element.textContent).toBe("line");
+    await instance.destroy();
+  });
+
+  it("vega-lite adapter applies selection state via signals", async () => {
+    const element = document.createElement("div");
+    const spec = {
+      mark: "point",
+      params: [{ name: "highlight", select: { type: "point" } }],
+    } as Parameters<typeof embedMock>[0];
+    const instance = await vegaLiteAdapter.mount({ el: element, spec, discrete: false });
+
+    await instance.applyState({ selection: "alpha" });
+
+    const view = instance.result?.view;
+    expect(view?.signal).toHaveBeenCalledWith("highlight", "alpha");
+
+    await instance.destroy();
   });
 
   it("echarts adapter mounts and updates options", async () => {

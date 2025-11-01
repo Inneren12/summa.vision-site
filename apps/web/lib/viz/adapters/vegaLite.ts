@@ -4,7 +4,7 @@ import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
 
 import type { VegaLiteSpec } from "../spec-types";
-import type { LegacyVizAdapter } from "../types";
+import type { RegisterResizeObserver, VizAdapter, VizEvent, VizInstance } from "../types";
 
 // Версионно-устойчивые типы: выводим из сигнатуры default-функции embed()
 type VegaEmbedFn = (typeof import("vega-embed"))["default"];
@@ -16,25 +16,34 @@ type VegaLiteSelectionState = {
   selection?: string;
 };
 
-type StateEmitter = (type: string, payload: unknown, meta?: Record<string, unknown>) => void;
+type EventSink = (event: VizEvent) => void;
 
-interface VegaLiteInstance {
+interface VegaLiteRuntime {
   element: HTMLElement | null;
   embed: typeof import("vega-embed") | null;
   result: VegaEmbedResult | null;
   spec: VegaLiteSpec | null;
-  resizeListener: ((event: Event) => void) | null;
+  resizeCleanup: (() => void) | null;
   selectionSignal: string | null;
-  emitState: StateEmitter | null;
-  stateCache: VegaLiteSelectionState;
+  onEvent: EventSink | null;
+  state: VegaLiteSelectionState;
   selectionHandler: ((name: string, value: unknown) => void) | null;
+  discrete: boolean;
 }
 
-interface VegaLiteMountOptions {
-  readonly discrete: boolean;
-  readonly state?: Readonly<VegaLiteSelectionState>;
-  readonly selectionSignal?: string | null;
-  readonly emit?: StateEmitter | null;
+export interface VegaLiteVizInstance extends VizInstance<VegaLiteSelectionState> {
+  readonly result: VegaEmbedResult | null;
+  readonly spec: VegaLiteSpec | null;
+  readonly state: Readonly<VegaLiteSelectionState>;
+  readonly selectionSignal: string | null;
+  setSpec(
+    next: VegaLiteSpec | ((prev: Readonly<VegaLiteSpec>) => VegaLiteSpec),
+    options?: {
+      readonly discrete?: boolean;
+      readonly selectionSignal?: string | null;
+      readonly state?: Readonly<VegaLiteSelectionState>;
+    },
+  ): Promise<void>;
 }
 
 type PlainObject = Record<string, unknown>;
@@ -50,9 +59,42 @@ type SelectionState = {
   handler: ((name: string, value: unknown) => void) | null;
 };
 
-const SELECTION = new WeakMap<VegaLiteInstance, SelectionState>();
+const SELECTION = new WeakMap<VegaLiteRuntime, SelectionState>();
 
 const NOOP_SELECTION_HANDLER: (name: string, value: unknown) => void = () => {};
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function emitEvent(
+  instance: VegaLiteRuntime,
+  type: VizEvent["type"],
+  meta?: Record<string, unknown>,
+): void {
+  if (!instance.onEvent) {
+    return;
+  }
+  const base: Record<string, unknown> = {
+    lib: "vega",
+    motion: instance.discrete ? "discrete" : "animated",
+  };
+  instance.onEvent({
+    type,
+    ts: Date.now(),
+    meta: meta ? { ...base, ...meta } : base,
+  });
+}
 
 function isPlainObject(value: unknown): value is PlainObject {
   if (!value || typeof value !== "object") {
@@ -355,6 +397,54 @@ function cloneSelectionState(
   return clone;
 }
 
+function resolveSelectionSignal(spec: VegaLiteSpec | null | undefined): string | null {
+  if (!spec || typeof spec !== "object") {
+    return null;
+  }
+
+  const usermeta = (spec as { usermeta?: unknown }).usermeta;
+  if (usermeta && typeof usermeta === "object") {
+    const meta = usermeta as Record<string, unknown>;
+    const direct = meta.selectionSignal;
+    if (typeof direct === "string" && direct.trim()) {
+      return direct;
+    }
+    const nested = meta.viz;
+    if (nested && typeof nested === "object") {
+      const nestedSignal = (nested as Record<string, unknown>).selectionSignal;
+      if (typeof nestedSignal === "string" && nestedSignal.trim()) {
+        return nestedSignal;
+      }
+    }
+  }
+
+  const selection = (spec as { selection?: unknown }).selection;
+  if (selection && typeof selection === "object") {
+    const keys = Object.keys(selection as Record<string, unknown>);
+    if (keys.length > 0) {
+      return keys[0] ?? null;
+    }
+  }
+
+  const params = (spec as { params?: unknown }).params;
+  if (Array.isArray(params)) {
+    for (const param of params) {
+      if (param && typeof param === "object") {
+        const name = (param as { name?: unknown }).name;
+        const hasSelect = Object.prototype.hasOwnProperty.call(
+          param as Record<string, unknown>,
+          "select",
+        );
+        if (hasSelect && typeof name === "string" && name.trim()) {
+          return name;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function toSelectionString(value: unknown): string | undefined {
   if (value === null || value === undefined) {
     return undefined;
@@ -368,24 +458,7 @@ function toSelectionString(value: unknown): string | undefined {
   return undefined;
 }
 
-function isSelectionStateUpdate(value: unknown): value is Partial<VegaLiteSelectionState> {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  if (!Object.prototype.hasOwnProperty.call(value, "selection")) {
-    return false;
-  }
-  const selection = (value as PlainObject).selection;
-  return (
-    selection === undefined ||
-    selection === null ||
-    typeof selection === "string" ||
-    typeof selection === "number" ||
-    typeof selection === "boolean"
-  );
-}
-
-function detachSelectionListener(inst: VegaLiteInstance): void {
+function detachSelectionListener(inst: VegaLiteRuntime): void {
   const state = SELECTION.get(inst);
   if (state?.view && state.signal && state.handler && state.view.removeSignalListener) {
     try {
@@ -400,7 +473,7 @@ function detachSelectionListener(inst: VegaLiteInstance): void {
 }
 
 function attachSelectionListener(
-  inst: VegaLiteInstance,
+  inst: VegaLiteRuntime,
   view: ViewWithSignals,
   signal: string,
   onSelection: (name: string, value: unknown) => void,
@@ -422,14 +495,13 @@ function attachSelectionListener(
 }
 
 function ensureSelectionListener(
-  inst: VegaLiteInstance,
+  inst: VegaLiteRuntime,
   view: ViewWithSignals | null,
   nextSignal: string | null | undefined,
-  nextEmit: StateEmitter | null | undefined,
   onSelection: (name: string, value: unknown) => void,
 ): void {
   const state = SELECTION.get(inst) ?? { view: null, signal: null, handler: null };
-  const want = Boolean(nextEmit) && Boolean(nextSignal);
+  const want = Boolean(nextSignal);
   const have = Boolean(state.view) && Boolean(state.signal) && Boolean(state.handler);
 
   if (!view) {
@@ -458,7 +530,7 @@ function ensureSelectionListener(
   }
 }
 
-async function applySelectionStateToView(instance: VegaLiteInstance): Promise<void> {
+async function applySelectionStateToView(instance: VegaLiteRuntime): Promise<void> {
   const signal = instance.selectionSignal;
   const view = instance.result?.view;
   if (!signal || !view || typeof view.signal !== "function") {
@@ -466,7 +538,7 @@ async function applySelectionStateToView(instance: VegaLiteInstance): Promise<vo
   }
 
   try {
-    view.signal(signal, instance.stateCache.selection ?? null);
+    view.signal(signal, instance.state.selection ?? null);
     if (typeof view.runAsync === "function") {
       await view.runAsync();
     }
@@ -474,6 +546,11 @@ async function applySelectionStateToView(instance: VegaLiteInstance): Promise<vo
     if (process.env.NODE_ENV !== "production") {
       console.warn("[vega-lite] Failed to sync selection state", error);
     }
+    emitEvent(instance, "viz_error", {
+      reason: "apply_state",
+      error: toErrorMessage(error),
+      signal,
+    });
   }
 }
 
@@ -513,10 +590,28 @@ async function runViewResize(view: VegaEmbedResult["view"] | undefined | null): 
   }
 }
 
-function createResizeListener(instance: VegaLiteInstance) {
-  return () => {
+function attachResizeHandling(
+  instance: VegaLiteRuntime,
+  element: HTMLElement,
+  registerResizeObserver?: RegisterResizeObserver,
+): (() => void) | null {
+  const handler = () => {
     const view = instance.result?.view;
     void runViewResize(view);
+  };
+
+  if (registerResizeObserver) {
+    return registerResizeObserver(() => {
+      handler();
+    });
+  }
+
+  const listener = () => {
+    handler();
+  };
+  element.addEventListener("viz_resized", listener as EventListener);
+  return () => {
+    element.removeEventListener("viz_resized", listener as EventListener);
   };
 }
 
@@ -545,23 +640,26 @@ function buildEmbedOptions(discrete: boolean): EmbedOptions {
   };
 }
 
+interface RenderOptions {
+  readonly discrete: boolean;
+  readonly state?: Readonly<VegaLiteSelectionState>;
+  readonly selectionSignal?: string | null;
+}
+
 async function render(
-  instance: VegaLiteInstance,
+  instance: VegaLiteRuntime,
   spec: VegaLiteSpec,
-  options: VegaLiteMountOptions,
+  options: RenderOptions,
 ): Promise<VegaEmbedResult | null> {
   const embedModule = instance.embed;
   const element = instance.element;
   if (!embedModule || !element) {
     instance.spec = spec;
     if (options.state !== undefined) {
-      instance.stateCache = cloneSelectionState(options.state);
+      instance.state = cloneSelectionState(options.state);
     }
     if (options.selectionSignal !== undefined) {
       instance.selectionSignal = options.selectionSignal ?? null;
-    }
-    if (options.emit !== undefined) {
-      instance.emitState = options.emit ?? null;
     }
     return instance.result;
   }
@@ -574,147 +672,181 @@ async function render(
   instance.result = result;
   instance.spec = preparedSpec;
   const nextState =
-    options.state !== undefined ? cloneSelectionState(options.state) : { ...instance.stateCache };
-  instance.stateCache = nextState;
-  if (options.selectionSignal !== undefined) {
-    instance.selectionSignal = options.selectionSignal ?? null;
-  }
-  if (options.emit !== undefined) {
-    instance.emitState = options.emit ?? null;
-  }
+    options.state !== undefined ? cloneSelectionState(options.state) : { ...instance.state };
+  instance.state = nextState;
+  const resolvedSignal =
+    options.selectionSignal !== undefined
+      ? options.selectionSignal
+      : resolveSelectionSignal(preparedSpec);
+  instance.selectionSignal = resolvedSignal ?? null;
   await settleLayout();
   await runViewResize(result.view);
   await applySelectionStateToView(instance);
   return result;
 }
 
-export const vegaLiteAdapter: LegacyVizAdapter<VegaLiteInstance, VegaLiteSpec> = {
-  async mount(el, spec, opts: VegaLiteMountOptions) {
-    const embed = await import("vega-embed");
-    const instance: VegaLiteInstance = {
+export const vegaLiteAdapter: VizAdapter<VegaLiteSelectionState, VegaLiteSpec> = {
+  async mount({ el, spec, initialState, discrete = false, onEvent, registerResizeObserver }) {
+    if (!spec) {
+      throw new Error("Vega-Lite adapter requires a specification.");
+    }
+
+    const [embedModule] = await Promise.all([
+      import("vega-embed"),
+      import("vega"),
+      import("vega-lite"),
+      import("react-vega"),
+    ]);
+
+    const runtime: VegaLiteRuntime = {
       element: el,
-      embed,
+      embed: embedModule,
       result: null,
       spec: null,
-      resizeListener: null,
-      selectionSignal: opts.selectionSignal ?? null,
-      emitState: opts.emit ?? null,
-      stateCache: cloneSelectionState(opts.state),
+      resizeCleanup: null,
+      selectionSignal: resolveSelectionSignal(spec),
+      onEvent: onEvent ?? null,
+      state: cloneSelectionState(initialState),
       selectionHandler: null,
+      discrete,
     };
-    SELECTION.set(instance, { view: null, signal: null, handler: null });
+
     const onSelection = (name: string, value: unknown) => {
       const selectionValue = toSelectionString(value);
-      const nextState: VegaLiteSelectionState = { ...instance.stateCache };
+      const nextState: VegaLiteSelectionState = { ...runtime.state };
       if (selectionValue === undefined) {
         delete nextState.selection;
       } else {
         nextState.selection = selectionValue;
       }
-      instance.stateCache = nextState;
-      instance.emitState?.("state", selectionValue, { signal: name });
+      runtime.state = nextState;
+      emitEvent(runtime, "viz_state", {
+        reason: "selection",
+        signal: name ?? runtime.selectionSignal,
+        selection: selectionValue ?? null,
+      });
     };
-    instance.selectionHandler = onSelection;
-    const embedResult = await render(instance, spec, {
-      discrete: opts.discrete,
-      state: instance.stateCache,
-      selectionSignal: instance.selectionSignal,
-      emit: instance.emitState,
-    });
-    const view = embedResult?.view ?? instance.result?.view ?? null;
-    SELECTION.set(instance, { view, signal: null, handler: null });
-    const hasSelectionHandler = instance.selectionHandler !== null;
-    const emitForEnsure = hasSelectionHandler ? instance.emitState : null;
-    ensureSelectionListener(
-      instance,
-      view,
-      instance.selectionSignal,
-      emitForEnsure,
-      instance.selectionHandler ?? NOOP_SELECTION_HANDLER,
-    );
-    if (!instance.resizeListener) {
-      const listener = createResizeListener(instance);
-      el.addEventListener("viz_resized", listener as EventListener);
-      instance.resizeListener = listener;
-    }
-    return instance;
-  },
-  applyState(instance, next, opts: VegaLiteMountOptions) {
-    const nextSelectionSignal =
-      opts.selectionSignal !== undefined
-        ? (opts.selectionSignal ?? null)
-        : instance.selectionSignal;
-    const nextEmitState = opts.emit !== undefined ? (opts.emit ?? null) : instance.emitState;
-    if (nextSelectionSignal && isSelectionStateUpdate(next)) {
-      const selectionValue = toSelectionString((next as Partial<VegaLiteSelectionState>).selection);
-      const updated: VegaLiteSelectionState = { ...instance.stateCache };
-      if (selectionValue === undefined) {
-        delete updated.selection;
-      } else {
-        updated.selection = selectionValue;
-      }
-      instance.stateCache = updated;
-      const view = instance.result?.view ?? null;
-      const current = SELECTION.get(instance) ?? { view: null, signal: null, handler: null };
-      SELECTION.set(instance, { ...current, view });
-      const handler = instance.selectionHandler;
-      const hasSelectionHandler = handler !== null;
-      const emitForEnsure = hasSelectionHandler ? nextEmitState : null;
-      ensureSelectionListener(
-        instance,
-        view,
-        nextSelectionSignal,
-        emitForEnsure,
-        handler ?? NOOP_SELECTION_HANDLER,
-      );
-      instance.selectionSignal = nextSelectionSignal;
-      instance.emitState = nextEmitState;
-      void applySelectionStateToView(instance);
-      return;
-    }
 
-    const currentSpec = instance.spec;
-    if (!currentSpec) {
-      return;
-    }
-    const previous = cloneSpec(currentSpec);
-    const spec = typeof next === "function" ? next(previous) : next;
-    void render(instance, spec, {
-      discrete: opts.discrete,
-      state: instance.stateCache,
-      selectionSignal: nextSelectionSignal,
-      emit: nextEmitState,
-    }).then((result) => {
-      const view = result?.view ?? instance.result?.view ?? null;
-      const handler = instance.selectionHandler;
-      const current = SELECTION.get(instance) ?? { view: null, signal: null, handler: null };
-      SELECTION.set(instance, { ...current, view });
-      const hasSelectionHandler = handler !== null;
-      const emitForEnsure = hasSelectionHandler ? instance.emitState : null;
+    runtime.selectionHandler = onSelection;
+    SELECTION.set(runtime, { view: null, signal: null, handler: null });
+
+    emitEvent(runtime, "viz_init", { reason: "mount" });
+
+    try {
+      const embedResult = await render(runtime, spec, {
+        discrete: runtime.discrete,
+        state: runtime.state,
+        selectionSignal: runtime.selectionSignal,
+      });
+
+      const view = embedResult?.view ?? runtime.result?.view ?? null;
       ensureSelectionListener(
-        instance,
+        runtime,
         view,
-        instance.selectionSignal,
-        emitForEnsure,
-        handler ?? NOOP_SELECTION_HANDLER,
+        runtime.selectionSignal,
+        runtime.selectionHandler ?? NOOP_SELECTION_HANDLER,
       );
-    });
-  },
-  destroy(instance) {
-    detachSelectionListener(instance);
-    SELECTION.delete(instance);
-    instance.result?.view?.finalize?.();
-    instance.result = null;
-    if (instance.element && instance.resizeListener) {
-      instance.element.removeEventListener("viz_resized", instance.resizeListener as EventListener);
+
+      runtime.resizeCleanup = attachResizeHandling(runtime, el, registerResizeObserver);
+
+      emitEvent(runtime, "viz_ready", { reason: "mount" });
+
+      const instance: VegaLiteVizInstance = {
+        async applyState(next) {
+          if (!next || typeof next !== "object") {
+            return;
+          }
+          if (Object.prototype.hasOwnProperty.call(next, "selection")) {
+            const selectionValue = toSelectionString((next as VegaLiteSelectionState).selection);
+            const updated: VegaLiteSelectionState = { ...runtime.state };
+            if (selectionValue === undefined) {
+              delete updated.selection;
+            } else {
+              updated.selection = selectionValue;
+            }
+            runtime.state = updated;
+            await applySelectionStateToView(runtime);
+            emitEvent(runtime, "viz_state", {
+              reason: "selection",
+              signal: runtime.selectionSignal,
+              selection: selectionValue ?? null,
+            });
+          }
+        },
+        async setSpec(nextSpec, options = {}) {
+          const base = runtime.spec ? cloneSpec(runtime.spec) : cloneSpec(spec);
+          const candidate =
+            typeof nextSpec === "function" ? nextSpec(base as Readonly<VegaLiteSpec>) : nextSpec;
+          const discreteOverride = options.discrete;
+          if (typeof discreteOverride === "boolean") {
+            runtime.discrete = discreteOverride;
+          }
+          const nextState = options.state ?? runtime.state;
+          try {
+            await render(runtime, candidate, {
+              discrete: runtime.discrete,
+              state: nextState,
+              selectionSignal:
+                options.selectionSignal !== undefined
+                  ? options.selectionSignal
+                  : resolveSelectionSignal(candidate),
+            });
+            const viewAfter = runtime.result?.view ?? null;
+            ensureSelectionListener(
+              runtime,
+              viewAfter,
+              runtime.selectionSignal,
+              runtime.selectionHandler ?? NOOP_SELECTION_HANDLER,
+            );
+            emitEvent(runtime, "viz_state", { reason: "spec" });
+          } catch (error) {
+            emitEvent(runtime, "viz_error", {
+              reason: "spec",
+              error: toErrorMessage(error),
+            });
+            throw error;
+          }
+        },
+        async destroy() {
+          try {
+            detachSelectionListener(runtime);
+            SELECTION.delete(runtime);
+            runtime.result?.view?.finalize?.();
+            runtime.resizeCleanup?.();
+          } finally {
+            emitEvent(runtime, "viz_state", { reason: "destroy" });
+            runtime.resizeCleanup = null;
+            runtime.result = null;
+            runtime.spec = null;
+            runtime.element = null;
+            runtime.embed = null;
+            runtime.selectionHandler = null;
+            runtime.selectionSignal = null;
+            runtime.state = {};
+            runtime.onEvent = null;
+          }
+        },
+        get result() {
+          return runtime.result;
+        },
+        get spec() {
+          return runtime.spec ? cloneSpec(runtime.spec) : null;
+        },
+        get state() {
+          return { ...runtime.state };
+        },
+        get selectionSignal() {
+          return runtime.selectionSignal;
+        },
+      };
+
+      return instance;
+    } catch (error) {
+      emitEvent(runtime, "viz_error", {
+        reason: "mount",
+        error: toErrorMessage(error),
+      });
+      throw error;
     }
-    instance.element = null;
-    instance.embed = null;
-    instance.spec = null;
-    instance.resizeListener = null;
-    instance.selectionSignal = null;
-    instance.emitState = null;
-    instance.stateCache = {};
-    instance.selectionHandler = null;
   },
 };
