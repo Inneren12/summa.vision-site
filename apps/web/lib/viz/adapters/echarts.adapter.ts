@@ -14,6 +14,7 @@ type ECharts = import("echarts").ECharts;
 
 type EChartsInit = (el: HTMLElement, theme?: unknown, opts?: unknown) => ECharts;
 type EChartsUse = (mods: unknown[]) => void;
+type SetOptionOpts = Parameters<ECharts["setOption"]>[1];
 type CoreModule = Partial<{
   init: EChartsInit;
   use: EChartsUse;
@@ -213,23 +214,49 @@ function cloneSpec<T>(spec: T): T {
   return deepClonePreservingFuncs(spec);
 }
 
-function setupResizeObserver(element: HTMLElement, onResize: () => void): (() => void) | null {
-  if (typeof ResizeObserver === "undefined") {
+const prefersReducedMotion = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    return Boolean(query?.matches);
+  } catch {
+    return false;
+  }
+};
+
+function applyMotionPreferences(spec: EChartsSpec, discrete: boolean): EChartsSpec {
+  const cloned = cloneSpec(spec);
+
+  if (!discrete) {
+    return cloned;
+  }
+
+  if (cloned && typeof cloned === "object" && !Array.isArray(cloned)) {
+    const target = cloned as Record<string, unknown>;
+    target.animation = false;
+    target.animationDuration = 0;
+    target.animationDurationUpdate = 0;
+    target.universalTransition = false;
+  }
+
+  return cloned;
+}
+
+function setupWindowResizeFallback(onResize: () => void): (() => void) | null {
+  if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
     return null;
   }
 
-  const throttledResize = throttle(() => {
-    onResize();
-  }, 100);
+  const throttled = throttle(onResize, 100);
 
-  const observer = new ResizeObserver(() => {
-    throttledResize();
-  });
-  observer.observe(element);
+  window.addEventListener("resize", throttled);
 
   return () => {
-    throttledResize.cancel();
-    observer.disconnect();
+    window.removeEventListener("resize", throttled);
+    throttled.cancel();
   };
 }
 
@@ -250,36 +277,107 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
     throw new Error("ECharts adapter requires a specification.");
   }
 
-  const [coreMod, charts, components, features, renderers] = await Promise.all([
-    import("echarts/core"),
-    import("echarts/charts"),
-    import("echarts/components"),
-    import("echarts/features"),
-    import("echarts/renderers"),
-  ]);
+  const discreteMode = Boolean(discrete || prefersReducedMotion());
+  const hasExternalEmit = typeof emit === "function";
+
+  const fallbackEmit: VizEmit = (event, payload, meta) => {
+    if (!onEvent) {
+      return;
+    }
+
+    const details: Record<string, unknown> = {};
+    if (payload && typeof payload === "object") {
+      Object.assign(details, payload as Record<string, unknown>);
+    } else if (payload !== undefined) {
+      details.payload = payload;
+    }
+
+    if (meta) {
+      Object.assign(details, meta);
+    }
+
+    if (!("motion" in details)) {
+      details.motion = discreteMode ? "discrete" : "animated";
+    }
+
+    if (!("lib" in details)) {
+      details.lib = "echarts";
+    }
+
+    emitLifecycle(onEvent, {
+      type: event,
+      ts: Date.now(),
+      meta: Object.keys(details).length ? details : undefined,
+    });
+  };
+
+  const emitFn: VizEmit = hasExternalEmit ? (emit as VizEmit) : fallbackEmit;
+  const dispatch = (event: VizLifecycleEvent["type"], meta?: Record<string, unknown>) => {
+    try {
+      emitFn(event, undefined, meta);
+    } catch {
+      if (!hasExternalEmit && onEvent) {
+        emitLifecycle(onEvent, {
+          type: event,
+          ts: Date.now(),
+          meta,
+        });
+      }
+    }
+  };
+
+  const dispatchError = (reason: string, error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    dispatch("viz_error", {
+      reason,
+      error: message,
+    });
+  };
+
+  let coreMod: unknown;
+  let chartsMod: unknown;
+  let componentsMod: unknown;
+  let featuresMod: unknown;
+  let renderersMod: unknown;
+
+  try {
+    [coreMod, chartsMod, componentsMod, featuresMod, renderersMod] = await Promise.all([
+      import("echarts/core"),
+      import("echarts/charts"),
+      import("echarts/components"),
+      import("echarts/features"),
+      import("echarts/renderers"),
+    ]);
+  } catch (error) {
+    dispatchError("module_load", error);
+    throw error;
+  }
 
   const core = coreMod as CoreModule;
-  const useFn: EChartsUse = core.use ?? (() => {});
+  const registerWithCore: EChartsUse = core.use ?? (() => {});
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const registrables: any[] = [
-    charts?.LineChart,
-    charts?.BarChart,
-    charts?.ScatterChart,
-    charts?.PieChart,
-    components?.GridComponent,
-    components?.DatasetComponent,
-    components?.TooltipComponent,
-    components?.LegendComponent,
-    components?.TitleComponent,
-    features?.LabelLayout,
-    features?.UniversalTransition,
-    renderers?.CanvasRenderer,
+  const registrables: unknown[] = [
+    (chartsMod as Record<string, unknown> | undefined)?.LineChart,
+    (chartsMod as Record<string, unknown> | undefined)?.BarChart,
+    (chartsMod as Record<string, unknown> | undefined)?.ScatterChart,
+    (chartsMod as Record<string, unknown> | undefined)?.PieChart,
+    (componentsMod as Record<string, unknown> | undefined)?.GridComponent,
+    (componentsMod as Record<string, unknown> | undefined)?.DatasetComponent,
+    (componentsMod as Record<string, unknown> | undefined)?.TooltipComponent,
+    (componentsMod as Record<string, unknown> | undefined)?.LegendComponent,
+    (componentsMod as Record<string, unknown> | undefined)?.TitleComponent,
+    (featuresMod as Record<string, unknown> | undefined)?.LabelLayout,
+    (featuresMod as Record<string, unknown> | undefined)?.UniversalTransition,
+    (renderersMod as Record<string, unknown> | undefined)?.CanvasRenderer,
   ].filter(Boolean);
 
   if (registrables.length) {
-    const applyUse = useFn;
-    applyUse(registrables);
+    try {
+      registerWithCore(registrables as unknown[]);
+    } catch (error) {
+      dispatchError("module_register", error);
+      throw error;
+    }
   }
 
   const initFromModule = core.init;
@@ -299,65 +397,97 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
 
   const initFn: EChartsInit = typeof initFromModule === "function" ? initFromModule : fallbackInit;
 
-  const chart = initFn(el, undefined, { renderer: "canvas" });
-  const initialSpec = cloneSpec(specFromState);
-  const internal: { spec?: EChartsSpec } = {
-    spec: initialSpec,
-  };
+  dispatch("viz_init", { reason: "init" });
 
-  chart.setOption(cloneSpec(internal.spec!), {
-    lazyUpdate: true,
-  } as never);
-
-  const emitFn: VizEmit = emit ?? (() => {});
-  let cleanup: (() => void) | null = null;
-  const handleResize = () => {
-    chart.resize();
-    emitLifecycle(onEvent, {
-      type: "viz_resized",
-      ts: Date.now(),
-      meta: {
-        reason: "resize",
-        motion: discrete ? "discrete" : "animated",
-      },
-    });
-  };
+  let chart: ECharts;
 
   try {
-    cleanup = registerResizeObserver?.(el, handleResize) ?? null;
-  } catch {
-    cleanup = null;
+    chart = initFn(el, undefined, { renderer: "canvas" });
+  } catch (error) {
+    dispatchError("init", error);
+    throw error;
+  }
+
+  const internal: { spec?: EChartsSpec } = {};
+
+  try {
+    internal.spec = applyMotionPreferences(specFromState, discreteMode);
+    chart.setOption(cloneSpec(internal.spec), { lazyUpdate: true } satisfies SetOptionOpts);
+  } catch (error) {
+    dispatchError("set_option_initial", error);
+    throw error;
+  }
+
+  dispatch("viz_ready", { reason: "initial_render", specApplied: true });
+
+  let destroyed = false;
+  let cleanup: (() => void) | null = null;
+  const handleResize = () => {
+    if (destroyed || !chart || typeof chart.resize !== "function") {
+      return;
+    }
+
+    try {
+      chart.resize();
+    } catch (error) {
+      dispatchError("resize", error);
+      return;
+    }
+
+    dispatch("viz_resized", { reason: "resize" });
+  };
+
+  if (typeof registerResizeObserver === "function") {
+    try {
+      const disposer = registerResizeObserver(el, handleResize);
+      cleanup = typeof disposer === "function" ? disposer : null;
+    } catch (error) {
+      dispatchError("register_resize_observer", error);
+      cleanup = null;
+    }
   }
 
   if (!cleanup) {
-    cleanup = setupResizeObserver(el, handleResize);
+    cleanup = setupWindowResizeFallback(handleResize);
   }
-
-  let destroyed = false;
 
   const instance: EChartsInstance = {
     applyState(next) {
-      if (destroyed || !next?.spec) {
+      if (destroyed) {
         return;
       }
 
-      const updatedSpec = {
-        ...(internal.spec ? (internal.spec as Record<string, unknown>) : {}),
-        ...(next.spec as Record<string, unknown>),
-      } as EChartsSpec;
+      const incoming = next?.spec as EChartsStateUpdate | undefined;
+      if (!incoming) {
+        return;
+      }
 
-      internal.spec = updatedSpec;
-
-      chart.setOption(cloneSpec(internal.spec!), {
-        notMerge: false,
-        lazyUpdate: true,
-        silent: true,
-      } as never);
+      let resolved: EChartsSpec;
 
       try {
-        emitFn("viz_state", { specApplied: true });
-      } catch {
-        // ignore emit failures
+        resolved =
+          typeof incoming === "function"
+            ? incoming(internal.spec ? cloneSpec(internal.spec) : ({} as EChartsSpec))
+            : incoming;
+      } catch (error) {
+        dispatchError("resolve_state", error);
+        return;
+      }
+
+      if (!resolved) {
+        return;
+      }
+
+      try {
+        internal.spec = applyMotionPreferences(resolved, discreteMode);
+        chart.setOption(cloneSpec(internal.spec), {
+          notMerge: false,
+          lazyUpdate: true,
+          silent: true,
+        });
+        dispatch("viz_state", { reason: "apply_state", specApplied: true });
+      } catch (error) {
+        dispatchError("set_option_state", error);
       }
     },
     destroy() {
