@@ -28,6 +28,23 @@ type Throttled<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
   cancel(): void;
 };
 
+type SupportedTypedArray =
+  | Int8Array
+  | Uint8Array
+  | Uint8ClampedArray
+  | Int16Array
+  | Uint16Array
+  | Int32Array
+  | Uint32Array
+  | Float32Array
+  | Float64Array
+  | BigInt64Array
+  | BigUint64Array;
+
+type SupportedTypedArrayConstructor<TArray extends SupportedTypedArray = SupportedTypedArray> = {
+  new (length: number): TArray;
+};
+
 function throttle<TArgs extends unknown[]>(
   fn: (...args: TArgs) => void,
   wait: number,
@@ -79,14 +96,17 @@ function throttle<TArgs extends unknown[]>(
 }
 
 function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknown>()): T {
+  // primitives & functions
   if (input === null || typeof input !== "object") {
     return input;
   }
+
   const objectInput = input as unknown as object;
   if (seen.has(objectInput)) {
     return seen.get(objectInput) as T;
   }
 
+  // Date / RegExp
   if (input instanceof Date) {
     return new Date(input.getTime()) as unknown as T;
   }
@@ -94,24 +114,70 @@ function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknow
     return new RegExp(input.source, input.flags) as unknown as T;
   }
 
+  // ArrayBuffer / SharedArrayBuffer
+  if (input instanceof ArrayBuffer) {
+    const copy = input.slice(0);
+    seen.set(objectInput, copy);
+    return copy as unknown as T;
+  }
+  if (typeof SharedArrayBuffer !== "undefined" && input instanceof SharedArrayBuffer) {
+    const copy = new SharedArrayBuffer(input.byteLength);
+    new Uint8Array(copy).set(new Uint8Array(input));
+    seen.set(objectInput, copy);
+    return copy as unknown as T;
+  }
+
+  // DataView
+  if (input instanceof DataView) {
+    const clonedBuffer = input.buffer.slice(0);
+    const dv = new DataView(clonedBuffer, input.byteOffset, input.byteLength);
+    seen.set(objectInput, dv);
+    return dv as unknown as T;
+  }
+
+  // TypedArray (включая Uint8Array, Float32Array и т.д.)
+  if (ArrayBuffer.isView(input)) {
+    if (input instanceof DataView) {
+      const fallbackBuffer = input.buffer.slice(0);
+      const fallbackView = new DataView(fallbackBuffer, input.byteOffset, input.byteLength);
+      seen.set(objectInput, fallbackView);
+      return fallbackView as unknown as T;
+    }
+
+    const typed = input as unknown as SupportedTypedArray;
+    let out: SupportedTypedArray;
+    if (typeof typed.slice === "function") {
+      out = typed.slice() as SupportedTypedArray; // новый буфер и копия значений
+    } else {
+      const ctor = typed.constructor as SupportedTypedArrayConstructor;
+      out = new ctor(typed.length);
+      if ("set" in out) {
+        (out as SupportedTypedArray & { set(array: typeof typed): void }).set(typed);
+      }
+    }
+    seen.set(objectInput, out);
+    return out as unknown as T;
+  }
+
+  // Map / Set
   if (input instanceof Map) {
     const m = new Map();
     seen.set(objectInput, m);
-    for (const [key, value] of input.entries()) {
-      m.set(key, deepClonePreservingFuncs(value, seen));
+    for (const [k, v] of input.entries()) {
+      m.set(k, deepClonePreservingFuncs(v, seen));
     }
     return m as unknown as T;
   }
-
   if (input instanceof Set) {
     const s = new Set();
     seen.set(objectInput, s);
-    for (const value of input.values()) {
-      s.add(deepClonePreservingFuncs(value, seen));
+    for (const v of input.values()) {
+      s.add(deepClonePreservingFuncs(v, seen));
     }
     return s as unknown as T;
   }
 
+  // Array
   if (Array.isArray(input)) {
     const arr: unknown[] = [];
     seen.set(objectInput, arr);
@@ -121,22 +187,28 @@ function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknow
     return arr as unknown as T;
   }
 
+  // Plain object (preserve function fields)
   const out: Record<string, unknown> = Object.create(Object.getPrototypeOf(input));
   seen.set(objectInput, out);
-  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-    out[key] = typeof value === "function" ? value : deepClonePreservingFuncs(value, seen);
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    out[k] = typeof v === "function" ? v : deepClonePreservingFuncs(v, seen);
   }
   return out as unknown as T;
 }
 
+// быстрый путь — structuredClone, если сработает; иначе — наш клонер
 function cloneSpec<T>(spec: T): T {
   try {
-    if (typeof globalThis.structuredClone === "function") {
-      // structuredClone throws when the value contains functions
-      return globalThis.structuredClone(spec);
+    const structuredCloneFn = (
+      globalThis as typeof globalThis & {
+        structuredClone?: <U>(value: U) => U;
+      }
+    ).structuredClone;
+    if (typeof structuredCloneFn === "function") {
+      return structuredCloneFn(spec);
     }
   } catch {
-    // ignore structuredClone failures
+    /* функции внутри — перейдём на ручной клонер */
   }
   return deepClonePreservingFuncs(spec);
 }
