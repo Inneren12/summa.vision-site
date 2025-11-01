@@ -1,177 +1,135 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, type CSSProperties, type HTMLAttributes } from "react";
 
-export interface VizHarnessEventDetail {
-  readonly width: number;
-  readonly height: number;
-}
+import type { VizLifecycleEvent } from "./types";
+import { useVizMount, type VizAdapterSource } from "./useVizMount";
 
-export interface VizHarnessProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  readonly children?: ReactNode;
-  readonly defaultHeight?: number | string;
-  readonly onContainerChange?: (element: HTMLDivElement | null) => void;
+export type { VizHarnessEventDetail } from "./VizHarnessLegacy";
+export { LegacyVizHarness } from "./VizHarnessLegacy";
+
+export type VizHarnessProps<S, Spec = unknown, Data = unknown> = {
+  readonly adapter: VizAdapterSource<S, Spec, Data>;
+  readonly spec?: Spec;
+  readonly data?: Data;
+  readonly state?: Readonly<S>;
+  readonly height?: number;
   readonly testId?: string;
-}
+  readonly className?: string;
+  readonly style?: CSSProperties;
+  readonly onEvent?: (event: VizLifecycleEvent) => void;
+  readonly discrete?: boolean;
+} & Omit<HTMLAttributes<HTMLDivElement>, "className" | "style" | "children">;
 
-function readSize(element: HTMLDivElement): VizHarnessEventDetail {
-  const rect = element.getBoundingClientRect();
-  return {
-    width: rect.width,
-    height: rect.height,
+function throttle<TArgs extends unknown[]>(fn: (...args: TArgs) => void, ms = 120) {
+  let last = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const invoke = (args: TArgs) => {
+    last = Date.now();
+    timer = null;
+    fn(...args);
+  };
+
+  return (...args: TArgs) => {
+    const now = Date.now();
+    if (!last || now - last >= ms) {
+      invoke(args);
+      return;
+    }
+    if (!timer) {
+      timer = setTimeout(() => invoke(args), ms - (now - last));
+    }
   };
 }
 
-async function waitForNextFrame(): Promise<void> {
-  if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
-}
-
-export function VizHarness({
-  children,
+export default function VizHarness<S, Spec = unknown, Data = unknown>({
+  adapter,
+  spec,
+  data,
+  state,
+  height = 420,
+  testId = "viz-root",
   className,
   style,
-  defaultHeight = 400,
-  onContainerChange,
-  testId,
+  onEvent,
+  discrete,
   ...rest
-}: VizHarnessProps) {
-  const [element, setElement] = useState<HTMLDivElement | null>(null);
+}: VizHarnessProps<S, Spec, Data>) {
+  const registerResizeObserver = useMemo(() => {
+    return (element: HTMLElement, cb: () => void) => {
+      if (
+        typeof window === "undefined" ||
+        !(window as typeof window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver
+      ) {
+        return () => {};
+      }
+
+      const ResizeObserverCtor = (
+        window as typeof window & { ResizeObserver?: typeof ResizeObserver }
+      ).ResizeObserver;
+      if (!ResizeObserverCtor) {
+        return () => {};
+      }
+
+      const handler = throttle(cb, 120);
+      const observer = new ResizeObserverCtor(() => {
+        handler();
+      });
+      observer.observe(element);
+
+      return () => {
+        try {
+          observer.unobserve(element);
+          observer.disconnect();
+        } catch {
+          // ignore cleanup errors
+        }
+      };
+    };
+  }, []);
+
+  const { ref } = useVizMount<S, Spec, Data>({
+    adapter,
+    spec,
+    data,
+    initialState: state as S | undefined,
+    discrete,
+    onEvent,
+    enableResizeObserver: false,
+    registerResizeObserver,
+  });
 
   const handleRef = useCallback(
     (node: HTMLDivElement | null) => {
-      setElement(node);
-      onContainerChange?.(node);
+      ref(node);
     },
-    [onContainerChange],
+    [ref],
   );
 
-  useEffect(() => {
-    const target = element;
-    if (!target) {
-      return;
-    }
-
-    const emit = (type: string, detail: VizHarnessEventDetail) => {
-      target.dispatchEvent(
-        new CustomEvent<VizHarnessEventDetail>(type, {
-          detail,
-          bubbles: false,
-        }),
-      );
-    };
-
-    let destroyed = false;
-    let raf1: number | null = null;
-    let raf2: number | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-    let cleanupWindowResize: (() => void) | null = null;
-
-    target.dataset.vizReady = "0";
-    emit("viz_init", readSize(target));
-
-    const markReady = async () => {
-      await waitForNextFrame();
-      await waitForNextFrame();
-      if (destroyed) {
-        return;
-      }
-      target.dataset.vizReady = "1";
-      const detail = readSize(target);
-      emit("viz_ready", detail);
-      emit("viz_resized", detail);
-    };
-
-    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-      raf1 = window.requestAnimationFrame(() => {
-        raf2 = window.requestAnimationFrame(() => {
-          void markReady();
-        });
-      });
-    } else {
-      void markReady();
-    }
-
-    const emitResize = (detail: VizHarnessEventDetail) => {
-      emit("viz_resized", detail);
-    };
-
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        const detail = entry
-          ? { width: entry.contentRect.width, height: entry.contentRect.height }
-          : readSize(target);
-        emitResize(detail);
-      });
-      resizeObserver.observe(target);
-    } else if (typeof window !== "undefined") {
-      const handleResize = () => emitResize(readSize(target));
-      window.addEventListener("resize", handleResize);
-      cleanupWindowResize = () => window.removeEventListener("resize", handleResize);
-    }
-
-    return () => {
-      destroyed = true;
-      if (
-        raf1 !== null &&
-        typeof window !== "undefined" &&
-        typeof window.cancelAnimationFrame === "function"
-      ) {
-        window.cancelAnimationFrame(raf1);
-      }
-      if (
-        raf2 !== null &&
-        typeof window !== "undefined" &&
-        typeof window.cancelAnimationFrame === "function"
-      ) {
-        window.cancelAnimationFrame(raf2);
-      }
-      resizeObserver?.disconnect();
-      cleanupWindowResize?.();
-      delete target.dataset.vizReady;
-    };
-  }, [element]);
-
-  const resolvedStyle = useMemo(() => {
-    const resolvedHeight = typeof defaultHeight === "number" ? `${defaultHeight}px` : defaultHeight;
-    const base: CSSProperties = {
-      position: "relative",
-      contain: "layout size",
-      height: resolvedHeight,
-    };
-    return { ...base, ...style } as CSSProperties;
-  }, [defaultHeight, style]);
-
-  const combinedClassName = useMemo(() => {
-    const base = "block w-full max-w-full min-w-[1px]";
+  const resolvedClassName = useMemo(() => {
+    const base = "w-full max-w-full min-w-[1px] block";
     return className ? `${base} ${className}` : base;
   }, [className]);
+
+  const resolvedStyle = useMemo(() => {
+    const base: CSSProperties = {
+      height,
+      position: "relative",
+      contain: "layout size",
+    };
+    return style ? { ...base, ...style } : base;
+  }, [height, style]);
 
   return (
     <div
       {...rest}
       ref={handleRef}
       data-testid={testId}
-      className={combinedClassName}
+      className={resolvedClassName}
       style={resolvedStyle}
-    >
-      {children}
-    </div>
+      aria-label="visualization"
+      role="figure"
+    />
   );
 }
-
-export default VizHarness;

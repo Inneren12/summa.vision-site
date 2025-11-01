@@ -13,6 +13,7 @@ import type {
   VizEventDetail,
   VizInstance,
   VizLifecycleEvent,
+  RegisterResizeObserver,
 } from "./types";
 
 const NECESSARY_LIFECYCLE: ReadonlySet<VizLifecycleEvent["type"]> = new Set([
@@ -136,6 +137,7 @@ export interface UseVizMountOptions<S, Spec, Data> {
   readonly discrete?: boolean;
   readonly enableResizeObserver?: boolean;
   readonly onEvent?: (event: VizLifecycleEvent) => void;
+  readonly registerResizeObserver?: RegisterResizeObserver;
 }
 
 export interface UseVizMountResult<S> {
@@ -169,6 +171,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
     initialState,
     onEvent,
     enableResizeObserver = true,
+    registerResizeObserver: registerResizeObserverOption,
   } = options;
 
   const { isReducedMotion } = useReducedMotion();
@@ -209,21 +212,25 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
       }
     };
 
-    const registerResizeObserver = enableResizeObserver
-      ? (callback: ResizeObserverCallback) => {
-          if (typeof ResizeObserver === "undefined") {
-            return () => {};
-          }
+    const registerResizeObserver =
+      registerResizeObserverOption ??
+      (enableResizeObserver
+        ? (target: HTMLElement, callback: () => void) => {
+            if (typeof ResizeObserver === "undefined") {
+              return () => {};
+            }
 
-          const observer = new ResizeObserver(callback);
-          observersRef.current.push(observer);
-          observer.observe(element);
-          return () => {
-            observer.disconnect();
-            observersRef.current = observersRef.current.filter((entry) => entry !== observer);
-          };
-        }
-      : undefined;
+            const observer = new ResizeObserver(() => {
+              callback();
+            });
+            observersRef.current.push(observer);
+            observer.observe(target);
+            return () => {
+              observer.disconnect();
+              observersRef.current = observersRef.current.filter((entry) => entry !== observer);
+            };
+          }
+        : undefined);
 
     const handleError = (reason: string, err: unknown) => {
       const nextError = toError(err);
@@ -314,7 +321,17 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
           });
       }
     };
-  }, [adapterMemo, data, discrete, element, enableResizeObserver, initialState, onEvent, spec]);
+  }, [
+    adapterMemo,
+    data,
+    discrete,
+    element,
+    enableResizeObserver,
+    initialState,
+    onEvent,
+    registerResizeObserverOption,
+    spec,
+  ]);
 
   return {
     ref,

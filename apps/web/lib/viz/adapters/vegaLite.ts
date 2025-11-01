@@ -606,10 +606,11 @@ function attachResizeHandling(
   const handler = () => {
     const view = instance.result?.view;
     void runViewResize(view);
+    emitEvent(instance, "viz_resized", { reason: "resize" });
   };
 
   if (registerResizeObserver) {
-    return registerResizeObserver(() => {
+    return registerResizeObserver(element, () => {
       handler();
     });
   }
