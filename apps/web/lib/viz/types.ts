@@ -38,12 +38,21 @@ export type InferVizData<TAdapter extends VizAdapter<unknown, unknown, unknown>>
 
 export type MotionMode = "animated" | "discrete";
 
+export interface LegacyVizAdapterOptions {
+  readonly discrete: boolean;
+  readonly onEvent?: (event: VizEvent) => void;
+}
+
 export interface LegacyVizAdapter<TInstance, TSpec extends object> {
-  mount(el: HTMLElement, spec: TSpec, opts: { discrete: boolean }): Promise<TInstance> | TInstance;
+  mount(
+    el: HTMLElement,
+    spec: TSpec,
+    opts: LegacyVizAdapterOptions,
+  ): Promise<TInstance> | TInstance;
   applyState(
     instance: TInstance,
     next: TSpec | ((prev: Readonly<TSpec>) => TSpec),
-    opts: { discrete: boolean },
+    opts: LegacyVizAdapterOptions,
   ): void;
   destroy(instance: TInstance): void;
 }

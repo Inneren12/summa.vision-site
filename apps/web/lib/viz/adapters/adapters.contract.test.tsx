@@ -1,6 +1,5 @@
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
-import * as echarts from "echarts";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,19 +24,33 @@ vi.mock("vega-embed", () => ({
   default: embedMock,
 }));
 
-const echartsSetOption = vi.fn();
-const echartsResize = vi.fn();
-const echartsDispose = vi.fn();
-const echartsInit = vi.fn((el: HTMLElement, _theme?: unknown, _opts?: unknown) => {
-  void _theme;
-  void _opts;
-  return {
-    setOption: echartsSetOption,
-    resize: echartsResize,
-    dispose: echartsDispose,
-    getDom: () => el,
-  };
-});
+const { echartsSetOption, echartsResize, echartsDispose, echartsUse, echartsInit } = vi.hoisted(
+  () => {
+    const echartsSetOption = vi.fn();
+    const echartsResize = vi.fn();
+    const echartsDispose = vi.fn();
+    const echartsUse = vi.fn((modules: unknown[]) => {
+      void modules;
+    });
+    const echartsInit = vi.fn((el: HTMLElement, _theme?: unknown, _opts?: unknown) => {
+      void _theme;
+      void _opts;
+      return {
+        setOption: echartsSetOption,
+        resize: echartsResize,
+        dispose: echartsDispose,
+        getDom: () => el,
+      };
+    });
+    return { echartsSetOption, echartsResize, echartsDispose, echartsUse, echartsInit };
+  },
+);
+
+vi.mock("echarts/core", () => ({
+  __esModule: true,
+  init: echartsInit,
+  use: echartsUse,
+}));
 
 const mapSetStyle = vi.fn();
 const mapSetCenter = vi.fn();
@@ -221,7 +234,7 @@ vi.mock("../webgl", () => ({
 }));
 
 import { deckAdapter } from "./deck";
-import { echartsAdapter } from "./echarts.adapter";
+import { echartsAdapter } from "./echarts";
 import { mapLibreAdapter } from "./maplibre.adapter";
 import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
@@ -239,7 +252,7 @@ describe("viz adapters contract", () => {
     echartsResize.mockClear();
     echartsDispose.mockClear();
     echartsInit.mockClear();
-    vi.spyOn(echarts, "init").mockImplementation(echartsInit);
+    echartsUse.mockClear();
     supportsWebGL.mockReturnValue(true);
     supportsWebGL2.mockReturnValue(true);
     renderWebglFallback.mockReset();
@@ -376,15 +389,25 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
     const instance = await echartsAdapter.mount(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
+    expect(echartsUse).toHaveBeenCalledTimes(1);
+    const [registeredModules] = echartsUse.mock.calls[0] ?? [];
+    expect(Array.isArray(registeredModules)).toBe(true);
+    expect(echartsSetOption).toHaveBeenNthCalledWith(1, expect.objectContaining({ series: [] }), {
+      notMerge: true,
+      lazyUpdate: false,
+    });
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, {
-      notMerge: true,
-      lazyUpdate: true,
-      animation: false,
-    });
+    expect(echartsSetOption).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        series: [{ type: "line" }],
+        animation: false,
+        transitionDuration: 0,
+      }),
+      { notMerge: true, lazyUpdate: false },
+    );
 
     echartsAdapter.destroy(instance);
     expect(echartsDispose).toHaveBeenCalled();
@@ -429,7 +452,7 @@ describe("viz adapters contract", () => {
       observer?.trigger();
       expect(echartsResize).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(150);
       expect(echartsResize).toHaveBeenCalledTimes(1);
 
       echartsAdapter.destroy(instance);
