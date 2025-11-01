@@ -484,7 +484,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
           notMerge: false,
           lazyUpdate: true,
           silent: true,
-        } satisfies SetOptionOpts);
+        });
         dispatch("viz_state", { reason: "apply_state", specApplied: true });
       } catch (error) {
         dispatchError("set_option_state", error);
