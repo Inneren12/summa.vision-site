@@ -3,6 +3,18 @@ import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any;
+
+function resolveFn<T extends AnyFn = AnyFn>(
+  mod: Record<string, unknown> | undefined,
+  key: string,
+): T | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const v = (mod as any)?.[key];
+  return typeof v === "function" ? (v as T) : null;
+}
+
 interface EChartsInstance {
   element: HTMLElement | null;
   chart: ECharts | null;
@@ -113,6 +125,41 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
 export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
   async mount(el, spec, opts) {
     void opts;
+    const [coreMod, charts, components, features, renderers] = await Promise.all([
+      import("echarts/core"),
+      import("echarts/charts"),
+      import("echarts/components"),
+      import("echarts/features"),
+      import("echarts/renderers"),
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const callUse: (mods: any[]) => void =
+      resolveFn(coreMod, "use") ??
+      (() => {
+        /* no-op в тестах */
+      });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const registrables: any[] = [
+      charts?.BarChart,
+      charts?.LineChart,
+      charts?.PieChart,
+      charts?.ScatterChart,
+      components?.GridComponent,
+      components?.DatasetComponent,
+      components?.TooltipComponent,
+      components?.LegendComponent,
+      components?.TitleComponent,
+      features?.LabelLayout,
+      features?.UniversalTransition,
+      renderers?.CanvasRenderer,
+    ].filter(Boolean);
+
+    if (registrables.length > 0) {
+      callUse(registrables);
+    }
+
     const echarts = await import("echarts");
     const chart = echarts.init(el, undefined, { renderer: "canvas" });
     const clone = cloneSpec(spec);
