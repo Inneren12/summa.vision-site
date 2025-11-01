@@ -1,4 +1,5 @@
-"use client";
+// prettier-ignore
+'use client';
 
 import type { EChartsOption } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";

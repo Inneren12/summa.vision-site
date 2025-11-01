@@ -15,6 +15,91 @@ import type {
   VizLifecycleEvent,
 } from "./types";
 
+const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);
+
+const isBrowser = () => typeof window !== "undefined";
+
+function hasNavigatorDoNotTrack(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const nav = navigator as Navigator & {
+    msDoNotTrack?: string;
+    globalPrivacyControl?: boolean;
+  };
+
+  if (typeof nav.globalPrivacyControl === "boolean" && nav.globalPrivacyControl) {
+    return true;
+  }
+
+  const signals = [nav.doNotTrack, nav.msDoNotTrack];
+  return signals.some((value) =>
+    value ? DNT_ENABLED_VALUES.has(String(value).toLowerCase()) : false,
+  );
+}
+
+function hasWindowDoNotTrack(): boolean {
+  if (!isBrowser()) {
+    return false;
+  }
+
+  const signal = (window as typeof window & { doNotTrack?: string }).doNotTrack;
+  return signal ? DNT_ENABLED_VALUES.has(String(signal).toLowerCase()) : false;
+}
+
+function readConsentFromCookies(): "all" | "necessary" {
+  if (typeof document === "undefined") {
+    return "necessary";
+  }
+
+  const cookies = document.cookie?.split(";") ?? [];
+  for (const part of cookies) {
+    const segment = part.trim();
+    if (!segment) {
+      continue;
+    }
+
+    const [name, ...rest] = segment.split("=");
+    if (name !== "sv_consent") {
+      continue;
+    }
+
+    const value = rest.join("=");
+    try {
+      const decoded = decodeURIComponent(value).trim().toLowerCase();
+      if (decoded === "all") {
+        return "all";
+      }
+      if (decoded === "necessary") {
+        return "necessary";
+      }
+    } catch {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "all") {
+        return "all";
+      }
+      if (normalized === "necessary") {
+        return "necessary";
+      }
+    }
+  }
+
+  return "necessary";
+}
+
+function shouldEmit(): boolean {
+  if (!isBrowser()) {
+    return false;
+  }
+
+  if (hasNavigatorDoNotTrack() || hasWindowDoNotTrack()) {
+    return false;
+  }
+
+  return readConsentFromCookies() === "all";
+}
+
 export type VizAdapterSource<S, Spec, Data> =
   | VizAdapterWithConfig<S, Spec, Data>
   | VizAdapterLoader<S, Spec, Data>;
@@ -81,8 +166,6 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
   const { isReducedMotion } = useReducedMotion();
   const discrete = options.discrete ?? isReducedMotion;
-  const isBrowser = typeof window !== "undefined";
-
   const elementRef = useRef<HTMLElement | null>(null);
   const [element, setElement] = useState<HTMLElement | null>(null);
   const instanceRef = useRef<VizInstance<S> | null>(null);
@@ -100,7 +183,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
   const adapterMemo = useMemo(() => adapterSource, [adapterSource]);
 
   useEffect(() => {
-    if (!isBrowser || !element) {
+    if (!isBrowser() || !element) {
       return;
     }
 
@@ -108,6 +191,9 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
     const forwardEvent = (event: VizLifecycleEvent) => {
       onEvent?.(event);
+      if (!shouldEmit()) {
+        return;
+      }
       const detail: VizEventDetail = {
         motion: discrete ? "discrete" : "animated",
         ...(event.meta ?? {}),
@@ -221,17 +307,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
           });
       }
     };
-  }, [
-    adapterMemo,
-    data,
-    discrete,
-    element,
-    enableResizeObserver,
-    initialState,
-    isBrowser,
-    onEvent,
-    spec,
-  ]);
+  }, [adapterMemo, data, discrete, element, enableResizeObserver, initialState, onEvent, spec]);
 
   return {
     ref,
