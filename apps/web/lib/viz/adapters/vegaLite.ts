@@ -672,7 +672,9 @@ async function render(
     return instance.result;
   }
   const embed = embedModule.default ?? embedModule;
-  const preparedSpec = withAutosize(prepareSpec(spec, { discrete: options.discrete }));
+  const preparedSpec: VegaLiteSpec = withAutosize(
+    prepareSpec(spec, { discrete: options.discrete }),
+  );
   const embedOptions = buildEmbedOptions(options.discrete);
   detachSelectionListener(instance);
   const result = await embed(element, preparedSpec as unknown as VisualizationSpec, embedOptions);

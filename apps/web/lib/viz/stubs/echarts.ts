@@ -1,8 +1,8 @@
 // Минимальная заглушка для echarts
-export type EChartsOption = Record<string, unknown>;
+export type EChartsSpec = Record<string, unknown>;
 
 export interface ECharts {
-  setOption(option: EChartsOption, opts?: Record<string, unknown>): void;
+  setOption(option: EChartsSpec, opts?: Record<string, unknown>): void;
   resize(): void;
   dispose(): void;
 }

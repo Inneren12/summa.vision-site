@@ -1,7 +1,7 @@
 // prettier-ignore
 'use client';
 
-import type { EChartsOption } from "../spec-types";
+import type { EChartsSpec } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
 type ECharts = import("echarts").ECharts;
@@ -16,7 +16,7 @@ type CoreModule = Partial<{
 interface EChartsInstance {
   element: HTMLElement | null;
   chart: ECharts | null;
-  spec: EChartsOption | null;
+  spec: EChartsSpec | null;
   cleanupResizeObserver: (() => void) | null;
 }
 
@@ -74,7 +74,7 @@ function throttle<TArgs extends unknown[]>(
   return throttled;
 }
 
-function cloneSpec(spec: EChartsOption): EChartsOption {
+function cloneSpec(spec: EChartsSpec): EChartsSpec {
   if (typeof globalThis.structuredClone === "function") {
     try {
       return globalThis.structuredClone(spec);
@@ -83,16 +83,16 @@ function cloneSpec(spec: EChartsOption): EChartsOption {
     }
   }
   if (Array.isArray(spec)) {
-    return spec.slice() as unknown as EChartsOption;
+    return spec.slice() as unknown as EChartsSpec;
   }
-  return { ...(spec as Record<string, unknown>) } as EChartsOption;
+  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
 }
 
-function setInitialOption(chart: ECharts, option: EChartsOption) {
+function setInitialOption(chart: ECharts, option: EChartsSpec) {
   chart.setOption(option, { lazyUpdate: true } as never);
 }
 
-function setNextOption(chart: ECharts, option: EChartsOption, discrete: boolean) {
+function setNextOption(chart: ECharts, option: EChartsSpec, discrete: boolean) {
   chart.setOption(option, {
     notMerge: true,
     lazyUpdate: true,
@@ -120,7 +120,7 @@ function setupResizeObserver(element: HTMLElement, chart: ECharts): (() => void)
   };
 }
 
-export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = {
+export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsSpec> = {
   async mount(el, spec, opts) {
     void opts;
     const [coreMod, charts, components, features, renderers] = await Promise.all([
@@ -186,7 +186,7 @@ export const echartsAdapter: LegacyVizAdapter<EChartsInstance, EChartsOption> = 
       return;
     }
     const previous = cloneSpec(currentSpec);
-    const option = typeof next === "function" ? next(previous) : next;
+    const option: EChartsSpec = typeof next === "function" ? next(previous) : next;
     const clone = cloneSpec(option);
     instance.spec = clone;
     setNextOption(chart, clone, opts.discrete);

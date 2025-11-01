@@ -2,23 +2,23 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
-import type { VisxSpec } from "../spec-types";
+import type { VisxComponentSpec } from "../spec-types";
 import type { LegacyVizAdapter } from "../types";
 
-export type { VisxRenderer, VisxSpec } from "../spec-types";
+export type { VisxComponentSpec, VisxRenderer } from "../spec-types";
 
 interface VisxInstance<TProps extends Record<string, unknown> = Record<string, unknown>> {
   container: HTMLElement;
   root: Root;
-  spec: VisxSpec<TProps>;
+  spec: VisxComponentSpec<TProps>;
   id: string;
 }
 
 let instanceCounter = 0;
 
 function cloneSpec<TProps extends Record<string, unknown>>(
-  spec: VisxSpec<TProps>,
-): VisxSpec<TProps> {
+  spec: VisxComponentSpec<TProps>,
+): VisxComponentSpec<TProps> {
   const props = spec.props ? { ...spec.props } : undefined;
   return {
     kind: "visx",
@@ -32,14 +32,14 @@ function cloneSpec<TProps extends Record<string, unknown>>(
 }
 
 function snapshotSpec<TProps extends Record<string, unknown>>(
-  spec: VisxSpec<TProps>,
-): Readonly<VisxSpec<TProps>> {
-  return cloneSpec(spec) as Readonly<VisxSpec<TProps>>;
+  spec: VisxComponentSpec<TProps>,
+): Readonly<VisxComponentSpec<TProps>> {
+  return cloneSpec(spec) as Readonly<VisxComponentSpec<TProps>>;
 }
 
 function render<TProps extends Record<string, unknown>>(
   instance: VisxInstance<TProps>,
-  spec: VisxSpec<TProps>,
+  spec: VisxComponentSpec<TProps>,
   discrete: boolean,
 ) {
   const { component, props } = spec;
@@ -64,7 +64,7 @@ function render<TProps extends Record<string, unknown>>(
   instance.spec = spec;
 }
 
-export const visxAdapter: LegacyVizAdapter<VisxInstance, VisxSpec> = {
+export const visxAdapter: LegacyVizAdapter<VisxInstance, VisxComponentSpec> = {
   mount(el, spec, opts) {
     const root = createRoot(el);
     instanceCounter += 1;

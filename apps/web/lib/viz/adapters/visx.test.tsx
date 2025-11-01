@@ -2,7 +2,7 @@ import { axe, toHaveNoViolations } from "jest-axe";
 import React from "react";
 import { describe, expect, it } from "vitest";
 
-import type { VisxRenderer, VisxSpec } from "../spec-types";
+import type { VisxComponentSpec, VisxRenderer } from "../spec-types";
 
 import { visxAdapter } from "./visx";
 
@@ -39,7 +39,7 @@ describe("visxAdapter", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
-    const spec: VisxSpec<{ readonly label: string }> = {
+    const spec: VisxComponentSpec<{ readonly label: string }> = {
       kind: "visx",
       component: TestChart,
       props: { label: "Initial" },
@@ -49,7 +49,7 @@ describe("visxAdapter", () => {
 
     const instance = visxAdapter.mount(container, spec, { discrete: true });
 
-    let capturedPrev: Readonly<VisxSpec<{ readonly label: string }>> | null = null;
+    let capturedPrev: Readonly<VisxComponentSpec<{ readonly label: string }>> | null = null;
     const initialSpec = instance.spec;
 
     visxAdapter.applyState(
@@ -65,7 +65,7 @@ describe("visxAdapter", () => {
           kind: "visx",
           ...spec,
           props: { label: "Updated" },
-        } satisfies VisxSpec<{ readonly label: string }>;
+        } satisfies VisxComponentSpec<{ readonly label: string }>;
       },
       { discrete: true },
     );
@@ -82,7 +82,7 @@ describe("visxAdapter", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
-    const spec: VisxSpec<{ readonly label: string }> = {
+    const spec: VisxComponentSpec<{ readonly label: string }> = {
       kind: "visx",
       component: TestChart,
       props: { label: "Accessible" },

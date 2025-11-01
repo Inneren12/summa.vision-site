@@ -1,15 +1,26 @@
 import type { JSX } from "react";
 
 /**
- * Canonical visualization specification types used across the viz adapters.
- *
- * - Vega-Lite v6.4.1: {@link https://vega.github.io/vega-lite/docs/spec.html TopLevelSpec}
- * - Apache ECharts v5.6.0: {@link https://echarts.apache.org/en/option.html EChartsOption}
- * - MapLibre GL JS v5.10.0: {@link https://maplibre.org/maplibre-gl-js/docs/style-spec/ StyleSpecification}
+ * Canonical spec types for all external viz adapters.
+ * NOTE: Only type-level imports; no runtime deps are introduced.
  */
+
+/** Vega-Lite top-level spec (provided via ambient stub or the real types) */
 export type VegaLiteSpec = import("vega-lite").TopLevelSpec;
-export type EChartsOption = import("echarts").EChartsOption;
-export type MapLibreStyle = import("maplibre-gl").StyleSpecification;
+
+/** ECharts spec: keep broad to avoid pulling runtime typings */
+export type EChartsSpec = Record<string, unknown>;
+
+/** MapLibre GL style (minimal structural contract we rely on) */
+export type MapLibreStyle = {
+  version: number;
+  sources: Record<string, unknown>;
+  layers: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
+/** Visx (we keep adapter-agnostic, data-driven configs) */
+export type VisxSpec = Record<string, unknown>;
 
 export type MapLibrePadding = Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 
@@ -75,7 +86,8 @@ export type VisxRenderer<TProps extends Record<string, unknown> = Record<string,
  * Minimal spec shape for visx-backed charts. This is a temporary structure until
  * we formalise a full schema for declarative visx specs.
  */
-export interface VisxSpec<TProps extends Record<string, unknown> = Record<string, unknown>> {
+export interface VisxComponentSpec<TProps extends Record<string, unknown> = Record<string, unknown>>
+  extends VisxSpec {
   readonly kind: "visx";
   readonly width?: number;
   readonly height?: number;
