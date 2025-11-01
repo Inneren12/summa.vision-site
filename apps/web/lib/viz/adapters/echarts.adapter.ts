@@ -277,7 +277,9 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       internal.spec = updatedSpec;
 
       chart.setOption(cloneSpec(internal.spec!), {
+        notMerge: false,
         lazyUpdate: true,
+        silent: true,
       } as never);
 
       try {
