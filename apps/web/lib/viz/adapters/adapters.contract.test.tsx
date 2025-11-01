@@ -221,7 +221,7 @@ vi.mock("../webgl", () => ({
 }));
 
 import { deckAdapter } from "./deck";
-import { echartsAdapter } from "./echarts.adapter";
+import { echartsAdapter, mount as mountEcharts } from "./echarts";
 import { mapLibreAdapter } from "./maplibre.adapter";
 import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
@@ -374,16 +374,16 @@ describe("viz adapters contract", () => {
   it("echarts adapter mounts and updates options", async () => {
     const element = document.createElement("div");
     const spec = { series: [] };
-    const instance = await echartsAdapter.mount(element, spec, { discrete: false });
+    const instance = await mountEcharts(element, spec, { discrete: false });
     expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
     expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
 
     const nextSpec = { series: [{ type: "line" }] };
     echartsAdapter.applyState(instance, nextSpec, { discrete: true });
     expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, {
-      notMerge: true,
+      notMerge: false,
       lazyUpdate: true,
-      animation: false,
+      silent: true,
     });
 
     echartsAdapter.destroy(instance);
@@ -415,7 +415,7 @@ describe("viz adapters contract", () => {
     const spec = { series: [] };
 
     try {
-      const instance = await echartsAdapter.mount(element, spec, { discrete: false });
+      const instance = await mountEcharts(element, spec, { discrete: false });
 
       const [observer] = observers;
       expect(observer).toBeDefined();
@@ -443,7 +443,7 @@ describe("viz adapters contract", () => {
   it("echarts adapter treats previous spec as immutable", async () => {
     const element = document.createElement("div");
     const spec = { series: [] };
-    const instance = await echartsAdapter.mount(element, spec, { discrete: false });
+    const instance = await mountEcharts(element, spec, { discrete: false });
     const previous = instance.spec;
 
     echartsAdapter.applyState(
