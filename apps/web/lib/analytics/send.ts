@@ -19,6 +19,7 @@ type SendAnalyticsEventOptions<TName extends string, TDetail extends AnalyticsDe
   readonly name: TName;
   readonly detail: TDetail;
   readonly isNecessary?: boolean;
+  readonly beforeSend?: (event: AnalyticsEnvelope<TName, TDetail>) => void;
   readonly transport: AnalyticsTransport<TName, TDetail>;
 };
 
@@ -86,14 +87,7 @@ function readConsentFromCookies(): ConsentLevel {
 export function sendAnalyticsEvent<TName extends string, TDetail extends AnalyticsDetail>(
   options: SendAnalyticsEventOptions<TName, TDetail>,
 ): boolean {
-  if (hasClientDoNotTrackEnabled()) {
-    return false;
-  }
-
   const consent = readConsentFromCookies();
-  if (consent === "necessary" && !options.isNecessary) {
-    return false;
-  }
 
   const envelope: AnalyticsEnvelope<TName, TDetail> = {
     name: options.name,
@@ -103,6 +97,20 @@ export function sendAnalyticsEvent<TName extends string, TDetail extends Analyti
   };
 
   try {
+    options.beforeSend?.(envelope);
+  } catch {
+    // Ignore failures from beforeSend hooks to avoid blocking analytics gating.
+  }
+
+  if (hasClientDoNotTrackEnabled()) {
+    return false;
+  }
+
+  if (consent === "necessary" && !options.isNecessary) {
+    return false;
+  }
+
+  try {
     const result = options.transport(envelope);
     return result !== false;
   } catch {
@@ -110,10 +118,11 @@ export function sendAnalyticsEvent<TName extends string, TDetail extends Analyti
   }
 }
 
-const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
+export const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
+  "viz_resized",
   "viz_lazy_mount",
   "viz_prefetch",
   "viz_destroyed",
@@ -162,10 +171,11 @@ type VizLifecyclePayload = {
   readonly timestamp: string;
 };
 
-const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent> = new Set([
+export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
+  "viz_resized",
 ]);
 
 export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
@@ -173,14 +183,32 @@ export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
     return false;
   }
 
+  let dispatched = false;
+
+  const dispatchLifecycle = (payload: VizLifecyclePayload) => {
+    if (dispatched) {
+      return;
+    }
+
+    const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
+      detail: payload,
+      bubbles: false,
+    });
+
+    window.dispatchEvent(lifecycleEvent);
+    dispatched = true;
+  };
+
+  const isNecessaryLifecycleEvent = NECESSARY_LIFECYCLE_EVENTS.has(event.type);
+
   return sendAnalyticsEvent({
     name: event.type,
     detail: {
       ...event.meta,
       ts: event.ts,
     },
-    isNecessary: NECESSARY_LIFECYCLE_EVENTS.has(event.type),
-    transport: ({ name, timestamp }) => {
+    isNecessary: isNecessaryLifecycleEvent,
+    beforeSend: ({ name, timestamp }) => {
       const payload: VizLifecyclePayload = {
         type: name,
         ts: event.ts,
@@ -188,12 +216,20 @@ export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
         timestamp,
       };
 
-      const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
-        detail: payload,
-        bubbles: false,
-      });
+      // Necessary lifecycle events (init/ready/error/resized) should always reach DOM listeners;
+      // consent only gates optional analytics delivery.
+      dispatchLifecycle(payload);
+    },
+    transport: ({ name, timestamp }) => {
+      if (!dispatched) {
+        dispatchLifecycle({
+          type: name,
+          ts: event.ts,
+          meta: event.meta,
+          timestamp,
+        });
+      }
 
-      window.dispatchEvent(lifecycleEvent);
       return true;
     },
   });
