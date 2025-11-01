@@ -1,7 +1,6 @@
 // prettier-ignore
 'use client';
 
-import type { EChartsSpec } from "../spec-types";
 import type {
   RegisterResizeObserver,
   VizAdapterWithConfig,
@@ -10,111 +9,27 @@ import type {
   VizLifecycleEvent,
 } from "../types";
 
-type ECharts = import("echarts").ECharts;
+import type { EChartsSpec } from "@/lib/viz/spec-types";
 
-type EChartsInit = (el: HTMLElement, theme?: unknown, opts?: unknown) => ECharts;
-type EChartsUse = (mods: unknown[]) => void;
-type CoreModule = Partial<{
-  init: EChartsInit;
-  use: EChartsUse;
-}>;
 
-interface EChartsInstance extends VizInstance<{ spec: EChartsSpec }> {
-  readonly chart: ECharts | null;
-  readonly spec: EChartsSpec | undefined;
-}
+type AnyFn = (...args: unknown[]) => unknown;
 
-type Throttled<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
-  cancel(): void;
+const asFn = <T extends AnyFn = AnyFn>(mod: unknown, key: string, fallback: T): T => {
+  const fn = (mod as Record<string, unknown> | null | undefined)?.[key];
+  return typeof fn === "function" ? (fn as T) : fallback;
 };
 
-function throttle<TArgs extends unknown[]>(
-  fn: (...args: TArgs) => void,
-  wait: number,
-): Throttled<TArgs> {
-  let lastCall = 0;
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  let trailingArgs: TArgs | null = null;
+type EChartsLike = {
+  setOption: (...args: unknown[]) => void;
+  resize: (...args: unknown[]) => void;
+  dispose?: () => void;
+  getDom?: () => HTMLElement;
+};
 
-  const invoke = (args: TArgs) => {
-    lastCall = Date.now();
-    fn(...args);
-  };
-
-  const throttled = ((...args: TArgs) => {
-    const now = Date.now();
-    const remaining = wait - (now - lastCall);
-
-    if (remaining <= 0) {
-      if (timeout) {
-        clearTimeout(timeout);
-        timeout = null;
-      }
-      trailingArgs = null;
-      invoke(args);
-      return;
-    }
-
-    trailingArgs = args;
-    if (!timeout) {
-      timeout = setTimeout(() => {
-        timeout = null;
-        if (trailingArgs) {
-          invoke(trailingArgs);
-          trailingArgs = null;
-        }
-      }, remaining);
-    }
-  }) as Throttled<TArgs>;
-
-  throttled.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-    trailingArgs = null;
-  };
-
-  return throttled;
-}
-
-function cloneSpec(spec: EChartsSpec): EChartsSpec {
-  if (typeof globalThis.structuredClone === "function") {
-    try {
-      return globalThis.structuredClone(spec);
-    } catch {
-      // ignore
-    }
-  }
-  if (Array.isArray(spec)) {
-    return spec.slice() as unknown as EChartsSpec;
-  }
-  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
-}
-
-function setInitialOption(chart: ECharts, option: EChartsSpec) {
-  chart.setOption(option, { lazyUpdate: true } as never);
-}
-
-function setupResizeObserver(element: HTMLElement, onResize: () => void): (() => void) | null {
-  if (typeof ResizeObserver === "undefined") {
-    return null;
-  }
-
-  const throttledResize = throttle(() => {
-    onResize();
-  }, 100);
-
-  const observer = new ResizeObserver(() => {
-    throttledResize();
-  });
-  observer.observe(element);
-
-  return () => {
-    throttledResize.cancel();
-    observer.disconnect();
-  };
-}
+type CoreModule = {
+  init?: (el: HTMLElement, theme?: unknown, opts?: unknown) => EChartsLike;
+  use?: (mods: unknown[]) => void;
+};
 
 type EChartsMountOptions = {
   readonly state?: Readonly<{ spec?: EChartsSpec }>;
@@ -124,50 +39,68 @@ type EChartsMountOptions = {
   readonly discrete?: boolean;
 };
 
-type EChartsStateUpdate = EChartsSpec | ((prev: Readonly<EChartsSpec>) => EChartsSpec);
+type EChartsStateUpdate = Partial<{ spec: EChartsSpec }>;
 
-async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<EChartsInstance> {
-  const { state, emit, onEvent, registerResizeObserver, discrete = false } = options ?? {};
-  const specFromState = state?.spec;
-  if (!specFromState) {
-    throw new Error("ECharts adapter requires a specification.");
+const cloneSpec = (spec: EChartsSpec | undefined): EChartsSpec | undefined => {
+  if (!spec) {
+    return undefined;
   }
 
-  const [coreMod, charts, components, features, renderers] = await Promise.all([
-    import("echarts/core"),
-    import("echarts/charts"),
-    import("echarts/components"),
-    import("echarts/features"),
-    import("echarts/renderers"),
-  ]);
-
-  const core = coreMod as CoreModule;
-  const useFn: EChartsUse = core.use ?? (() => {});
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const registrables: any[] = [
-    charts?.LineChart,
-    charts?.BarChart,
-    charts?.ScatterChart,
-    charts?.PieChart,
-    components?.GridComponent,
-    components?.DatasetComponent,
-    components?.TooltipComponent,
-    components?.LegendComponent,
-    components?.TitleComponent,
-    features?.LabelLayout,
-    features?.UniversalTransition,
-    renderers?.CanvasRenderer,
-  ].filter(Boolean);
-
-  if (registrables.length) {
-    const applyUse = useFn;
-    applyUse(registrables);
+  if (typeof globalThis.structuredClone === "function") {
+    try {
+      return globalThis.structuredClone(spec) as EChartsSpec;
+    } catch {
+      // ignore clone errors and fall through to shallow clone
+    }
   }
 
-  const initFromModule = core.init;
-  const fallbackInit: EChartsInit = (element: HTMLElement) =>
-    ({
+  if (Array.isArray(spec)) {
+    return spec.slice() as unknown as EChartsSpec;
+  }
+
+  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
+};
+
+async function mount(el: HTMLElement, opts: EChartsMountOptions) {
+  const emit: VizEmit = opts?.emit ?? (() => {});
+
+  emit("viz_init");
+
+  try {
+    const discrete =
+      opts?.discrete === true ||
+      (typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) ||
+      false;
+
+    const coreMod = (await import("echarts/core")) as CoreModule;
+    const charts = await import("echarts/charts");
+    const components = await import("echarts/components");
+    const features = await import("echarts/features");
+    const renderers = await import("echarts/renderers");
+
+    const applyUse: (mods: unknown[]) => void = asFn(coreMod, "use", () => {});
+    const registrables: unknown[] = [
+      charts?.LineChart,
+      charts?.BarChart,
+      charts?.PieChart,
+      charts?.ScatterChart,
+      components?.GridComponent,
+      components?.DatasetComponent,
+      components?.TooltipComponent,
+      components?.LegendComponent,
+      components?.TitleComponent,
+      features?.LabelLayout,
+      features?.UniversalTransition,
+      renderers?.CanvasRenderer,
+    ].filter(Boolean);
+
+    if (registrables.length) {
+      applyUse(registrables);
+    }
+
+    const fallbackInit: AnyFn = ((element: HTMLElement) => ({
       setOption() {
         /* noop */
       },
@@ -178,123 +111,144 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
         /* noop */
       },
       getDom: () => element,
-    }) as unknown as ECharts;
+    })) as AnyFn;
 
-  const initFn: EChartsInit = typeof initFromModule === "function" ? initFromModule : fallbackInit;
+    const initFn: AnyFn = asFn(coreMod, "init", fallbackInit);
 
-  const chart = initFn(el, undefined, { renderer: "canvas" });
-  const initialSpec = cloneSpec(specFromState);
-  setInitialOption(chart, initialSpec);
+    const base: EChartsSpec = discrete
+      ? {
+          animation: false,
+          animationDuration: 0,
+          animationDurationUpdate: 0,
+          animationEasing: "linear",
+          universalTransition: false,
+        }
+      : { universalTransition: false };
 
-  const emitFn: VizEmit = emit ?? (() => {});
-  let cleanup: (() => void) | null = null;
-  const handleResize = () => {
-    chart.resize();
-    emitLifecycle(onEvent, {
-      type: "viz_resized",
-      ts: Date.now(),
-      meta: {
-        reason: "resize",
-        motion: discrete ? "discrete" : "animated",
+    const stateSpecRaw = opts?.state?.spec;
+    if (!stateSpecRaw) {
+      throw new Error("ECharts adapter requires a specification.");
+    }
+
+    const stateSpec = cloneSpec(stateSpecRaw);
+    const initialSpec = {
+      ...(base as Record<string, unknown>),
+      ...(stateSpec as Record<string, unknown> | undefined),
+    } as EChartsSpec;
+
+    const internal: { spec?: EChartsSpec } = {
+      spec: initialSpec,
+    };
+
+    const chart = initFn(el, undefined, { renderer: "canvas" }) as EChartsLike;
+    chart.setOption(internal.spec, { notMerge: false, lazyUpdate: true, silent: true });
+
+    emit("viz_ready");
+
+    const resizeHandler = () => {
+      try {
+        chart.resize();
+        emit("viz_resized");
+      } catch (error) {
+        emit("viz_error", { message: (error as Error)?.message ?? "resize failed" });
+      }
+    };
+
+    const disposer = opts?.registerResizeObserver
+      ? opts.registerResizeObserver(el, resizeHandler)
+      : (() => {
+          if (typeof window === "undefined") {
+            return () => {};
+          }
+
+          let timer: ReturnType<typeof setTimeout> | null = null;
+          const onResize = () => {
+            if (timer) {
+              clearTimeout(timer);
+            }
+            timer = setTimeout(() => {
+              timer = null;
+              resizeHandler();
+            }, 120);
+          };
+
+          window.addEventListener("resize", onResize);
+
+          return () => {
+            if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+            window.removeEventListener("resize", onResize);
+          };
+        })();
+
+    const instance: VizInstance<{ spec: EChartsSpec }> & { chart: EChartsLike | null } = {
+      applyState(next: EChartsStateUpdate) {
+        if (!next?.spec) {
+          return;
+        }
+
+        const merged = {
+          ...(internal.spec as Record<string, unknown> | undefined),
+          ...(cloneSpec(next.spec) as Record<string, unknown> | undefined),
+        } as EChartsSpec;
+
+        internal.spec = merged;
+
+        chart.setOption(merged, { notMerge: false, lazyUpdate: true, silent: true });
+
+        emit("viz_state", { specApplied: true });
       },
-    });
-  };
+      destroy() {
+        try {
+          disposer?.();
+        } catch (error) {
+          emit("viz_error", { message: (error as Error)?.message ?? "resize cleanup failed" });
+        }
 
-  try {
-    cleanup = registerResizeObserver?.(el, handleResize) ?? null;
-  } catch {
-    cleanup = null;
+        try {
+          chart.dispose?.();
+        } catch (error) {
+          emit("viz_error", { message: (error as Error)?.message ?? "dispose failed" });
+        }
+
+        internal.spec = undefined;
+      },
+      get chart() {
+        return internal.spec ? chart : null;
+      },
+      get spec() {
+        return internal.spec;
+      },
+    };
+
+    return instance;
+  } catch (error) {
+    emit("viz_error", { message: (error as Error)?.message ?? "mount failed" });
+    throw error;
   }
-
-  if (!cleanup) {
-    cleanup = setupResizeObserver(el, handleResize);
-  }
-
-  const internal: { spec?: EChartsSpec } = {
-    spec: initialSpec,
-  };
-
-  let destroyed = false;
-
-  const instance: EChartsInstance = {
-    applyState(next) {
-      if (destroyed || !next?.spec) {
-        return;
-      }
-
-      const previous = internal.spec ? cloneSpec(internal.spec) : undefined;
-      const incoming = cloneSpec(next.spec);
-      const merged = {
-        ...(previous ? (previous as Record<string, unknown>) : {}),
-        ...(incoming as Record<string, unknown>),
-      } as EChartsSpec;
-
-      internal.spec = merged;
-      chart.setOption(merged, {
-        notMerge: false,
-        lazyUpdate: true,
-        silent: true,
-      } as never);
-
-      try {
-        emitFn("viz_state", { specApplied: true });
-      } catch {
-        // ignore emit failures
-      }
-    },
-    destroy() {
-      if (destroyed) {
-        return;
-      }
-      destroyed = true;
-
-      try {
-        cleanup?.();
-      } catch {
-        // ignore cleanup errors
-      } finally {
-        cleanup = null;
-      }
-
-      try {
-        chart.dispose?.();
-      } catch {
-        // ignore dispose errors
-      }
-
-      internal.spec = undefined;
-    },
-    get chart() {
-      return destroyed ? null : chart;
-    },
-    get spec() {
-      return internal.spec;
-    },
-  };
-
-  return instance;
 }
 
 function applyState(
-  instance: EChartsInstance,
-  next: EChartsStateUpdate,
-  opts?: { readonly discrete?: boolean },
+  instance: VizInstance<{ spec: EChartsSpec }> & { chart: EChartsLike | null },
+  next: EChartsSpec | ((prev: Readonly<EChartsSpec>) => EChartsSpec),
 ) {
-  void opts;
-
   if (!instance || typeof instance.applyState !== "function") {
     return;
   }
 
-  const current = instance.spec ? cloneSpec(instance.spec) : ({} as EChartsSpec);
+  const current = instance.spec ?? ({} as EChartsSpec);
   const resolved = typeof next === "function" ? next(current) : next;
+
   instance.applyState({ spec: resolved });
 }
 
-function destroy(instance: EChartsInstance) {
+function destroy(instance: VizInstance<{ spec: EChartsSpec }> & { chart: EChartsLike | null }) {
   if (!instance) {
     return;
   }
+
   try {
     instance.destroy();
   } catch {
@@ -305,7 +259,7 @@ function destroy(instance: EChartsInstance) {
 export const echartsAdapter = { mount, applyState, destroy };
 
 interface WrappedEChartsInstance extends VizInstance<EChartsSpec> {
-  readonly chart: ECharts | null;
+  readonly chart: EChartsLike | null;
   readonly spec: EChartsSpec | undefined;
 }
 
@@ -359,7 +313,7 @@ export const echartsVizAdapter: VizAdapterWithConfig<EChartsSpec, EChartsSpec> =
 
     const instance: WrappedEChartsInstance = {
       applyState(next) {
-        echartsAdapter.applyState(runtime, next, { discrete });
+        echartsAdapter.applyState(runtime, next);
       },
       destroy() {
         echartsAdapter.destroy(runtime);
