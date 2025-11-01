@@ -1,8 +1,8 @@
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
+import * as echarts from "echarts";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { emitVizEvent } from "../../analytics/send";
 import type { VizHarnessEventDetail } from "../VizHarness";
@@ -28,14 +28,16 @@ vi.mock("vega-embed", () => ({
 const echartsSetOption = vi.fn();
 const echartsResize = vi.fn();
 const echartsDispose = vi.fn();
-const echartsInit = vi.fn(() => ({
-  setOption: echartsSetOption,
-  resize: echartsResize,
-  dispose: echartsDispose,
-}));
-vi.mock("echarts", () => ({
-  init: echartsInit,
-}));
+const echartsInit = vi.fn((el: HTMLElement, _theme?: unknown, _opts?: unknown) => {
+  void _theme;
+  void _opts;
+  return {
+    setOption: echartsSetOption,
+    resize: echartsResize,
+    dispose: echartsDispose,
+    getDom: () => el,
+  };
+});
 
 const mapSetStyle = vi.fn();
 const mapSetCenter = vi.fn();
@@ -225,6 +227,7 @@ import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -236,6 +239,7 @@ describe("viz adapters contract", () => {
     echartsResize.mockClear();
     echartsDispose.mockClear();
     echartsInit.mockClear();
+    vi.spyOn(echarts, "init").mockImplementation(echartsInit);
     supportsWebGL.mockReturnValue(true);
     supportsWebGL2.mockReturnValue(true);
     renderWebglFallback.mockReset();
