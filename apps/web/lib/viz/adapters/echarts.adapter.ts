@@ -234,9 +234,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   };
 
   chart.setOption(cloneSpec(internal.spec!), {
-    notMerge: false,
     lazyUpdate: true,
-    silent: true,
   } as never);
 
   const emitFn: VizEmit = emit ?? (() => {});
@@ -279,9 +277,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       internal.spec = updatedSpec;
 
       chart.setOption(cloneSpec(internal.spec!), {
-        notMerge: false,
         lazyUpdate: true,
-        silent: true,
       } as never);
 
       try {
