@@ -78,18 +78,20 @@ function throttle<TArgs extends unknown[]>(
   return throttled;
 }
 
-function cloneSpec(spec: EChartsSpec): EChartsSpec {
+function deepClone<T>(value: T): T {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
   if (typeof globalThis.structuredClone === "function") {
     try {
-      return globalThis.structuredClone(spec);
+      return globalThis.structuredClone(value);
     } catch {
       // ignore
     }
   }
-  if (Array.isArray(spec)) {
-    return spec.slice() as unknown as EChartsSpec;
-  }
-  return { ...(spec as Record<string, unknown>) } as EChartsSpec;
+
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function setInitialOption(chart: ECharts, option: EChartsSpec) {
@@ -183,8 +185,8 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   const initFn: EChartsInit = typeof initFromModule === "function" ? initFromModule : fallbackInit;
 
   const chart = initFn(el, undefined, { renderer: "canvas" });
-  const initialSpec = cloneSpec(specFromState);
-  setInitialOption(chart, initialSpec);
+  const initialSpec = deepClone(specFromState);
+  setInitialOption(chart, deepClone(initialSpec));
 
   const emitFn: VizEmit = emit ?? (() => {});
   let cleanup: (() => void) | null = null;
@@ -222,15 +224,14 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
         return;
       }
 
-      const previous = internal.spec ? cloneSpec(internal.spec) : undefined;
-      const incoming = cloneSpec(next.spec);
-      const merged = {
-        ...(previous ? (previous as Record<string, unknown>) : {}),
-        ...(incoming as Record<string, unknown>),
+      const updatedSpec = {
+        ...(internal.spec ? (internal.spec as Record<string, unknown>) : {}),
+        ...(next.spec as Record<string, unknown>),
       } as EChartsSpec;
 
-      internal.spec = merged;
-      chart.setOption(merged, {
+      internal.spec = updatedSpec;
+
+      chart.setOption(deepClone(updatedSpec), {
         notMerge: false,
         lazyUpdate: true,
         silent: true,
@@ -268,7 +269,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       return destroyed ? null : chart;
     },
     get spec() {
-      return internal.spec;
+      return internal.spec ? deepClone(internal.spec) : undefined;
     },
   };
 
@@ -286,7 +287,7 @@ function applyState(
     return;
   }
 
-  const current = instance.spec ? cloneSpec(instance.spec) : ({} as EChartsSpec);
+  const current = instance.spec ? deepClone(instance.spec) : ({} as EChartsSpec);
   const resolved = typeof next === "function" ? next(current) : next;
   instance.applyState({ spec: resolved });
 }
