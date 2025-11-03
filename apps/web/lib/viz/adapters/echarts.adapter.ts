@@ -257,17 +257,14 @@ function applyDiscreteMotionDefaults(spec: EChartsSpec, discrete: boolean): ECha
   return { ...spec, ...overrides } as EChartsSpec;
 }
 
-function setupWindowResizeFallback(
-  element: HTMLElement,
-  onResize: () => void,
-): (() => void) | null {
+function setupWindowResizeFallback(onResize: () => void): (() => void) | null {
   if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
     return null;
   }
 
   const throttled = throttle(() => {
     onResize();
-  }, 100);
+  }, 120);
 
   const handler = () => {
     throttled();
@@ -387,29 +384,32 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
 
     emitLifecycleEvent("viz_ready", { reason: "initial_render" });
 
-    let cleanup: (() => void) | null = null;
-    const handleResize = () => {
+    const onResize = () => {
       try {
         chart.resize?.();
+        emitLifecycleEvent("viz_resized", { reason: "resize" });
       } catch (error) {
         emitLifecycleEvent("viz_error", {
           reason: "resize",
           error: error instanceof Error ? error.message : String(error),
         });
-        return;
       }
-
-      emitLifecycleEvent("viz_resized", { reason: "resize" });
     };
 
-    try {
-      cleanup = registerResizeObserver?.(el, handleResize) ?? null;
-    } catch {
-      cleanup = null;
-    }
+    let disposer: (() => void) | undefined;
 
-    if (!cleanup) {
-      cleanup = setupWindowResizeFallback(el, handleResize);
+    if (typeof registerResizeObserver === "function") {
+      try {
+        disposer = registerResizeObserver(el, onResize) ?? undefined;
+      } catch (error) {
+        emitLifecycleEvent("viz_error", {
+          reason: "register_resize_observer",
+          error: error instanceof Error ? error.message : String(error),
+        });
+        disposer = setupWindowResizeFallback(onResize) ?? undefined;
+      }
+    } else {
+      disposer = setupWindowResizeFallback(onResize) ?? undefined;
     }
 
     let destroyed = false;
@@ -478,11 +478,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
         destroyed = true;
 
         try {
-          cleanup?.();
+          disposer?.();
         } catch {
           // ignore cleanup errors
         } finally {
-          cleanup = null;
+          disposer = undefined;
         }
 
         try {
