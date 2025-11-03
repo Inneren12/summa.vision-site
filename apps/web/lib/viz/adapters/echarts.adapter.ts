@@ -32,10 +32,6 @@ interface EChartsInstance extends VizInstance<{ spec: EChartsSpec }> {
   readonly spec: EChartsSpec | undefined;
 }
 
-type Throttled<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
-  cancel(): void;
-};
-
 type SupportedTypedArray =
   | Int8Array
   | Uint8Array
@@ -52,56 +48,6 @@ type SupportedTypedArray =
 type SupportedTypedArrayConstructor<TArray extends SupportedTypedArray = SupportedTypedArray> = {
   new (length: number): TArray;
 };
-
-function throttle<TArgs extends unknown[]>(
-  fn: (...args: TArgs) => void,
-  wait: number,
-): Throttled<TArgs> {
-  let lastCall = 0;
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  let trailingArgs: TArgs | null = null;
-
-  const invoke = (args: TArgs) => {
-    lastCall = Date.now();
-    fn(...args);
-  };
-
-  const throttled = ((...args: TArgs) => {
-    const now = Date.now();
-    const remaining = wait - (now - lastCall);
-
-    if (remaining <= 0) {
-      if (timeout) {
-        clearTimeout(timeout);
-        timeout = null;
-      }
-      trailingArgs = null;
-      invoke(args);
-      return;
-    }
-
-    trailingArgs = args;
-    if (!timeout) {
-      timeout = setTimeout(() => {
-        timeout = null;
-        if (trailingArgs) {
-          invoke(trailingArgs);
-          trailingArgs = null;
-        }
-      }, remaining);
-    }
-  }) as Throttled<TArgs>;
-
-  throttled.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-    trailingArgs = null;
-  };
-
-  return throttled;
-}
 
 function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknown>()): T {
   // primitives & functions
@@ -257,23 +203,31 @@ function applyDiscreteMotionDefaults(spec: EChartsSpec, discrete: boolean): ECha
   return { ...spec, ...overrides } as EChartsSpec;
 }
 
-function setupWindowResizeFallback(onResize: () => void): (() => void) | null {
+function setupWindowResizeFallback(onResize: () => void): (() => void) | undefined {
   if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
-    return null;
+    return undefined;
   }
 
-  const throttled = throttle(() => {
-    onResize();
-  }, 120);
+  let timeout: ReturnType<typeof setTimeout> | undefined;
 
   const handler = () => {
-    throttled();
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      timeout = undefined;
+      onResize();
+    }, 120);
   };
 
   window.addEventListener("resize", handler);
 
   return () => {
-    throttled.cancel();
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = undefined;
+    }
     window.removeEventListener("resize", handler);
   };
 }
@@ -406,10 +360,10 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
           reason: "register_resize_observer",
           error: error instanceof Error ? error.message : String(error),
         });
-        disposer = setupWindowResizeFallback(onResize) ?? undefined;
+        disposer = setupWindowResizeFallback(onResize);
       }
     } else {
-      disposer = setupWindowResizeFallback(onResize) ?? undefined;
+      disposer = setupWindowResizeFallback(onResize);
     }
 
     let destroyed = false;
