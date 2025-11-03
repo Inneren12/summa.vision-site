@@ -176,35 +176,6 @@ function toErrorMessage(error: unknown): string | undefined {
   }
 }
 
-function throttle<TArgs extends unknown[]>(fn: (...args: TArgs) => void, wait = 120) {
-  let lastInvocation = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  return (...args: TArgs) => {
-    const now = Date.now();
-    const elapsed = now - lastInvocation;
-
-    if (!lastInvocation || elapsed >= wait) {
-      lastInvocation = now;
-      fn(...args);
-      return;
-    }
-
-    if (timer) {
-      clearTimeout(timer);
-    }
-
-    timer = setTimeout(
-      () => {
-        lastInvocation = Date.now();
-        timer = null;
-        fn(...args);
-      },
-      Math.max(0, wait - elapsed),
-    );
-  };
-}
-
 function applyDiscreteMotionGuard(spec: EChartsSpec, discrete: boolean): EChartsSpec {
   if (!discrete) {
     return spec;
@@ -354,23 +325,32 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
     }
   };
 
-  let resizeDisposer: (() => void) | undefined;
+  let disposer: (() => void) | undefined;
 
   if (typeof registerResizeObserver === "function") {
     try {
-      resizeDisposer = registerResizeObserver(el, onResize) ?? undefined;
+      disposer = registerResizeObserver(el, onResize) ?? undefined;
     } catch (error) {
       emitEvent("viz_error", {
         reason: "register_resize_observer",
         message: toErrorMessage(error),
       });
     }
-  }
-
-  if (!resizeDisposer && typeof window !== "undefined") {
-    const handler = throttle(onResize, 120);
+  } else if (typeof window !== "undefined") {
+    const handler = (() => {
+      let t: ReturnType<typeof setTimeout> | null = null;
+      return () => {
+        if (t) {
+          clearTimeout(t);
+        }
+        t = setTimeout(() => {
+          t = null;
+          onResize();
+        }, 120);
+      };
+    })();
     window.addEventListener("resize", handler);
-    resizeDisposer = () => {
+    disposer = () => {
       window.removeEventListener("resize", handler);
     };
   }
@@ -410,11 +390,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       destroyed = true;
 
       try {
-        resizeDisposer?.();
+        disposer?.();
       } catch {
         // ignore cleanup errors
       } finally {
-        resizeDisposer = undefined;
+        disposer = undefined;
       }
 
       try {
