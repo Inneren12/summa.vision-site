@@ -10,7 +10,15 @@ import type {
   VizLifecycleEvent,
 } from "../types";
 
-type ECharts = import("echarts").ECharts;
+type EChartsSetOptionOptions = {
+  readonly notMerge?: boolean;
+  readonly lazyUpdate?: boolean;
+  readonly silent?: boolean;
+};
+
+type ECharts = Omit<import("echarts").ECharts, "setOption"> & {
+  setOption(option: unknown, opts?: EChartsSetOptionOptions): void;
+};
 
 type EChartsInit = (el: HTMLElement, theme?: unknown, opts?: unknown) => ECharts;
 type EChartsUse = (mods: unknown[]) => void;
@@ -375,7 +383,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
 
     chart.setOption(cloneSpec(internal.spec!), {
       lazyUpdate: true,
-    } as never);
+    });
 
     emitLifecycleEvent("viz_ready", { reason: "initial_render" });
 
@@ -436,9 +444,13 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
           return;
         }
 
+        const previous = internal.spec
+          ? (cloneSpec(internal.spec) as Record<string, unknown>)
+          : ({} as Record<string, unknown>);
+        const incoming = cloneSpec(resolved) as Record<string, unknown>;
         const updatedSpec = {
-          ...(internal.spec ? (internal.spec as Record<string, unknown>) : {}),
-          ...(resolved as Record<string, unknown>),
+          ...previous,
+          ...incoming,
         } as EChartsSpec;
 
         internal.spec = applyDiscreteMotionDefaults(updatedSpec, discrete);
@@ -448,7 +460,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
             notMerge: false,
             lazyUpdate: true,
             silent: true,
-          } as never);
+          });
         } catch (error) {
           emitLifecycleEvent("viz_error", {
             reason: "apply_state",
