@@ -159,51 +159,35 @@ function cloneSpec<T>(spec: T): T {
   return deepClonePreservingFuncs(spec);
 }
 
-function createResizeObserverDisposer(
-  element: HTMLElement,
-  onResize: () => void,
-  wait = 100,
-): (() => void) | undefined {
-  if (typeof ResizeObserver === "undefined") {
+function toErrorMessage(error: unknown): string | undefined {
+  if (!error) {
     return undefined;
   }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
-  let lastInvocation = 0;
-  let timeout: ReturnType<typeof setTimeout> | null = null;
+function applyDiscreteMotionGuard(spec: EChartsSpec, discrete: boolean): EChartsSpec {
+  if (!discrete) {
+    return spec;
+  }
 
-  const observer = new ResizeObserver(() => {
-    const now = Date.now();
-    const elapsed = now - lastInvocation;
-
-    if (elapsed >= wait) {
-      lastInvocation = now;
-      onResize();
-      return;
-    }
-
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-
-    timeout = setTimeout(
-      () => {
-        lastInvocation = Date.now();
-        timeout = null;
-        onResize();
-      },
-      Math.max(0, wait - elapsed),
-    );
-  });
-
-  observer.observe(element);
-
-  return () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-    observer.disconnect();
-  };
+  return {
+    animation: false,
+    animationDuration: 0,
+    animationDurationUpdate: 0,
+    universalTransition: false,
+    ...spec,
+  } as EChartsSpec;
 }
 
 type EChartsMountOptions = {
@@ -217,11 +201,44 @@ type EChartsMountOptions = {
 type EChartsStateUpdate = EChartsSpec | ((prev: Readonly<EChartsSpec>) => EChartsSpec);
 
 async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<EChartsInstance> {
-  const { state, emit, onEvent, registerResizeObserver, discrete = false } = options ?? {};
+  const { state, emit, onEvent, registerResizeObserver, discrete: discreteOption } = options ?? {};
   const specFromState = state?.spec;
   if (!specFromState) {
     throw new Error("ECharts adapter requires a specification.");
   }
+
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const discrete = Boolean(discreteOption || prefersReducedMotion);
+  const motion = discrete ? "discrete" : "animated";
+  const emitFn: VizEmit = typeof emit === "function" ? emit : () => {};
+  const emitEvent = (type: VizLifecycleEvent["type"], meta?: Record<string, unknown>) => {
+    const detail = { lib: "echarts", motion, ...(meta ?? {}) };
+    try {
+      emitFn(type, detail);
+    } catch {
+      // ignore emit failures
+    }
+
+    if (!onEvent) {
+      return;
+    }
+
+    try {
+      onEvent({
+        type,
+        ts: Date.now(),
+        meta: detail,
+      });
+    } catch {
+      // ignore lifecycle listener failures
+    }
+  };
+
+  emitEvent("viz_init", { reason: "mount" });
 
   const [coreMod, charts, components, features, renderers] = await Promise.all([
     import("echarts/core"),
@@ -232,7 +249,7 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   ]);
 
   const core = coreMod as CoreModule;
-  const useFn: EChartsUse = core.use ?? (() => {});
+  const register: EChartsUse = core.use ?? (() => {});
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const registrables: any[] = [
@@ -251,8 +268,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   ].filter(Boolean);
 
   if (registrables.length) {
-    const applyUse = useFn;
-    applyUse(registrables);
+    try {
+      register(registrables as unknown[]);
+    } catch (error) {
+      emitEvent("viz_error", { reason: "register_modules", message: toErrorMessage(error) });
+    }
   }
 
   const initFromModule = core.init;
@@ -272,74 +292,63 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
 
   const initFn: EChartsInit = typeof initFromModule === "function" ? initFromModule : fallbackInit;
 
-  const chart = initFn(el, undefined, { renderer: "canvas" });
-  const initialSpec = cloneSpec(specFromState);
+  let chart: ECharts;
+  try {
+    chart = initFn(el, undefined, { renderer: "canvas" });
+  } catch (error) {
+    emitEvent("viz_error", { reason: "init", message: toErrorMessage(error) });
+    throw error;
+  }
+
+  const initialSpec = applyDiscreteMotionGuard(cloneSpec(specFromState), discrete);
   const internal: { spec?: EChartsSpec } = {
     spec: initialSpec,
   };
 
-  chart.setOption(cloneSpec(internal.spec!), {
-    lazyUpdate: true,
-  } as never);
+  try {
+    chart.setOption(cloneSpec(internal.spec!), {
+      lazyUpdate: true,
+    } as never);
+  } catch (error) {
+    emitEvent("viz_error", { reason: "initial_render", message: toErrorMessage(error) });
+    throw error;
+  }
 
-  const emitFn: VizEmit = emit ?? (() => {});
-  const emitLifecycleEvent = (type: VizLifecycleEvent["type"], meta?: Record<string, unknown>) => {
-    emitLifecycle(onEvent, {
-      type,
-      ts: Date.now(),
-      meta: {
-        motion: discrete ? "discrete" : "animated",
-        ...(meta ?? {}),
-      },
-    });
-  };
-
-  emitFn("viz_ready", { reason: "mount" });
-  emitLifecycleEvent("viz_ready", { reason: "mount" });
+  emitEvent("viz_ready", { reason: "mount" });
 
   const onResize = () => {
     try {
       chart.resize();
-      emitFn("viz_resized", { reason: "resize" });
-      emitLifecycleEvent("viz_resized", { reason: "resize" });
+      emitEvent("viz_resized", { reason: "resize" });
     } catch (error) {
-      const message = (error as Error | undefined)?.message;
-      emitFn("viz_error", { reason: "resize", message });
-      emitLifecycleEvent("viz_error", { reason: "resize", message });
+      emitEvent("viz_error", { reason: "resize", message: toErrorMessage(error) });
     }
   };
 
-  let resizeDisposer: (() => void) | undefined;
+  let disposeResize: (() => void) | undefined;
 
   if (typeof registerResizeObserver === "function") {
     try {
-      resizeDisposer = registerResizeObserver(el, onResize) ?? undefined;
+      disposeResize = registerResizeObserver(el, onResize) ?? undefined;
     } catch (error) {
-      const message = (error as Error | undefined)?.message;
-      emitFn("viz_error", { reason: "register_resize_observer", message });
-      emitLifecycleEvent("viz_error", { reason: "register_resize_observer", message });
+      emitEvent("viz_error", {
+        reason: "register_resize_observer",
+        message: toErrorMessage(error),
+      });
     }
-  }
-
-  if (!resizeDisposer) {
-    resizeDisposer = createResizeObserverDisposer(el, onResize);
-  }
-
-  if (!resizeDisposer) {
-    const handler = (() => {
-      let timeout: ReturnType<typeof setTimeout> | null = null;
-      return () => {
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        timeout = setTimeout(() => {
-          timeout = null;
-          onResize();
-        }, 120);
-      };
-    })();
+  } else if (typeof window !== "undefined") {
+    let throttle: ReturnType<typeof setTimeout> | null = null;
+    const handler = () => {
+      if (throttle) {
+        clearTimeout(throttle);
+      }
+      throttle = setTimeout(() => {
+        throttle = null;
+        onResize();
+      }, 120);
+    };
     window.addEventListener("resize", handler);
-    resizeDisposer = () => {
+    disposeResize = () => {
       window.removeEventListener("resize", handler);
     };
   }
@@ -352,23 +361,24 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
         return;
       }
 
-      const updatedSpec = {
-        ...(internal.spec ? (internal.spec as Record<string, unknown>) : {}),
+      const base = internal.spec ? cloneSpec(internal.spec) : ({} as EChartsSpec);
+      const merged = {
+        ...(base as Record<string, unknown>),
         ...(next.spec as Record<string, unknown>),
       } as EChartsSpec;
 
-      internal.spec = updatedSpec;
-
-      chart.setOption(cloneSpec(internal.spec!), {
-        notMerge: false,
-        lazyUpdate: true,
-        silent: true,
-      } as never);
+      internal.spec = applyDiscreteMotionGuard(merged, discrete);
 
       try {
-        emitFn("viz_state", { specApplied: true });
-      } catch {
-        // ignore emit failures
+        chart.setOption(cloneSpec(internal.spec!), {
+          notMerge: false,
+          lazyUpdate: true,
+          silent: true,
+        } as never);
+        emitEvent("viz_state", { reason: "apply_state" });
+      } catch (error) {
+        emitEvent("viz_error", { reason: "apply_state", message: toErrorMessage(error) });
+        throw error;
       }
     },
     destroy() {
@@ -378,11 +388,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       destroyed = true;
 
       try {
-        resizeDisposer?.();
+        disposeResize?.();
       } catch {
         // ignore cleanup errors
       } finally {
-        resizeDisposer = undefined;
+        disposeResize = undefined;
       }
 
       try {
@@ -481,7 +491,6 @@ export const echartsVizAdapter: VizAdapterWithConfig<EChartsSpec, EChartsSpec> =
     const runtime = await echartsAdapter.mount(el, {
       state: { spec },
       emit,
-      onEvent,
       registerResizeObserver,
       discrete,
     });

@@ -34,14 +34,11 @@ export const mount = (...args: unknown[]): ReturnType<typeof echartsAdapter.moun
 
   const { emit, onEvent, registerResizeObserver, discrete } = legacy ?? {};
 
-  const emitFn = typeof emit === "function" ? emit : undefined;
-  const onEventFn = typeof onEvent === "function" ? onEvent : undefined;
   return echartsAdapter.mount(element, {
     state: { spec },
-    emit: emitFn,
-    onEvent: onEventFn,
-    registerResizeObserver:
-      typeof registerResizeObserver === "function" ? registerResizeObserver : undefined,
+    emit,
+    onEvent,
+    registerResizeObserver,
     discrete,
   });
 };
