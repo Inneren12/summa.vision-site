@@ -325,11 +325,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
     }
   };
 
-  let disposer: (() => void) | undefined;
+  let disposeResize: (() => void) | undefined;
 
   if (typeof registerResizeObserver === "function") {
     try {
-      disposer = registerResizeObserver(el, onResize) ?? undefined;
+      disposeResize = registerResizeObserver(el, onResize) ?? undefined;
     } catch (error) {
       emitEvent("viz_error", {
         reason: "register_resize_observer",
@@ -337,20 +337,18 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       });
     }
   } else if (typeof window !== "undefined") {
-    const handler = (() => {
-      let t: ReturnType<typeof setTimeout> | null = null;
-      return () => {
-        if (t) {
-          clearTimeout(t);
-        }
-        t = setTimeout(() => {
-          t = null;
-          onResize();
-        }, 120);
-      };
-    })();
+    let throttle: ReturnType<typeof setTimeout> | null = null;
+    const handler = () => {
+      if (throttle) {
+        clearTimeout(throttle);
+      }
+      throttle = setTimeout(() => {
+        throttle = null;
+        onResize();
+      }, 120);
+    };
     window.addEventListener("resize", handler);
-    disposer = () => {
+    disposeResize = () => {
       window.removeEventListener("resize", handler);
     };
   }
@@ -390,11 +388,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       destroyed = true;
 
       try {
-        disposer?.();
+        disposeResize?.();
       } catch {
         // ignore cleanup errors
       } finally {
-        disposer = undefined;
+        disposeResize = undefined;
       }
 
       try {
