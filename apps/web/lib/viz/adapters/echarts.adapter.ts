@@ -24,10 +24,6 @@ interface EChartsInstance extends VizInstance<{ spec: EChartsSpec }> {
   readonly spec: EChartsSpec | undefined;
 }
 
-type Throttled<TArgs extends unknown[]> = ((...args: TArgs) => void) & {
-  cancel(): void;
-};
-
 type SupportedTypedArray =
   | Int8Array
   | Uint8Array
@@ -44,56 +40,6 @@ type SupportedTypedArray =
 type SupportedTypedArrayConstructor<TArray extends SupportedTypedArray = SupportedTypedArray> = {
   new (length: number): TArray;
 };
-
-function throttle<TArgs extends unknown[]>(
-  fn: (...args: TArgs) => void,
-  wait: number,
-): Throttled<TArgs> {
-  let lastCall = 0;
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  let trailingArgs: TArgs | null = null;
-
-  const invoke = (args: TArgs) => {
-    lastCall = Date.now();
-    fn(...args);
-  };
-
-  const throttled = ((...args: TArgs) => {
-    const now = Date.now();
-    const remaining = wait - (now - lastCall);
-
-    if (remaining <= 0) {
-      if (timeout) {
-        clearTimeout(timeout);
-        timeout = null;
-      }
-      trailingArgs = null;
-      invoke(args);
-      return;
-    }
-
-    trailingArgs = args;
-    if (!timeout) {
-      timeout = setTimeout(() => {
-        timeout = null;
-        if (trailingArgs) {
-          invoke(trailingArgs);
-          trailingArgs = null;
-        }
-      }, remaining);
-    }
-  }) as Throttled<TArgs>;
-
-  throttled.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-    trailingArgs = null;
-  };
-
-  return throttled;
-}
 
 function deepClonePreservingFuncs<T>(input: T, seen = new WeakMap<object, unknown>()): T {
   // primitives & functions
@@ -213,22 +159,49 @@ function cloneSpec<T>(spec: T): T {
   return deepClonePreservingFuncs(spec);
 }
 
-function setupResizeObserver(element: HTMLElement, onResize: () => void): (() => void) | null {
+function createResizeObserverDisposer(
+  element: HTMLElement,
+  onResize: () => void,
+  wait = 100,
+): (() => void) | undefined {
   if (typeof ResizeObserver === "undefined") {
-    return null;
+    return undefined;
   }
 
-  const throttledResize = throttle(() => {
-    onResize();
-  }, 100);
+  let lastInvocation = 0;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
   const observer = new ResizeObserver(() => {
-    throttledResize();
+    const now = Date.now();
+    const elapsed = now - lastInvocation;
+
+    if (elapsed >= wait) {
+      lastInvocation = now;
+      onResize();
+      return;
+    }
+
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(
+      () => {
+        lastInvocation = Date.now();
+        timeout = null;
+        onResize();
+      },
+      Math.max(0, wait - elapsed),
+    );
   });
+
   observer.observe(element);
 
   return () => {
-    throttledResize.cancel();
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
     observer.disconnect();
   };
 }
@@ -310,27 +283,65 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
   } as never);
 
   const emitFn: VizEmit = emit ?? (() => {});
-  let cleanup: (() => void) | null = null;
-  const handleResize = () => {
-    chart.resize();
+  const emitLifecycleEvent = (type: VizLifecycleEvent["type"], meta?: Record<string, unknown>) => {
     emitLifecycle(onEvent, {
-      type: "viz_resized",
+      type,
       ts: Date.now(),
       meta: {
-        reason: "resize",
         motion: discrete ? "discrete" : "animated",
+        ...(meta ?? {}),
       },
     });
   };
 
-  try {
-    cleanup = registerResizeObserver?.(el, handleResize) ?? null;
-  } catch {
-    cleanup = null;
+  emitFn("viz_ready", { reason: "mount" });
+  emitLifecycleEvent("viz_ready", { reason: "mount" });
+
+  const onResize = () => {
+    try {
+      chart.resize();
+      emitFn("viz_resized", { reason: "resize" });
+      emitLifecycleEvent("viz_resized", { reason: "resize" });
+    } catch (error) {
+      const message = (error as Error | undefined)?.message;
+      emitFn("viz_error", { reason: "resize", message });
+      emitLifecycleEvent("viz_error", { reason: "resize", message });
+    }
+  };
+
+  let resizeDisposer: (() => void) | undefined;
+
+  if (typeof registerResizeObserver === "function") {
+    try {
+      resizeDisposer = registerResizeObserver(el, onResize) ?? undefined;
+    } catch (error) {
+      const message = (error as Error | undefined)?.message;
+      emitFn("viz_error", { reason: "register_resize_observer", message });
+      emitLifecycleEvent("viz_error", { reason: "register_resize_observer", message });
+    }
   }
 
-  if (!cleanup) {
-    cleanup = setupResizeObserver(el, handleResize);
+  if (!resizeDisposer) {
+    resizeDisposer = createResizeObserverDisposer(el, onResize);
+  }
+
+  if (!resizeDisposer) {
+    const handler = (() => {
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      return () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        timeout = setTimeout(() => {
+          timeout = null;
+          onResize();
+        }, 120);
+      };
+    })();
+    window.addEventListener("resize", handler);
+    resizeDisposer = () => {
+      window.removeEventListener("resize", handler);
+    };
   }
 
   let destroyed = false;
@@ -367,11 +378,11 @@ async function mount(el: HTMLElement, options: EChartsMountOptions): Promise<ECh
       destroyed = true;
 
       try {
-        cleanup?.();
+        resizeDisposer?.();
       } catch {
         // ignore cleanup errors
       } finally {
-        cleanup = null;
+        resizeDisposer = undefined;
       }
 
       try {

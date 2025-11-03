@@ -36,14 +36,12 @@ export const mount = (...args: unknown[]): ReturnType<typeof echartsAdapter.moun
 
   const emitFn = typeof emit === "function" ? emit : undefined;
   const onEventFn = typeof onEvent === "function" ? onEvent : undefined;
-  const registerResizeObserverFn =
-    typeof registerResizeObserver === "function" ? registerResizeObserver : undefined;
-
   return echartsAdapter.mount(element, {
     state: { spec },
     emit: emitFn,
     onEvent: onEventFn,
-    registerResizeObserver: registerResizeObserverFn,
+    registerResizeObserver:
+      typeof registerResizeObserver === "function" ? registerResizeObserver : undefined,
     discrete,
   });
 };
