@@ -40,8 +40,7 @@ function cloneOption<T>(input: T): T {
   }
 
   if (Array.isArray(input)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return input.map((item) => cloneOption<any>(item)) as unknown as T;
+    return input.map((item) => cloneOption(item)) as unknown as T;
   }
 
   if (input instanceof Date) {
@@ -82,9 +81,9 @@ function applyDiscreteMotion(option: EChartsOption): EChartsOption {
   target.animationEasingUpdate = "linear";
   target.transitionDuration = 0;
 
-  const ensureDiscrete = (value: unknown) => {
+  const ensureDiscrete = <T>(value: T): T => {
     if (Array.isArray(value)) {
-      return value.map((item) => ensureDiscrete(item));
+      return value.map((item) => ensureDiscrete(item)) as unknown as T;
     }
     if (value && typeof value === "object") {
       const next = { ...(value as Record<string, unknown>) };
@@ -96,7 +95,7 @@ function applyDiscreteMotion(option: EChartsOption): EChartsOption {
       next.animationEasing = "linear";
       next.animationEasingUpdate = "linear";
       next.transitionDuration = 0;
-      return next;
+      return next as unknown as T;
     }
     return value;
   };
@@ -251,9 +250,7 @@ function applyResizeHandling(
   if (typeof registerResizeObserver === "function") {
     try {
       runtime.resizeCleanup = registerResizeObserver(el, () => throttled.run());
-      if (runtime.resizeCleanup) {
-        return;
-      }
+      return;
     } catch {
       // fall through to built-in ResizeObserver
     }
