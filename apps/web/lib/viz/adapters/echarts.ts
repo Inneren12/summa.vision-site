@@ -63,6 +63,27 @@ function cloneOption<T>(input: T): T {
   return out as unknown as T;
 }
 
+function ensureDiscrete<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => ensureDiscrete(item)) as unknown as T;
+  }
+
+  if (value && typeof value === "object") {
+    const next = { ...(value as Record<string, unknown>) };
+    next.animation = false;
+    next.animationDuration = 0;
+    next.animationDurationUpdate = 0;
+    next.animationDelay = 0;
+    next.animationDelayUpdate = 0;
+    next.animationEasing = "linear";
+    next.animationEasingUpdate = "linear";
+    next.transitionDuration = 0;
+    return next as unknown as T;
+  }
+
+  return value;
+}
+
 function applyDiscreteMotion(option: EChartsOption): EChartsOption {
   const cloned = cloneOption(option);
   if (!cloned || typeof cloned !== "object") {
@@ -80,25 +101,6 @@ function applyDiscreteMotion(option: EChartsOption): EChartsOption {
   target.animationEasing = "linear";
   target.animationEasingUpdate = "linear";
   target.transitionDuration = 0;
-
-  const ensureDiscrete = <T>(value: T): T => {
-    if (Array.isArray(value)) {
-      return value.map((item) => ensureDiscrete(item)) as unknown as T;
-    }
-    if (value && typeof value === "object") {
-      const next = { ...(value as Record<string, unknown>) };
-      next.animation = false;
-      next.animationDuration = 0;
-      next.animationDurationUpdate = 0;
-      next.animationDelay = 0;
-      next.animationDelayUpdate = 0;
-      next.animationEasing = "linear";
-      next.animationEasingUpdate = "linear";
-      next.transitionDuration = 0;
-      return next as unknown as T;
-    }
-    return value;
-  };
 
   if (target.series) {
     target.series = ensureDiscrete(target.series as unknown) as unknown[];
