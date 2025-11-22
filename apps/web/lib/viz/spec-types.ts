@@ -10,6 +10,7 @@ export type VegaLiteSpec = import("vega-lite").TopLevelSpec;
 
 /** ECharts spec: keep broad to avoid pulling runtime typings */
 export type EChartsSpec = Record<string, unknown>;
+export type EChartsOption = EChartsSpec;
 
 /** MapLibre GL style (minimal structural contract we rely on) */
 export type MapLibreStyle = {

@@ -1,7 +1,7 @@
 "use client";
 
 import VizHarness from "@/lib/viz/VizHarness";
-import { echartsVizAdapter } from "@/lib/viz/adapters/echarts.adapter";
+import { echartsAdapter } from "@/lib/viz/adapters/echarts";
 import type { EChartsSpec } from "@/lib/viz/spec-types";
 
 const DEMO_SPEC: EChartsSpec = {
@@ -25,7 +25,7 @@ const DEMO_SPEC: EChartsSpec = {
 export default function EChartsDemo() {
   return (
     <VizHarness
-      adapter={echartsVizAdapter}
+      adapter={echartsAdapter}
       spec={DEMO_SPEC}
       state={{}}
       testId="echarts-chart"
