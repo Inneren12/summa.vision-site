@@ -7,7 +7,7 @@ export type AdapterLoader<T = unknown> = () => Promise<T>;
  * Каждый пункт — только () => import("…").
  */
 export const lazyAdapters = {
-  echarts: () => import("./adapters/echarts.adapter"),
+  echarts: () => import("./adapters/echarts"),
   deck: () => import("./adapters/deck"),
   map: () => import("./adapters/maplibre.adapter"),
 } satisfies Record<string, AdapterLoader>;

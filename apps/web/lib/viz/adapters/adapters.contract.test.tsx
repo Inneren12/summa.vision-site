@@ -1,6 +1,5 @@
 import { tokens } from "@root/src/shared/theme/tokens";
 import brandTokens from "@root/tokens/brand.tokens.json";
-import * as echarts from "echarts";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,20 +23,6 @@ const embedMock = vi.fn(async () => defaultEmbedResult());
 vi.mock("vega-embed", () => ({
   default: embedMock,
 }));
-
-const echartsSetOption = vi.fn();
-const echartsResize = vi.fn();
-const echartsDispose = vi.fn();
-const echartsInit = vi.fn((el: HTMLElement, _theme?: unknown, _opts?: unknown) => {
-  void _theme;
-  void _opts;
-  return {
-    setOption: echartsSetOption,
-    resize: echartsResize,
-    dispose: echartsDispose,
-    getDom: () => el,
-  };
-});
 
 const mapSetStyle = vi.fn();
 const mapSetCenter = vi.fn();
@@ -221,7 +206,6 @@ vi.mock("../webgl", () => ({
 }));
 
 import { deckAdapter } from "./deck";
-import { echartsAdapter, mount as mountEcharts } from "./echarts";
 import { mapLibreAdapter } from "./maplibre.adapter";
 import { vegaLiteAdapter } from "./vegaLite";
 import { visxAdapter } from "./visx";
@@ -235,11 +219,6 @@ describe("viz adapters contract", () => {
   beforeEach(() => {
     embedMock.mockImplementation(async () => defaultEmbedResult());
     embedMock.mockClear();
-    echartsSetOption.mockClear();
-    echartsResize.mockClear();
-    echartsDispose.mockClear();
-    echartsInit.mockClear();
-    vi.spyOn(echarts, "init").mockImplementation(echartsInit);
     supportsWebGL.mockReturnValue(true);
     supportsWebGL2.mockReturnValue(true);
     renderWebglFallback.mockReset();
@@ -369,94 +348,6 @@ describe("viz adapters contract", () => {
     expect(view?.signal).toHaveBeenCalledWith("highlight", "alpha");
 
     await instance.destroy();
-  });
-
-  it("echarts adapter mounts and updates options", async () => {
-    const element = document.createElement("div");
-    const spec = { series: [] };
-    const instance = await mountEcharts(element, spec, { discrete: false });
-    expect(echartsInit).toHaveBeenCalledWith(element, undefined, { renderer: "canvas" });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(1, spec, { lazyUpdate: true });
-
-    const nextSpec = { series: [{ type: "line" }] };
-    echartsAdapter.applyState(instance, nextSpec, { discrete: true });
-    expect(echartsSetOption).toHaveBeenNthCalledWith(2, nextSpec, {
-      notMerge: false,
-      lazyUpdate: true,
-      silent: true,
-    });
-
-    echartsAdapter.destroy(instance);
-    expect(echartsDispose).toHaveBeenCalled();
-  });
-
-  it("echarts adapter wires resize observer with throttling", async () => {
-    vi.useFakeTimers();
-    const observers: MockResizeObserver[] = [];
-
-    class MockResizeObserver {
-      public readonly observe = vi.fn();
-      public readonly disconnect = vi.fn();
-
-      constructor(private readonly callback: ResizeObserverCallback) {
-        observers.push(this);
-      }
-
-      trigger() {
-        this.callback([], this as unknown as ResizeObserver);
-      }
-    }
-
-    const originalResizeObserver = globalThis.ResizeObserver;
-    // @ts-expect-error override for testing
-    globalThis.ResizeObserver = MockResizeObserver;
-
-    const element = document.createElement("div");
-    const spec = { series: [] };
-
-    try {
-      const instance = await mountEcharts(element, spec, { discrete: false });
-
-      const [observer] = observers;
-      expect(observer).toBeDefined();
-      expect(observer?.observe).toHaveBeenCalledWith(element);
-
-      observer?.trigger();
-      expect(echartsResize).toHaveBeenCalledTimes(1);
-
-      echartsResize.mockClear();
-      observer?.trigger();
-      observer?.trigger();
-      expect(echartsResize).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(100);
-      expect(echartsResize).toHaveBeenCalledTimes(1);
-
-      echartsAdapter.destroy(instance);
-      expect(observer?.disconnect).toHaveBeenCalled();
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver;
-      vi.useRealTimers();
-    }
-  });
-
-  it("echarts adapter treats previous spec as immutable", async () => {
-    const element = document.createElement("div");
-    const spec = { series: [] };
-    const instance = await mountEcharts(element, spec, { discrete: false });
-    const previous = instance.spec;
-
-    echartsAdapter.applyState(
-      instance,
-      (prev) => {
-        expect(prev.series).toEqual([]);
-        (prev.series as unknown[]).push({ type: "line" });
-        return { ...prev, legend: { show: true } };
-      },
-      { discrete: true },
-    );
-
-    expect(previous.series).toEqual([]);
   });
 
   it("maplibre adapter mounts and applies view state", async () => {
