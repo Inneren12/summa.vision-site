@@ -4,9 +4,11 @@ import { emitVizEvent } from "../analytics/send";
 
 describe("emitVizEvent", () => {
   const originalDoNotTrack = Object.getOwnPropertyDescriptor(window, "doNotTrack");
+  const originalFetch = global.fetch;
 
   beforeEach(() => {
     document.cookie = "sv_consent=all";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
   });
 
   afterEach(() => {
@@ -16,6 +18,9 @@ describe("emitVizEvent", () => {
     } else {
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete (window as typeof window & { doNotTrack?: string }).doNotTrack;
+    }
+    if (originalFetch) {
+      vi.stubGlobal("fetch", originalFetch);
     }
     vi.restoreAllMocks();
   });
