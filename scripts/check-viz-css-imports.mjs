@@ -5,7 +5,7 @@ import { glob } from "glob";
 
 const ROOT = path.resolve(process.cwd());
 const WEB_ROOT = path.join(ROOT, "apps", "web");
-const ALLOWED_MAPLIBRE = path.join(WEB_ROOT, "app", "layout.tsx");
+const ALLOWED_MAPLIBRE = path.join(WEB_ROOT, "app", "components", "MapCss.tsx");
 const MAPLIBRE_SPEC = "maplibre-gl/dist/maplibre-gl.css";
 const BANNED_VIZ_LIBS = [
   "echarts",
@@ -52,7 +52,7 @@ async function main() {
         if (path.resolve(file) !== ALLOWED_MAPLIBRE) {
           const line = findLineNumber(source, specifier);
           violations.push(
-            `${relPath}:${line} — MapLibre CSS is only allowed in apps/web/app/layout.tsx`,
+            `${relPath}:${line} — MapLibre CSS is only allowed in apps/web/app/components/MapCss.tsx`,
           );
         }
         continue;
@@ -79,7 +79,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("Visualization CSS imports look good (S7-95, Pattern A).");
+  console.log("Visualization CSS imports look good (S7-95, Pattern B).");
 }
 
 main().catch((error) => {
