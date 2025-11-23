@@ -8,7 +8,7 @@ import type { VegaLiteSpec } from "../spec-types";
 import type {
   RegisterResizeObserver,
   VizAdapterWithConfig,
-  VizEvent,
+  VizEventType,
   VizInstance,
   VizLifecycleEvent,
 } from "../types";
@@ -86,7 +86,7 @@ function toErrorMessage(error: unknown): string {
 
 function emitEvent(
   instance: VegaLiteRuntime,
-  type: VizEvent,
+  type: VizEventType,
   meta?: Record<string, unknown>,
 ): void {
   if (!instance.onEvent) {

@@ -1,4 +1,4 @@
-import type { VizEvent, VizEventDetail, VizEventName, VizLifecycleEvent } from "../viz/types";
+import type { VizEventDetail, VizEventName, VizEventType, VizLifecycleEvent } from "../viz/types";
 
 type ConsentLevel = "all" | "necessary";
 
@@ -133,13 +133,13 @@ export function emitVizEvent(name: VizEventName, detail: VizEventDetail): boolea
 }
 
 type VizLifecyclePayload = {
-  readonly type: VizEvent;
+  readonly type: VizEventType;
   readonly ts: number;
   readonly meta?: Record<string, unknown>;
   readonly timestamp: string;
 };
 
-export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent> = new Set([
+export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEventType> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
