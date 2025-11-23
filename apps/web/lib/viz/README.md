@@ -24,3 +24,35 @@ The goal is to keep global styles predictable and avoid accidental library-wide 
 ## Guardrail
 
 The script `scripts/check-viz-css-imports.mjs` enforces this strategy and is wired to `npm run check:viz-css` and CI. It allows the canonical MapLibre import only in `apps/web/app/layout.tsx` and rejects global vendor CSS elsewhere. If it fails, remove the offending import or relocate the styles into a scoped, project-owned file.
+
+## Scrolly Binding (S6 → S7)
+
+Use `useScrollyBindingViz` to drive a visualization instance from scrolly step changes. The hook subscribes to the S6
+`activeStepId` stream (via `useActiveStepSubscription` by default) and calls `viz.applyState` with the mapped state returned by
+`mapStepToState`.
+
+```tsx
+import { useVizMount } from "@/lib/viz/useVizMount";
+import { useScrollyBindingViz } from "@/lib/viz/useScrollyBindingViz";
+
+// Inside a client component wrapped by <ScrollyProvider />
+const viz = useVizMount<MyState, MySpec>({ adapter, spec });
+
+useScrollyBindingViz<MyState>({
+  viz: viz.instance,
+  debugLabel: "Story/Map",
+  mapStepToState: (step) => {
+    switch (step.stepId) {
+      case "intro":
+        return { highlight: null };
+      case "detail":
+        return { highlight: "region-42" };
+      default:
+        return null;
+    }
+  },
+});
+```
+
+If you need a custom step source (for example, when the scrolly engine runs outside of React), pass `subscribeActiveStep` to
+provide your own subscription function.

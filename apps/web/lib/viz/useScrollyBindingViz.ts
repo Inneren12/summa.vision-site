@@ -1,123 +1,130 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
 
-import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
+import type { VizInstance } from "./types";
 
-import type { VizEventDetail, VizInstance, VizLifecycleEvent } from "./types";
-import { type UseVizMountOptions, type UseVizMountResult, useVizMount } from "./useVizMount";
+import { ScrollyContext } from "@/lib/scrolly/ScrollyContext";
+import {
+  toScrollyStepChange,
+  useActiveStepSubscription,
+  type ScrollyStepChange,
+  type SubscribeActiveStep,
+} from "@/lib/scrolly/useActiveStepSubscription";
+export type {
+  ScrollyStepChange,
+  SubscribeActiveStep,
+} from "@/lib/scrolly/useActiveStepSubscription";
 
-export interface VizStepState<S> {
-  readonly id: string | null;
-  readonly state: Partial<S>;
+export interface UseScrollyBindingVizOptions<S> {
+  /**
+   * Visualization instance returned from {@link useVizMount}.
+   */
+  readonly viz: VizInstance<S> | null | undefined;
+
+  /**
+   * Maps an S6 step change payload to a partial visualization state.
+   * Returning `null` or `undefined` skips updates for that step.
+   */
+  readonly mapStepToState: (step: ScrollyStepChange) => Partial<S> | null | undefined;
+
+  /** Optional debug label for console errors in development. */
+  readonly debugLabel?: string;
+
+  /**
+   * Custom subscription to S6 active step events. When omitted, the hook subscribes to the
+   * nearest {@link ScrollyContext} via {@link useActiveStepSubscription}.
+   */
+  readonly subscribeActiveStep?: SubscribeActiveStep | null;
 }
 
-export type SubscribeActiveStep = (callback: (stepId: string | null) => void) => () => void;
-
-export interface UseScrollyBindingVizOptions<S, Spec, Data>
-  extends Omit<UseVizMountOptions<S, Spec, Data>, "onEvent"> {
-  readonly steps: ReadonlyArray<VizStepState<S>>;
-  readonly initialStepId?: string | null;
-  readonly activeStepId?: string | null;
-  readonly subscribeActiveStep?: SubscribeActiveStep;
-  readonly onEvent?: (event: VizLifecycleEvent) => void;
+function isPromise(value: unknown): value is Promise<unknown> {
+  return Boolean(value) && typeof (value as Promise<unknown>).then === "function";
 }
 
-export interface UseScrollyBindingVizResult<S> extends UseVizMountResult<S> {
-  readonly activeStepId: string | null;
-}
+export function useScrollyBindingViz<S>(options: UseScrollyBindingVizOptions<S>): void {
+  const { viz, mapStepToState, debugLabel, subscribeActiveStep } = options;
 
-function applyStepState<S>(instance: VizInstance<S>, state: Partial<S>): void {
-  const applyState = instance.applyState;
-  if (!applyState) {
-    return;
-  }
+  const scrollyContext = useContext(ScrollyContext);
+  const defaultSubscribe = useActiveStepSubscription();
+  const subscription = subscribeActiveStep ?? defaultSubscribe;
 
-  const result = applyState(state);
-  if (result && typeof (result as Promise<void>).then === "function") {
-    void (result as Promise<void>).catch(() => {});
-  }
-}
+  const vizRef = useRef<VizInstance<S> | null | undefined>(viz);
+  const mapRef = useRef(options.mapStepToState);
+  const prevStepRef = useRef<string | null>(null);
+  const lastStepRef = useRef<ScrollyStepChange | null>(null);
 
-export function useScrollyBindingViz<S = unknown, Spec = unknown, Data = unknown>(
-  options: UseScrollyBindingVizOptions<S, Spec, Data>,
-): UseScrollyBindingVizResult<S> {
-  const {
-    steps,
-    initialStepId = null,
-    activeStepId,
-    subscribeActiveStep,
-    onEvent,
-    ...vizOptions
-  } = options;
+  useEffect(() => {
+    vizRef.current = viz;
+  }, [viz]);
 
-  const stepMap = useMemo(() => {
-    const map = new Map<string | null, Partial<S>>();
-    for (const step of steps) {
-      map.set(step.id ?? null, step.state);
-    }
-    return map;
-  }, [steps]);
+  useEffect(() => {
+    mapRef.current = mapStepToState;
+  }, [mapStepToState]);
 
-  const [currentStepId, setCurrentStepId] = useState<string | null>(
-    activeStepId ?? initialStepId ?? null,
+  const handleStepChange = useCallback(
+    async (step: ScrollyStepChange) => {
+      const instance = vizRef.current;
+      const mapper = mapRef.current;
+
+      if (!instance || !instance.applyState || !mapper) {
+        return;
+      }
+
+      const nextState = mapper(step);
+      if (!nextState) {
+        return;
+      }
+
+      try {
+        const result = instance.applyState(nextState);
+        if (isPromise(result)) {
+          await result;
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production" && debugLabel) {
+          // eslint-disable-next-line no-console
+          console.error(`[useScrollyBindingViz:${debugLabel}] applyState failed`, error);
+        }
+      }
+    },
+    [debugLabel],
   );
 
   useEffect(() => {
-    if (typeof activeStepId === "undefined") {
-      return;
-    }
-    setCurrentStepId(activeStepId ?? null);
-  }, [activeStepId]);
-
-  useEffect(() => {
-    if (!subscribeActiveStep) {
-      return;
+    if (!subscription) {
+      return undefined;
     }
 
-    return subscribeActiveStep((stepId) => {
-      setCurrentStepId(stepId ?? null);
+    const unsubscribe = subscription((step) => {
+      lastStepRef.current = step;
+      prevStepRef.current = step.stepId;
+      void handleStepChange(step);
     });
-  }, [subscribeActiveStep]);
 
-  const viz = useVizMount<S, Spec, Data>({
-    ...vizOptions,
-    onEvent,
-  });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [handleStepChange, subscription]);
 
   useEffect(() => {
-    const instance = viz.instance;
-    if (!instance) {
+    if (subscription || !scrollyContext) {
       return;
     }
 
-    const state = stepMap.get(currentStepId ?? null);
-    if (!state) {
+    const { activeStepId = null, steps } = scrollyContext;
+    const change = toScrollyStepChange(activeStepId ?? null, prevStepRef.current, steps);
+    lastStepRef.current = change;
+    prevStepRef.current = activeStepId ?? null;
+    void handleStepChange(change);
+  }, [handleStepChange, scrollyContext, subscription]);
+
+  useEffect(() => {
+    const instance = vizRef.current;
+    if (!instance || !instance.applyState || !lastStepRef.current) {
       return;
     }
 
-    applyStepState(instance, state);
-    const event: VizLifecycleEvent = {
-      type: "viz_state",
-      ts: Date.now(),
-      meta: {
-        stepId: currentStepId ?? undefined,
-      },
-    };
-    onEvent?.(event);
-    const detail: VizEventDetail = {
-      motion: viz.discrete ? "discrete" : "animated",
-      ...(event.meta ?? {}),
-    } as VizEventDetail;
-    emitVizEvent(event.type, detail);
-    emitVizLifecycleEvent(event);
-  }, [currentStepId, onEvent, stepMap, viz.discrete, viz.instance]);
-
-  return useMemo(
-    () => ({
-      ...viz,
-      activeStepId: currentStepId,
-    }),
-    [currentStepId, viz],
-  );
+    void handleStepChange(lastStepRef.current);
+  }, [handleStepChange, viz]);
 }

@@ -1,115 +1,171 @@
 /* @vitest-environment jsdom */
 
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import type { VizAdapterWithConfig, VizInstance } from "./types";
+import type { VizInstance } from "./types";
 import { useScrollyBindingViz } from "./useScrollyBindingViz";
 
-vi.mock("../analytics/send", () => ({
-  emitVizLifecycleEvent: vi.fn(() => true),
-  emitVizEvent: vi.fn(() => true),
-}));
+import type {
+  ScrollyStepChange,
+  SubscribeActiveStep,
+} from "@/lib/scrolly/useActiveStepSubscription";
 
-declare global {
-  // eslint-disable-next-line no-var
-  var ResizeObserver: typeof window.ResizeObserver | undefined;
+function createStepChange(
+  stepId: string | null,
+  prevStepId: string | null = null,
+): ScrollyStepChange {
+  return {
+    stepId,
+    prevStepId,
+    index: -1,
+    total: -1,
+    direction: prevStepId ? "forward" : "initial",
+  };
 }
 
 describe("useScrollyBindingViz", () => {
-  beforeEach(() => {
-    document.cookie = "sv_consent=all";
-    vi.spyOn(window, "matchMedia").mockImplementation(() => ({
-      matches: false,
-      media: "(prefers-reduced-motion: reduce)",
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-
-    class MockResizeObserver {
-      callback: ResizeObserverCallback;
-      observe = vi.fn();
-      disconnect = vi.fn();
-
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
-      }
-    }
-
-    // @ts-expect-error mock implementation for tests
-    global.ResizeObserver = MockResizeObserver;
-    // @ts-expect-error mock implementation for tests
-    window.ResizeObserver = MockResizeObserver as unknown as typeof window.ResizeObserver;
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    delete global.ResizeObserver;
-    delete window.ResizeObserver;
-  });
-
-  it("applies visualization state when active step changes", async () => {
-    const destroy = vi.fn();
-    const applyState = vi.fn();
-
-    const adapter: VizAdapterWithConfig<{ count: number }, { count: number }> = {
-      mount: vi.fn().mockResolvedValue({
-        applyState,
-        destroy,
-      } satisfies VizInstance<{ count: number }>),
+  it("applies visualization state when step changes", async () => {
+    let listener: ((step: ScrollyStepChange) => void) | null = null;
+    const subscribeActiveStep: SubscribeActiveStep = (callback) => {
+      listener = callback;
+      return () => {
+        listener = null;
+      };
     };
 
-    const element = document.createElement("div");
-    document.body.appendChild(element);
+    const applyState = vi.fn();
+    const viz: VizInstance<{ value: string }> = { applyState, destroy: vi.fn() };
 
-    let stepCallback: ((stepId: string | null) => void) | null = null;
-
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useScrollyBindingViz({
-        adapter,
-        steps: [
-          { id: "alpha", state: { count: 1 } },
-          { id: "beta", state: { count: 2 } },
-        ],
-        initialStepId: "alpha",
-        subscribeActiveStep: (callback) => {
-          stepCallback = callback;
-          return () => {
-            stepCallback = null;
-          };
-        },
+        viz,
+        mapStepToState: (step) => (step.stepId ? { value: step.stepId } : null),
+        subscribeActiveStep,
       }),
     );
 
     await act(async () => {
-      result.current.ref(element);
-      await Promise.resolve();
+      listener?.(createStepChange("alpha"));
     });
 
-    await waitFor(() => {
-      expect(adapter.mount).toHaveBeenCalledTimes(1);
+    expect(applyState).toHaveBeenCalledWith({ value: "alpha" });
+  });
+
+  it("ignores events until viz instance is ready", async () => {
+    let listener: ((step: ScrollyStepChange) => void) | null = null;
+    const subscribeActiveStep: SubscribeActiveStep = (callback) => {
+      listener = callback;
+      return () => {
+        listener = null;
+      };
+    };
+
+    const applyState = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ viz }: { viz: VizInstance<{ ready: boolean }> | null }) =>
+        useScrollyBindingViz({
+          viz,
+          mapStepToState: () => ({ ready: true }),
+          subscribeActiveStep,
+        }),
+      { initialProps: { viz: null } },
+    );
+
+    await act(async () => {
+      listener?.(createStepChange("alpha"));
     });
 
-    await waitFor(() => {
-      expect(result.current.instance).not.toBeNull();
-    });
-    expect(result.current.activeStepId).toBe("alpha");
+    expect(applyState).not.toHaveBeenCalled();
 
-    act(() => {
-      stepCallback?.("beta");
-    });
+    rerender({ viz: { applyState, destroy: vi.fn() } });
 
-    await waitFor(() => {
-      expect(applyState).toHaveBeenCalledWith({ count: 2 });
+    await act(async () => {
+      listener?.(createStepChange("beta", "alpha"));
     });
 
-    expect(result.current.activeStepId).toBe("beta");
-    expect(adapter.mount).toHaveBeenCalledTimes(1);
+    expect(applyState).toHaveBeenCalledTimes(1);
+    expect(applyState).toHaveBeenCalledWith({ ready: true });
+  });
 
-    document.body.removeChild(element);
+  it("skips updates when mapper returns null", async () => {
+    let listener: ((step: ScrollyStepChange) => void) | null = null;
+    const subscribeActiveStep: SubscribeActiveStep = (callback) => {
+      listener = callback;
+      return () => {
+        listener = null;
+      };
+    };
+
+    const applyState = vi.fn();
+
+    renderHook(() =>
+      useScrollyBindingViz({
+        viz: { applyState, destroy: vi.fn() },
+        mapStepToState: (step) => (step.stepId === "allowed" ? { ready: true } : null),
+        subscribeActiveStep,
+      }),
+    );
+
+    await act(async () => {
+      listener?.(createStepChange("blocked"));
+      listener?.(createStepChange("allowed", "blocked"));
+    });
+
+    expect(applyState).toHaveBeenCalledTimes(1);
+    expect(applyState).toHaveBeenCalledWith({ ready: true });
+  });
+
+  it("unsubscribes when unmounted", () => {
+    const unsubscribe = vi.fn();
+    const subscribeActiveStep: SubscribeActiveStep = () => unsubscribe;
+
+    const { unmount } = renderHook(() =>
+      useScrollyBindingViz({
+        viz: { destroy: vi.fn() },
+        // mapper never called because viz.applyState is undefined
+        mapStepToState: () => ({ value: 1 }),
+        subscribeActiveStep,
+      }),
+    );
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the latest mapper without resubscribing", async () => {
+    let listener: ((step: ScrollyStepChange) => void) | null = null;
+    const subscribeActiveStep: SubscribeActiveStep = (callback) => {
+      listener = callback;
+      return () => {
+        listener = null;
+      };
+    };
+
+    const applyState = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ label }: { label: string }) =>
+        useScrollyBindingViz({
+          viz: { applyState, destroy: vi.fn() },
+          mapStepToState: (step) => ({ tag: `${label}:${step.stepId ?? "none"}` }),
+          subscribeActiveStep,
+        }),
+      { initialProps: { label: "first" } },
+    );
+
+    await act(async () => {
+      listener?.(createStepChange("alpha"));
+    });
+
+    rerender({ label: "second" });
+
+    await act(async () => {
+      listener?.(createStepChange("beta", "alpha"));
+    });
+
+    expect(applyState).toHaveBeenLastCalledWith({ tag: "second:beta" });
   });
 });
