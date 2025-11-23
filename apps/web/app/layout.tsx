@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 import "klaro/dist/klaro.min.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 

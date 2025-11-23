@@ -5,7 +5,6 @@ export const metadata = {
 
 import dynamic from "next/dynamic";
 
-const MapCss = dynamic(() => import("@/components/MapCss.client"), { ssr: false });
 const MapView = dynamic(() => import("@/components/map/MapView.client"), {
   ssr: false,
 });
@@ -38,7 +37,6 @@ export default function AtomsPage() {
           variables).
         </p>
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-800">
-          <MapCss />
           <MapView />
         </div>
       </section>
