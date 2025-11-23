@@ -21,7 +21,7 @@ export function loadMapLibre(): Promise<typeof MapLibre> {
 /** (опционально) Фабрика карты, если удобно использовать в историях */
 export async function createMap(container: HTMLElement, opts: MapLibre.MapOptions) {
   const maplibre = await loadMapLibre();
-  // CSS подключается один раз глобально через apps/web/app/components/MapCss.tsx (S7-95, Pattern B).
+  // CSS подключается один раз глобально в apps/web/app/layout.tsx (S7-95, Pattern B).
   // Не импортируйте "maplibre-gl/dist/maplibre-gl.css" в адаптерах или виджетах.
   const options = { ...opts, container } as MapLibre.MapOptions;
   return new maplibre.Map(options);

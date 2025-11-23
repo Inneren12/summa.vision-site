@@ -5,8 +5,7 @@ The goal is to keep global styles predictable and avoid accidental library-wide 
 
 ## MapLibre GL CSS (Pattern B)
 
-- **Dedicated component:** `apps/web/app/components/MapCss.tsx` is the only place that imports `maplibre-gl/dist/maplibre-gl.css`.
-- **Render once at the root:** `<MapCss />` must be rendered a single time in `apps/web/app/layout.tsx` so all routes inherit the styles.
+- **Canonical import:** `maplibre-gl/dist/maplibre-gl.css` is imported globally from `apps/web/app/layout.tsx`. Next.js requires global CSS to live in the root layout/page.
 - **Do not import elsewhere:** Components, adapters, stories, and tests **must not** import `maplibre-gl/dist/maplibre-gl.css` directly.
 - **Why:** Centralizing the stylesheet keeps bundle shape stable and avoids duplicated or missing styles when maps render in different routes.
 
@@ -24,4 +23,4 @@ The goal is to keep global styles predictable and avoid accidental library-wide 
 
 ## Guardrail
 
-The script `scripts/check-viz-css-imports.mjs` enforces this strategy and is wired to `npm run check:viz-css` and CI. It allows the canonical `MapCss` import only in `apps/web/app/components/MapCss.tsx` and rejects global vendor CSS elsewhere. If it fails, remove the offending import or relocate the styles into a scoped, project-owned file.
+The script `scripts/check-viz-css-imports.mjs` enforces this strategy and is wired to `npm run check:viz-css` and CI. It allows the canonical MapLibre import only in `apps/web/app/layout.tsx` and rejects global vendor CSS elsewhere. If it fails, remove the offending import or relocate the styles into a scoped, project-owned file.
