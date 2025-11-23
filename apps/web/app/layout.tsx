@@ -4,10 +4,11 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 import "klaro/dist/klaro.min.css";
+// Global MapLibre GL styles – must be imported from the root layout per Next.js rules.
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import { correlationFromNextContext } from "../../../lib/metrics/correlation";
 
-import { MapCss } from "./components/MapCss";
 import { Providers } from "./providers";
 
 import { ConsentPreferencesButton } from "@/components/ConsentPreferencesButton";
@@ -34,7 +35,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-bg text-fg" data-ff-snapshot={snapshotId}>
-        <MapCss />
         <Providers correlation={correlation}>
           <a href="#main" className="sr-only focus:not-sr-only">
             Skip to content
