@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { VizAdapterWithConfig, VizInstance } from "@/lib/viz/types";
+import {
+  type ScrollyStepChange,
+  type SubscribeActiveStep,
+  useScrollyBindingViz,
+} from "@/lib/viz/useScrollyBindingViz";
 import { useVizMount } from "@/lib/viz/useVizMount";
 
 export type FakeChartProps = {
@@ -96,6 +101,7 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
   }
 
   const [chartState, setChartState] = useState<FakeChartSpec>(initialSpec);
+  const chartStateRef = useRef<FakeChartSpec>(initialSpec);
 
   const viz = useVizMount<FakeChartSpec, FakeChartSpec>({
     adapter: fakeChartAdapter,
@@ -105,6 +111,7 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
 
   useEffect(() => {
     handleRef.current!.state = chartState;
+    chartStateRef.current = chartState;
   }, [chartState]);
 
   useEffect(() => {
@@ -116,26 +123,66 @@ export function FakeChart({ activeStepId }: FakeChartProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!viz.instance) {
-      return;
-    }
+  const stepListenersRef = useRef(new Set<(step: ScrollyStepChange) => void>());
+  const activeStepRef = useRef<string | null>(activeStepId ?? null);
+  const previousStepRef = useRef<string | null>(null);
 
-    const step = activeStepId ?? null;
-    setChartState((previous) => {
-      const history = previous.history.slice();
-      if (history.length === 0 || history[history.length - 1] !== step) {
-        history.push(step);
-      }
+  useEffect(() => {
+    activeStepRef.current = activeStepId ?? null;
+    const stepId = activeStepId ?? null;
+    const change: ScrollyStepChange = {
+      stepId,
+      prevStepId: previousStepRef.current,
+      index: -1,
+      total: -1,
+      direction: previousStepRef.current ? "forward" : "initial",
+    };
+    previousStepRef.current = stepId;
+    stepListenersRef.current.forEach((listener) => listener(change));
+  }, [activeStepId]);
+
+  const subscribeActiveStep = useMemo<SubscribeActiveStep>(
+    () => (callback) => {
+      stepListenersRef.current.add(callback);
+
+      const change: ScrollyStepChange = {
+        stepId: activeStepRef.current,
+        prevStepId: previousStepRef.current,
+        index: -1,
+        total: -1,
+        direction: previousStepRef.current ? "forward" : "initial",
+      };
+      callback(change);
+
+      return () => {
+        stepListenersRef.current.delete(callback);
+      };
+    },
+    [],
+  );
+
+  useScrollyBindingViz<FakeChartSpec>({
+    viz: viz.instance,
+    subscribeActiveStep,
+    debugLabel: "FakeChart",
+    mapStepToState: (step) => {
+      const resolvedStep = step.stepId ?? null;
+      const previousHistory = chartStateRef.current.history;
+      const history =
+        previousHistory.length === 0 || previousHistory[previousHistory.length - 1] !== resolvedStep
+          ? [...previousHistory, resolvedStep]
+          : previousHistory;
+
       const nextState: FakeChartSpec = {
-        activeStepId: step,
+        activeStepId: resolvedStep,
         history,
         ready: true,
       };
-      viz.instance?.applyState?.(nextState);
+      chartStateRef.current = nextState;
+      setChartState(nextState);
       return nextState;
-    });
-  }, [activeStepId, viz.instance]);
+    },
+  });
 
   const label = useMemo(
     () =>
