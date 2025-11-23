@@ -3,6 +3,7 @@
 import type { EventOptions } from "plausible-tracker";
 
 import { isServiceAllowed } from "./consent.client";
+import { canSendAnalytics } from "./send";
 
 import type { ConsentServiceName } from "@/config/klaro.config";
 
@@ -47,30 +48,6 @@ type VitalMetricDetail = {
 let trackerPromise: Promise<PlausibleTracker | null> | null = null;
 
 const isClient = (): boolean => typeof window !== "undefined";
-
-const hasDoNotTrackEnabled = (): boolean => {
-  if (typeof navigator !== "undefined") {
-    const nav = navigator as Navigator & { msDoNotTrack?: string; globalPrivacyControl?: boolean };
-    if (typeof nav.globalPrivacyControl === "boolean" && nav.globalPrivacyControl) {
-      return true;
-    }
-    const signals = [nav.doNotTrack, nav.msDoNotTrack];
-    if (
-      signals.some((value) =>
-        value ? ["1", "yes", "true"].includes(String(value).toLowerCase()) : false,
-      )
-    ) {
-      return true;
-    }
-  }
-  if (typeof window !== "undefined") {
-    const signal = (window as typeof window & { doNotTrack?: string }).doNotTrack;
-    if (signal && ["1", "yes", "true"].includes(String(signal).toLowerCase())) {
-      return true;
-    }
-  }
-  return false;
-};
 
 const loadTracker = async (): Promise<PlausibleTracker | null> => {
   if (trackerPromise) {
@@ -121,13 +98,13 @@ const sanitizeValue = (value: number): number => {
 };
 
 const shouldSend = (service: ConsentServiceName | null): boolean => {
-  if (!isClient()) {
-    return false;
-  }
-  if (TEST_ENV || hasDoNotTrackEnabled()) {
-    return false;
-  }
   if (!service) {
+    return false;
+  }
+  if (TEST_ENV) {
+    return false;
+  }
+  if (!canSendAnalytics()) {
     return false;
   }
   return isServiceAllowed(service);

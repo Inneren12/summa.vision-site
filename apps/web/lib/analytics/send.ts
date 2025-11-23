@@ -2,63 +2,27 @@ import type { VizEvent, VizEventDetail, VizEventName, VizLifecycleEvent } from "
 
 type ConsentLevel = "all" | "necessary";
 
-type AnalyticsDetail = Record<string, unknown>;
-
-type AnalyticsEnvelope<TName extends string, TDetail extends AnalyticsDetail> = {
-  readonly name: TName;
-  readonly detail: TDetail;
-  readonly timestamp: string;
-  readonly consent: ConsentLevel;
-};
-
-type AnalyticsTransport<TName extends string, TDetail extends AnalyticsDetail> = (
-  event: AnalyticsEnvelope<TName, TDetail>,
-) => boolean | void;
-
-type SendAnalyticsEventOptions<TName extends string, TDetail extends AnalyticsDetail> = {
-  readonly name: TName;
-  readonly detail: TDetail;
-  readonly isNecessary?: boolean;
-  readonly beforeSend?: (event: AnalyticsEnvelope<TName, TDetail>) => void;
-  readonly transport: AnalyticsTransport<TName, TDetail>;
-};
-
-const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);
-
-function hasNavigatorDoNotTrack(): boolean {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-
-  const nav = navigator as Navigator & {
-    msDoNotTrack?: string;
-    globalPrivacyControl?: boolean;
-  };
-
-  if (typeof nav.globalPrivacyControl === "boolean" && nav.globalPrivacyControl) {
-    return true;
-  }
-
-  const signals = [nav.doNotTrack, nav.msDoNotTrack];
-  return signals.some((value) =>
-    value ? DNT_ENABLED_VALUES.has(String(value).toLowerCase()) : false,
-  );
+export interface AnalyticsEvent {
+  name: string;
+  time?: number;
+  payload?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+  requiredConsent?: ConsentLevel;
 }
 
-function hasWindowDoNotTrack(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
+const CONSENT_COOKIE_NAME = "sv_consent";
 
-  const signal = (window as typeof window & { doNotTrack?: string }).doNotTrack;
-  return signal ? DNT_ENABLED_VALUES.has(String(signal).toLowerCase()) : false;
+export function isDoNotTrackEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const w = window as unknown as { doNotTrack?: string };
+  const n = navigator as unknown as { doNotTrack?: string; msDoNotTrack?: string };
+
+  const dnt = w.doNotTrack ?? n.doNotTrack ?? n.msDoNotTrack;
+  return dnt === "1" || dnt === "yes";
 }
 
-function hasClientDoNotTrackEnabled(): boolean {
-  return hasNavigatorDoNotTrack() || hasWindowDoNotTrack();
-}
-
-function readConsentFromCookies(): ConsentLevel {
+const readConsentLevel = (): ConsentLevel => {
   if (typeof document === "undefined") {
     return "necessary";
   }
@@ -68,53 +32,56 @@ function readConsentFromCookies(): ConsentLevel {
     const segment = part.trim();
     if (!segment) continue;
     const [name, ...rest] = segment.split("=");
-    if (name !== "sv_consent") continue;
-    const value = rest.join("=");
-    try {
-      const decoded = decodeURIComponent(value).trim().toLowerCase();
-      if (decoded === "all") return "all";
-      if (decoded === "necessary") return "necessary";
-    } catch {
-      const normalized = value.trim().toLowerCase();
-      if (normalized === "all") return "all";
-      if (normalized === "necessary") return "necessary";
-    }
+    if (name !== CONSENT_COOKIE_NAME) continue;
+    const value = rest.join("=").trim().toLowerCase();
+    if (value === "all") return "all";
+    if (value === "necessary") return "necessary";
   }
 
   return "necessary";
+};
+
+export function hasAnalyticsConsent(required: ConsentLevel = "all"): boolean {
+  const level = readConsentLevel();
+  // TODO: integrate CMP consent checks (Klaro!/Umami/Plausible) when available.
+  if (required === "necessary") {
+    return level === "necessary" || level === "all";
+  }
+  return level === "all";
 }
 
-export function sendAnalyticsEvent<TName extends string, TDetail extends AnalyticsDetail>(
-  options: SendAnalyticsEventOptions<TName, TDetail>,
-): boolean {
-  const consent = readConsentFromCookies();
+export function canSendAnalytics(required: ConsentLevel = "all"): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
 
-  const envelope: AnalyticsEnvelope<TName, TDetail> = {
-    name: options.name,
-    detail: options.detail,
-    timestamp: new Date().toISOString(),
-    consent,
-  };
+  if (isDoNotTrackEnabled()) {
+    return false;
+  }
+
+  return hasAnalyticsConsent(required);
+}
+
+export async function sendAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
+  const requiredConsent = event.requiredConsent ?? "all";
+  if (!canSendAnalytics(requiredConsent)) {
+    return;
+  }
+
+  const time = typeof event.time === "number" ? event.time : Date.now();
 
   try {
-    options.beforeSend?.(envelope);
-  } catch {
-    // Ignore failures from beforeSend hooks to avoid blocking analytics gating.
-  }
-
-  if (hasClientDoNotTrackEnabled()) {
-    return false;
-  }
-
-  if (consent === "necessary" && !options.isNecessary) {
-    return false;
-  }
-
-  try {
-    const result = options.transport(envelope);
-    return result !== false;
-  } catch {
-    return false;
+    await fetch("/api/analytics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({ ...event, time }),
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("[analytics] sendAnalyticsEvent error", error);
+    }
   }
 }
 
@@ -138,30 +105,31 @@ type ExtendedVizEventDetail = VizEventDetail & {
 };
 
 export function emitVizEvent(name: VizEventName, detail: VizEventDetail): boolean {
-  if (typeof window === "undefined") {
+  const consentRequirement: ConsentLevel = NECESSARY_VIZ_EVENTS.has(name) ? "necessary" : "all";
+
+  if (!canSendAnalytics(consentRequirement)) {
     return false;
   }
 
-  return sendAnalyticsEvent({
-    name,
-    detail,
-    isNecessary: NECESSARY_VIZ_EVENTS.has(name),
-    transport: ({ name: eventName, detail: eventDetail, timestamp }) => {
-      const extended: ExtendedVizEventDetail = {
-        ...eventDetail,
-        name: eventName,
-        timestamp,
-      };
+  const timestamp = new Date().toISOString();
+  const extended: ExtendedVizEventDetail = { ...detail, name, timestamp };
 
-      const event = new CustomEvent<ExtendedVizEventDetail>(eventName, {
-        detail: extended,
-        bubbles: false,
-      });
-
-      window.dispatchEvent(event);
-      return true;
-    },
+  const event = new CustomEvent<ExtendedVizEventDetail>(name, {
+    detail: extended,
+    bubbles: false,
   });
+
+  window.dispatchEvent(event);
+
+  void sendAnalyticsEvent({
+    name,
+    time: Date.parse(timestamp),
+    payload: detail,
+    context: { scope: "viz" },
+    requiredConsent: consentRequirement,
+  });
+
+  return true;
 }
 
 type VizLifecyclePayload = {
@@ -179,63 +147,41 @@ export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEvent> = new Set([
 ]);
 
 export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
-  if (typeof window === "undefined") {
+  const consentRequirement: ConsentLevel = NECESSARY_LIFECYCLE_EVENTS.has(event.type)
+    ? "necessary"
+    : "all";
+
+  if (!canSendAnalytics(consentRequirement)) {
     return false;
   }
 
-  let dispatched = false;
-
-  const dispatchLifecycle = (payload: VizLifecyclePayload) => {
-    if (dispatched) {
-      return;
-    }
-
-    const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
-      detail: payload,
-      bubbles: false,
-    });
-
-    window.dispatchEvent(lifecycleEvent);
-    dispatched = true;
+  const timestamp = new Date().toISOString();
+  const payload: VizLifecyclePayload = {
+    type: event.type,
+    ts: event.ts,
+    meta: event.meta,
+    timestamp,
   };
 
-  const isNecessaryLifecycleEvent = NECESSARY_LIFECYCLE_EVENTS.has(event.type);
-
-  return sendAnalyticsEvent({
-    name: event.type,
-    detail: {
-      ...event.meta,
-      ts: event.ts,
-    },
-    isNecessary: isNecessaryLifecycleEvent,
-    beforeSend: ({ name, timestamp }) => {
-      const payload: VizLifecyclePayload = {
-        type: name,
-        ts: event.ts,
-        meta: event.meta,
-        timestamp,
-      };
-
-      // Necessary lifecycle events (init/ready/error/resized) should always reach DOM listeners;
-      // consent only gates optional analytics delivery.
-      dispatchLifecycle(payload);
-    },
-    transport: ({ name, timestamp }) => {
-      if (!dispatched) {
-        dispatchLifecycle({
-          type: name,
-          ts: event.ts,
-          meta: event.meta,
-          timestamp,
-        });
-      }
-
-      return true;
-    },
+  const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
+    detail: payload,
+    bubbles: false,
   });
+
+  window.dispatchEvent(lifecycleEvent);
+
+  void sendAnalyticsEvent({
+    name: event.type,
+    time: Date.parse(timestamp),
+    payload: { ...(event.meta ?? {}), ts: event.ts },
+    context: { scope: "viz_lifecycle" },
+    requiredConsent: consentRequirement,
+  });
+
+  return true;
 }
 
 export const __testOnly__ = {
-  hasClientDoNotTrackEnabled,
-  readConsentFromCookies,
+  hasAnalyticsConsent,
+  readConsentLevel,
 };
