@@ -51,6 +51,6 @@ export function toAnalyticsEventFromViz(v: VizAnalyticsEvent): AnalyticsEvent {
     name: type,
     time: ts,
     payload,
-    context,
+    context: { ...context },
   };
 }

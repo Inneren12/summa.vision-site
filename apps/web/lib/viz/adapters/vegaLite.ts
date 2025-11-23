@@ -606,7 +606,7 @@ function attachResizeHandling(
   const handler = () => {
     const view = instance.result?.view;
     void runViewResize(view);
-    emitEvent(instance, "viz_resized", { reason: "resize" });
+    emitEvent(instance, "viz_state", { reason: "resize" });
   };
 
   if (registerResizeObserver) {
@@ -618,9 +618,9 @@ function attachResizeHandling(
   const listener = () => {
     handler();
   };
-  element.addEventListener("viz_resized", listener as EventListener);
+  element.addEventListener("viz_state", listener as EventListener);
   return () => {
-    element.removeEventListener("viz_resized", listener as EventListener);
+    element.removeEventListener("viz_state", listener as EventListener);
   };
 }
 

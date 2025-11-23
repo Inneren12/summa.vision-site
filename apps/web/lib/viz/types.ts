@@ -94,7 +94,6 @@ export type VizEventName =
   | "viz_ready"
   | "viz_state"
   | "viz_error"
-  | "viz_resized"
   | "viz_lazy_mount"
   | "viz_prefetch"
   | "viz_destroyed"

@@ -88,8 +88,8 @@ export async function sendAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
 export const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
   "viz_init",
   "viz_ready",
+  "viz_state",
   "viz_error",
-  "viz_resized",
   "viz_lazy_mount",
   "viz_prefetch",
   "viz_destroyed",
@@ -143,7 +143,7 @@ export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEventType> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
-  "viz_resized",
+  "viz_state",
 ]);
 
 export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
