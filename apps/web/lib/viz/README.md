@@ -1,12 +1,13 @@
-# Visualization CSS Strategy (S7-95, Pattern A)
+# Visualization CSS Strategy (S7-95, Pattern B)
 
 This document explains how we handle CSS for visualization libraries in `apps/web`.
 The goal is to keep global styles predictable and avoid accidental library-wide CSS side effects.
 
-## MapLibre GL CSS
+## MapLibre GL CSS (Pattern B)
 
-- **Single import location:** `maplibre-gl/dist/maplibre-gl.css` is imported exactly once in `apps/web/app/layout.tsx`.
-- **Do not import elsewhere:** Components, adapters, stories, and tests **must not** import `maplibre-gl/dist/maplibre-gl.css`.
+- **Dedicated component:** `apps/web/app/components/MapCss.tsx` is the only place that imports `maplibre-gl/dist/maplibre-gl.css`.
+- **Render once at the root:** `<MapCss />` must be rendered a single time in `apps/web/app/layout.tsx` so all routes inherit the styles.
+- **Do not import elsewhere:** Components, adapters, stories, and tests **must not** import `maplibre-gl/dist/maplibre-gl.css` directly.
 - **Why:** Centralizing the stylesheet keeps bundle shape stable and avoids duplicated or missing styles when maps render in different routes.
 
 ## Other visualization libraries (Vega-Lite, ECharts, deck.gl, visx)
@@ -23,4 +24,4 @@ The goal is to keep global styles predictable and avoid accidental library-wide 
 
 ## Guardrail
 
-The script `scripts/check-viz-css-imports.mjs` enforces this strategy and is wired to `npm run check:viz-css` and CI. If it fails, remove the offending import or relocate the styles into a scoped, project-owned file.
+The script `scripts/check-viz-css-imports.mjs` enforces this strategy and is wired to `npm run check:viz-css` and CI. It allows the canonical `MapCss` import only in `apps/web/app/components/MapCss.tsx` and rejects global vendor CSS elsewhere. If it fails, remove the offending import or relocate the styles into a scoped, project-owned file.
