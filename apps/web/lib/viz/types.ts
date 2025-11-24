@@ -1,6 +1,16 @@
-export type VizEvent = "viz_init" | "viz_ready" | "viz_state" | "viz_error" | "viz_resized";
+export type VizEventType = "viz_init" | "viz_ready" | "viz_state" | "viz_error";
 
-export type VizEmit = (event: VizEvent, payload?: unknown, meta?: Record<string, unknown>) => void;
+export interface VizEvent {
+  type: VizEventType;
+  ts: number;
+  meta?: Record<string, unknown>;
+}
+
+export type VizEmit = (
+  event: VizEventType,
+  payload?: unknown,
+  meta?: Record<string, unknown>,
+) => void;
 
 export type VizInstance<S = unknown> = {
   applyState?: (next: Partial<S>) => void | Promise<void>;
@@ -11,7 +21,7 @@ export type VizInstance<S = unknown> = {
 };
 
 export type VizLifecycleEvent = {
-  readonly type: VizEvent;
+  readonly type: VizEventType;
   readonly ts: number;
   readonly meta?: Record<string, unknown>;
 };
@@ -84,7 +94,6 @@ export type VizEventName =
   | "viz_ready"
   | "viz_state"
   | "viz_error"
-  | "viz_resized"
   | "viz_lazy_mount"
   | "viz_prefetch"
   | "viz_destroyed"
