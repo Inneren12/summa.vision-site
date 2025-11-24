@@ -8,7 +8,7 @@ import type { VegaLiteSpec } from "../spec-types";
 import type {
   RegisterResizeObserver,
   VizAdapterWithConfig,
-  VizEvent,
+  VizEventType,
   VizInstance,
   VizLifecycleEvent,
 } from "../types";
@@ -86,7 +86,7 @@ function toErrorMessage(error: unknown): string {
 
 function emitEvent(
   instance: VegaLiteRuntime,
-  type: VizEvent,
+  type: VizEventType,
   meta?: Record<string, unknown>,
 ): void {
   if (!instance.onEvent) {
@@ -606,7 +606,7 @@ function attachResizeHandling(
   const handler = () => {
     const view = instance.result?.view;
     void runViewResize(view);
-    emitEvent(instance, "viz_resized", { reason: "resize" });
+    emitEvent(instance, "viz_state", { reason: "resize" });
   };
 
   if (registerResizeObserver) {
@@ -618,9 +618,9 @@ function attachResizeHandling(
   const listener = () => {
     handler();
   };
-  element.addEventListener("viz_resized", listener as EventListener);
+  element.addEventListener("viz_state", listener as EventListener);
   return () => {
-    element.removeEventListener("viz_resized", listener as EventListener);
+    element.removeEventListener("viz_state", listener as EventListener);
   };
 }
 

@@ -92,7 +92,7 @@ export function LegacyVizHarness({
       target.dataset.vizReady = "1";
       const detail = readSize(target);
       emit("viz_ready", detail);
-      emit("viz_resized", detail);
+      emit("viz_state", detail);
     };
 
     if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
@@ -106,7 +106,7 @@ export function LegacyVizHarness({
     }
 
     const emitResize = (detail: VizHarnessEventDetail) => {
-      emit("viz_resized", detail);
+      emit("viz_state", detail);
     };
 
     if (typeof ResizeObserver !== "undefined") {

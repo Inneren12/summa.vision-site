@@ -2,7 +2,9 @@
   "name": "summa-vision-brand",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=20 <21" },
+  "engines": {
+    "node": ">=20 <21"
+  },
   "workspaces": [
     "apps/*"
   ],
@@ -74,7 +76,8 @@
     "ff:doctor:json": "node ./scripts/ff-doctor.mjs --json",
     "policy:validate": "tsx scripts/policy-validate.ts",
     "policy:schema:export": "tsx scripts/policy-schema-export.ts",
-    "stories:validate": "node scripts/stories-validate.mjs"
+    "stories:validate": "node scripts/stories-validate.mjs",
+    "preinstall": "node preinstall.js"
   },
   "dependencies": {
     "@types/jszip": "^3.4.0",

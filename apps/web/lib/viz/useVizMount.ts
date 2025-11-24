@@ -20,7 +20,7 @@ const NECESSARY_LIFECYCLE: ReadonlySet<VizLifecycleEvent["type"]> = new Set([
   "viz_init",
   "viz_ready",
   "viz_error",
-  "viz_resized",
+  "viz_state",
 ]);
 
 const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);

@@ -71,6 +71,7 @@ describe("sendAnalyticsEvent", () => {
   });
 
   it("sends events when allowed", async () => {
+    process.env.NODE_ENV = "development";
     installGlobals();
     const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchSpy);

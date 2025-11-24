@@ -267,7 +267,7 @@ describe("viz adapters contract", () => {
     expect(view?.resize).toHaveBeenCalledTimes(1);
     expect(view?.runAsync).toHaveBeenCalledTimes(1);
 
-    const resizeEvent = new CustomEvent<VizHarnessEventDetail>("viz_resized", {
+    const resizeEvent = new CustomEvent<VizHarnessEventDetail>("viz_state", {
       detail: { width: 320, height: 240 },
     });
     element.dispatchEvent(resizeEvent);
