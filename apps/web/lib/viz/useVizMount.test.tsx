@@ -4,12 +4,13 @@ import { render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { sendVizAnalytics } from "../analytics/viz";
+
 import type { VizAdapterWithConfig, VizInstance, VizLifecycleEvent } from "./types";
 import { useVizMount, type UseVizMountResult } from "./useVizMount";
 
-vi.mock("../analytics/send", () => ({
-  emitVizLifecycleEvent: vi.fn(() => true),
-  emitVizEvent: vi.fn(() => true),
+vi.mock("../analytics/viz", () => ({
+  sendVizAnalytics: vi.fn(() => Promise.resolve()),
 }));
 
 declare global {
@@ -105,6 +106,7 @@ describe("useVizMount", () => {
     expect(onUpdate).toHaveBeenCalled();
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "viz_ready" }));
     expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: "viz_error" }));
+    expect(sendVizAnalytics).toHaveBeenCalled();
 
     unmount();
 
