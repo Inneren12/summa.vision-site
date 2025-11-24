@@ -7,9 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VizAdapterWithConfig, VizInstance, VizLifecycleEvent } from "./types";
 import { useVizMount, type UseVizMountResult } from "./useVizMount";
 
-vi.mock("../analytics/send", () => ({
-  emitVizLifecycleEvent: vi.fn(() => true),
-  emitVizEvent: vi.fn(() => true),
+vi.mock("@/lib/analytics/viz", () => ({
+  sendVizAnalytics: vi.fn(() => Promise.resolve()),
 }));
 
 declare global {
