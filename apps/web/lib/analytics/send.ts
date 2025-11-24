@@ -1,3 +1,4 @@
+import { NECESSARY_LIFECYCLE_EVENTS } from "../viz/events";
 import type { VizEventDetail, VizEventName, VizEventType, VizLifecycleEvent } from "../viz/types";
 
 type ConsentLevel = "all" | "necessary";
@@ -68,6 +69,11 @@ export async function sendAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
     return;
   }
 
+  const isTestEnv = process.env.NODE_ENV === "test";
+  if (isTestEnv) {
+    return;
+  }
+
   const time = typeof event.time === "number" ? event.time : Date.now();
 
   try {
@@ -78,7 +84,7 @@ export async function sendAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
       body: JSON.stringify({ ...event, time }),
     });
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV === "development") {
       // eslint-disable-next-line no-console
       console.warn("[analytics] sendAnalyticsEvent error", error);
     }
@@ -88,7 +94,6 @@ export async function sendAnalyticsEvent(event: AnalyticsEvent): Promise<void> {
 export const NECESSARY_VIZ_EVENTS: ReadonlySet<VizEventName> = new Set([
   "viz_init",
   "viz_ready",
-  "viz_state",
   "viz_error",
   "viz_lazy_mount",
   "viz_prefetch",
@@ -138,13 +143,6 @@ type VizLifecyclePayload = {
   readonly meta?: Record<string, unknown>;
   readonly timestamp: string;
 };
-
-export const NECESSARY_LIFECYCLE_EVENTS: ReadonlySet<VizEventType> = new Set([
-  "viz_init",
-  "viz_ready",
-  "viz_error",
-  "viz_state",
-]);
 
 export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
   const consentRequirement: ConsentLevel = NECESSARY_LIFECYCLE_EVENTS.has(event.type)
