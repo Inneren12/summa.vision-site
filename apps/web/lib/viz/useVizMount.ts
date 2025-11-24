@@ -16,6 +16,7 @@ import type {
 
 import { sendVizAnalytics } from "@/lib/analytics/viz";
 import type { VizAnalyticsContext } from "@/lib/analytics/vizTypes";
+import { dispatchVizBrowserEvent } from "@/lib/viz/events";
 
 const isBrowser = () => typeof window !== "undefined";
 
@@ -118,6 +119,7 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
 
   const handleVizEvent = useCallback(
     (event: VizEvent) => {
+      dispatchVizBrowserEvent(event.type, event);
       onEvent?.(event);
       if (!analyticsDisabled) {
         void sendVizAnalytics(event, analyticsContextRef.current);

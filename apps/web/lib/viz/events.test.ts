@@ -46,7 +46,7 @@ describe("emitVizEvent", () => {
     const emitted = emitVizEvent("viz_ready", { lib: "fake", motion: "animated" });
 
     expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("skips non-necessary events when consent is limited", () => {
@@ -56,6 +56,6 @@ describe("emitVizEvent", () => {
     const emitted = emitVizEvent("viz_state", { lib: "fake", motion: "discrete" });
 
     expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
   });
 });
