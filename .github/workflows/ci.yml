@@ -72,5 +72,8 @@ jobs:
       - name: Static analysis (knip + madge)
         run: npm run quality:check || true
 
+      - name: Ephemeral install (tanstack + viz libs) — no save/no lock
+        run: |
+          npm i -D -w apps/web @tanstack/react-table echarts vega vega-lite vega-embed --no-save --no-package-lock
       - name: Build web
         run: npm run web:build
