@@ -52,6 +52,9 @@ jobs:
       - name: Install Playwright browsers (same version)
         run: npx -y playwright@1.48.0 install --with-deps chromium
 
+      - name: Ephemeral install (tanstack + viz libs) — no save/no lock
+        run: |
+          npm i -D -w apps/web @tanstack/react-table echarts vega vega-lite vega-embed --no-save --no-package-lock
       - name: Build web
         run: npm run web:build
 
