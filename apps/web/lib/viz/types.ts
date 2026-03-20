@@ -102,6 +102,20 @@ export type VizEventName =
   | "viz_motion_mode"
   | "viz_spec_load";
 
+export type VizBrowserEventName = VizEventType | "viz_lifecycle";
+
+export const VIZ_BROWSER_EVENT_NAMES: ReadonlySet<VizBrowserEventName> = new Set([
+  "viz_init",
+  "viz_ready",
+  "viz_state",
+  "viz_error",
+  "viz_lifecycle",
+]);
+
+export function isVizBrowserEventName(name: VizEventName | string): name is VizBrowserEventName {
+  return VIZ_BROWSER_EVENT_NAMES.has(name as VizBrowserEventName);
+}
+
 export interface VizEventDetail {
   readonly [key: string]: unknown;
   readonly lib?: VizLibraryTag;

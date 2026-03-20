@@ -39,23 +39,27 @@ describe("emitVizEvent", () => {
     expect((event as CustomEvent)?.detail).toMatchObject({ lib: "fake", motion: "animated" });
   });
 
-  it("does not dispatch events when do-not-track is enabled", () => {
+  it("dispatches browser events even when do-not-track is enabled", () => {
     Object.defineProperty(window, "doNotTrack", { value: "1", configurable: true });
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const fetchSpy = vi.spyOn(global, "fetch");
 
     const emitted = emitVizEvent("viz_ready", { lib: "fake", motion: "animated" });
 
     expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("skips non-necessary events when consent is limited", () => {
+  it("emits browser events but skips analytics when consent is limited", () => {
     document.cookie = "sv_consent=necessary";
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const fetchSpy = vi.spyOn(global, "fetch");
 
     const emitted = emitVizEvent("viz_state", { lib: "fake", motion: "discrete" });
 
     expect(emitted).toBe(false);
-    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,11 @@
-import { NECESSARY_LIFECYCLE_EVENTS } from "../viz/events";
-import type { VizEventDetail, VizEventName, VizEventType, VizLifecycleEvent } from "../viz/types";
+import { NECESSARY_LIFECYCLE_EVENTS, dispatchVizBrowserEvent } from "../viz/events";
+import {
+  isVizBrowserEventName,
+  type VizEventDetail,
+  type VizEventName,
+  type VizEventType,
+  type VizLifecycleEvent,
+} from "../viz/types";
 
 type ConsentLevel = "all" | "necessary";
 
@@ -112,19 +118,16 @@ type ExtendedVizEventDetail = VizEventDetail & {
 export function emitVizEvent(name: VizEventName, detail: VizEventDetail): boolean {
   const consentRequirement: ConsentLevel = NECESSARY_VIZ_EVENTS.has(name) ? "necessary" : "all";
 
-  if (!canSendAnalytics(consentRequirement)) {
-    return false;
-  }
-
   const timestamp = new Date().toISOString();
   const extended: ExtendedVizEventDetail = { ...detail, name, timestamp };
 
-  const event = new CustomEvent<ExtendedVizEventDetail>(name, {
-    detail: extended,
-    bubbles: false,
-  });
+  if (isVizBrowserEventName(name)) {
+    dispatchVizBrowserEvent(name, extended);
+  }
 
-  window.dispatchEvent(event);
+  if (!canSendAnalytics(consentRequirement)) {
+    return false;
+  }
 
   void sendAnalyticsEvent({
     name,
@@ -149,10 +152,6 @@ export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
     ? "necessary"
     : "all";
 
-  if (!canSendAnalytics(consentRequirement)) {
-    return false;
-  }
-
   const timestamp = new Date().toISOString();
   const payload: VizLifecyclePayload = {
     type: event.type,
@@ -161,12 +160,11 @@ export function emitVizLifecycleEvent(event: VizLifecycleEvent): boolean {
     timestamp,
   };
 
-  const lifecycleEvent = new CustomEvent<VizLifecyclePayload>("viz_lifecycle", {
-    detail: payload,
-    bubbles: false,
-  });
+  dispatchVizBrowserEvent("viz_lifecycle", payload);
 
-  window.dispatchEvent(lifecycleEvent);
+  if (!canSendAnalytics(consentRequirement)) {
+    return false;
+  }
 
   void sendAnalyticsEvent({
     name: event.type,

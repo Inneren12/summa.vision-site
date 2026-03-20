@@ -5,108 +5,21 @@
 import { useReducedMotion } from "@root/components/motion/useReducedMotion";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
-import { emitVizEvent, emitVizLifecycleEvent } from "../analytics/send";
-
 import type {
   VizAdapterLoader,
   VizAdapterWithConfig,
+  VizEvent,
   VizEventDetail,
   VizInstance,
   VizLifecycleEvent,
   RegisterResizeObserver,
 } from "./types";
 
-const NECESSARY_LIFECYCLE: ReadonlySet<VizLifecycleEvent["type"]> = new Set([
-  "viz_init",
-  "viz_ready",
-  "viz_error",
-  "viz_state",
-]);
-
-const DNT_ENABLED_VALUES = new Set(["1", "yes", "true"]);
+import { sendVizAnalytics } from "@/lib/analytics/viz";
+import type { VizAnalyticsContext } from "@/lib/analytics/vizTypes";
+import { dispatchVizBrowserEvent } from "@/lib/viz/events";
 
 const isBrowser = () => typeof window !== "undefined";
-
-function hasNavigatorDoNotTrack(): boolean {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-
-  const nav = navigator as Navigator & {
-    msDoNotTrack?: string;
-    globalPrivacyControl?: boolean;
-  };
-
-  if (typeof nav.globalPrivacyControl === "boolean" && nav.globalPrivacyControl) {
-    return true;
-  }
-
-  const signals = [nav.doNotTrack, nav.msDoNotTrack];
-  return signals.some((value) =>
-    value ? DNT_ENABLED_VALUES.has(String(value).toLowerCase()) : false,
-  );
-}
-
-function hasWindowDoNotTrack(): boolean {
-  if (!isBrowser()) {
-    return false;
-  }
-
-  const signal = (window as typeof window & { doNotTrack?: string }).doNotTrack;
-  return signal ? DNT_ENABLED_VALUES.has(String(signal).toLowerCase()) : false;
-}
-
-function readConsentFromCookies(): "all" | "necessary" {
-  if (typeof document === "undefined") {
-    return "necessary";
-  }
-
-  const cookies = document.cookie?.split(";") ?? [];
-  for (const part of cookies) {
-    const segment = part.trim();
-    if (!segment) {
-      continue;
-    }
-
-    const [name, ...rest] = segment.split("=");
-    if (name !== "sv_consent") {
-      continue;
-    }
-
-    const value = rest.join("=");
-    try {
-      const decoded = decodeURIComponent(value).trim().toLowerCase();
-      if (decoded === "all") {
-        return "all";
-      }
-      if (decoded === "necessary") {
-        return "necessary";
-      }
-    } catch {
-      const normalized = value.trim().toLowerCase();
-      if (normalized === "all") {
-        return "all";
-      }
-      if (normalized === "necessary") {
-        return "necessary";
-      }
-    }
-  }
-
-  return "necessary";
-}
-
-function shouldEmit(): boolean {
-  if (!isBrowser()) {
-    return false;
-  }
-
-  if (hasNavigatorDoNotTrack() || hasWindowDoNotTrack()) {
-    return false;
-  }
-
-  return readConsentFromCookies() === "all";
-}
 
 export type VizAdapterSource<S, Spec, Data> =
   | VizAdapterWithConfig<S, Spec, Data>
@@ -138,6 +51,9 @@ export interface UseVizMountOptions<S, Spec, Data> {
   readonly enableResizeObserver?: boolean;
   readonly onEvent?: (event: VizLifecycleEvent) => void;
   readonly registerResizeObserver?: RegisterResizeObserver;
+  readonly vizId?: string;
+  readonly storyId?: string;
+  readonly analyticsDisabled?: boolean;
 }
 
 export interface UseVizMountResult<S> {
@@ -172,6 +88,9 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
     onEvent,
     enableResizeObserver = true,
     registerResizeObserver: registerResizeObserverOption,
+    vizId,
+    storyId,
+    analyticsDisabled = false,
   } = options;
 
   const { isReducedMotion } = useReducedMotion();
@@ -191,6 +110,55 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
   }, []);
 
   const adapterMemo = useMemo(() => adapterSource, [adapterSource]);
+  const adapterId = useMemo(
+    () => (adapterSource as { id?: string }).id ?? "unknown",
+    [adapterSource],
+  );
+
+  const [analyticsContext, setAnalyticsContext] = useState<VizAnalyticsContext>(() => ({
+    adapter: adapterId,
+    vizId,
+    storyId,
+    discrete,
+  }));
+
+  const analyticsContextRef = useRef(analyticsContext);
+
+  useEffect(() => {
+    analyticsContextRef.current = analyticsContext;
+  }, [analyticsContext]);
+
+  useEffect(() => {
+    setAnalyticsContext((prev) => {
+      if (
+        prev.adapter === adapterId &&
+        prev.vizId === vizId &&
+        prev.storyId === storyId &&
+        prev.discrete === discrete
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        adapter: adapterId,
+        vizId,
+        storyId,
+        discrete,
+      };
+    });
+  }, [adapterId, discrete, storyId, vizId]);
+
+  const handleVizEvent = useCallback(
+    (event: VizEvent) => {
+      dispatchVizBrowserEvent(event.type, event);
+      onEvent?.(event);
+      if (!analyticsDisabled) {
+        void sendVizAnalytics(event, analyticsContextRef.current);
+      }
+    },
+    [analyticsDisabled, onEvent],
+  );
 
   useEffect(() => {
     if (!isBrowser() || !element) {
@@ -200,16 +168,12 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
     let cancelled = false;
 
     const forwardEvent = (event: VizLifecycleEvent) => {
-      onEvent?.(event);
-      emitVizLifecycleEvent(event);
       const detail: VizEventDetail = {
         motion: discrete ? "discrete" : "animated",
         ...(event.meta ?? {}),
       } as VizEventDetail;
-      const allowAnalytics = shouldEmit() || NECESSARY_LIFECYCLE.has(event.type);
-      if (allowAnalytics) {
-        emitVizEvent(event.type, detail);
-      }
+
+      handleVizEvent({ ...event, meta: detail });
     };
 
     const registerResizeObserver =
@@ -259,6 +223,16 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
       .then((adapter) => {
         if (cancelled) {
           return;
+        }
+
+        const resolvedAdapterId = (adapter as { id?: string }).id;
+        if (resolvedAdapterId) {
+          setAnalyticsContext((prev) => {
+            if (prev.adapter === resolvedAdapterId) {
+              return prev;
+            }
+            return { ...prev, adapter: resolvedAdapterId };
+          });
         }
 
         return adapter.mount({
@@ -327,8 +301,8 @@ export function useVizMount<S = unknown, Spec = unknown, Data = unknown>(
     discrete,
     element,
     enableResizeObserver,
+    handleVizEvent,
     initialState,
-    onEvent,
     registerResizeObserverOption,
     spec,
   ]);
